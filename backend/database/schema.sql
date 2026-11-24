@@ -1,12 +1,20 @@
--- ========================================================
--- Dashboard Kanban - Base de Données MySQL
--- ========================================================
+/* ========================================================
+   Dashboard Kanban - Base de Données MySQL
+   ======================================================== */
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
--- 1. Utilisateurs (Associés & Comptes)
+/* 0. Suppression dans l'ordre inverse des dépendances */
+DROP TABLE IF EXISTS `subtasks`;
+DROP TABLE IF EXISTS `tasks`;
+DROP TABLE IF EXISTS `questions`;
+DROP TABLE IF EXISTS `user_sessions`;
+DROP TABLE IF EXISTS `sprints`;
+DROP TABLE IF EXISTS `properties`;
 DROP TABLE IF EXISTS `users`;
+
+/* 1. Utilisateurs (Associés & Comptes) */
 CREATE TABLE `users` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL,
@@ -18,8 +26,7 @@ CREATE TABLE `users` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 2. Logements / Propriétés
-DROP TABLE IF EXISTS `properties`;
+/* 2. Logements / Propriétés */
 CREATE TABLE `properties` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL UNIQUE,
@@ -29,8 +36,7 @@ CREATE TABLE `properties` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3. Sprints (Réunions hebdomadaires)
-DROP TABLE IF EXISTS `sprints`;
+/* 3. Sprints (Réunions hebdomadaires) */
 CREATE TABLE `sprints` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `number` INT NOT NULL UNIQUE,
@@ -44,8 +50,7 @@ CREATE TABLE `sprints` (
   FOREIGN KEY (`closed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. Tâches
-DROP TABLE IF EXISTS `tasks`;
+/* 4. Tâches */
 CREATE TABLE `tasks` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `sprint_id` INT NOT NULL,
@@ -69,8 +74,7 @@ CREATE TABLE `tasks` (
   FOREIGN KEY (`parent_task_id`) REFERENCES `tasks`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5. Sous-tâches (Checklist & hiérarchie)
-DROP TABLE IF EXISTS `subtasks`;
+/* 5. Sous-tâches (Checklist & hiérarchie) */
 CREATE TABLE `subtasks` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `task_id` INT NOT NULL,
@@ -81,8 +85,7 @@ CREATE TABLE `subtasks` (
   FOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 6. Questions / Sujets stratégiques de réunion
-DROP TABLE IF EXISTS `questions`;
+/* 6. Questions / Sujets stratégiques de réunion */
 CREATE TABLE `questions` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `sprint_id` INT NOT NULL,
@@ -97,8 +100,7 @@ CREATE TABLE `questions` (
   FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 7. Journal des sessions (Authentification simple par token sécurisé)
-DROP TABLE IF EXISTS `user_sessions`;
+/* 7. Journal des sessions */
 CREATE TABLE `user_sessions` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
