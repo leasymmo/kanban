@@ -5,7 +5,7 @@ import {
   Users, CheckCircle2, Clock, AlertTriangle, ArrowRight, UserPlus,
   HelpCircle, Shield, CheckSquare, Square, RefreshCw, Calendar,
   Sparkles, MessageSquare, Check, Edit3, X, ChevronRight, Star,
-  ChevronDown, ChevronUp, ListFilter
+  ChevronDown, ChevronUp, ListFilter, Plus
 } from 'lucide-react';
 
 interface MeetingViewProps {
@@ -23,6 +23,8 @@ interface MeetingViewProps {
   onSetQuestionDecision?: (questionId: number, finalAnswer: string, status?: string) => Promise<void>;
   onEditTask: (task: Task) => void;
   onToggleStar?: (taskId: number) => void;
+  onAddNewTask?: () => void;
+  onAddNewQuestion?: () => void;
   isReadOnly: boolean;
 }
 
@@ -41,10 +43,26 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   onSetQuestionDecision,
   onEditTask,
   onToggleStar,
+  onAddNewTask,
+  onAddNewQuestion,
   isReadOnly
 }) => {
   const isAdmin = currentUser?.role === 'admin';
   const [meetingStep, setMeetingStep] = useState<'retro' | 'questions' | 'unassigned'>('retro');
+
+  // Rôles de la réunion (Animateur & Rédacteur) - fidélité au process Carré d'Hôtes
+  const [animatorId, setAnimatorId] = useState<number>(() => {
+    const stored = localStorage.getItem('meeting_animator_id');
+    if (stored) return Number(stored);
+    const chris = users.find(u => u.name.toLowerCase().includes('chris'));
+    return chris ? chris.id : (users[0]?.id || 1);
+  });
+  const [scribeId, setScribeId] = useState<number>(() => {
+    const stored = localStorage.getItem('meeting_scribe_id');
+    if (stored) return Number(stored);
+    const max = users.find(u => u.name.toLowerCase().includes('max'));
+    return max ? max.id : (users[1]?.id || users[0]?.id || 1);
+  });
 
   // Accordéons des tâches non mises en avant (par associé)
   const [expandedAccordions, setExpandedAccordions] = useState<{ [userId: number]: boolean }>({});
@@ -196,6 +214,68 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           </div>
         </div>
 
+        {/* Rôles de la réunion hebdomadaire (Fidélité au rituel du document de réunion) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-800/80 text-xs">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+            {/* Animateur */}
+            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/70 rounded-xl px-3 py-1.5 shadow-2xs">
+              <span className="text-[11px] text-indigo-300 font-bold uppercase tracking-wider flex items-center gap-1">
+                🎤 Animateur :
+              </span>
+              <select
+                value={animatorId}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setAnimatorId(val);
+                  localStorage.setItem('meeting_animator_id', String(val));
+                }}
+                className="bg-slate-900 border border-slate-700 rounded-md px-1.5 py-0.5 text-white font-bold text-xs focus:outline-none cursor-pointer"
+              >
+                {users.map(u => (
+                  <option key={u.id} value={u.id} className="bg-slate-900 text-white">
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">(Garant du temps & parole)</span>
+            </div>
+
+            {/* Rédacteur */}
+            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/70 rounded-xl px-3 py-1.5 shadow-2xs">
+              <span className="text-[11px] text-purple-300 font-bold uppercase tracking-wider flex items-center gap-1">
+                ✍️ Rédacteur :
+              </span>
+              <select
+                value={scribeId}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setScribeId(val);
+                  localStorage.setItem('meeting_scribe_id', String(val));
+                }}
+                className="bg-slate-900 border border-slate-700 rounded-md px-1.5 py-0.5 text-white font-bold text-xs focus:outline-none cursor-pointer"
+              >
+                {users.map(u => (
+                  <option key={u.id} value={u.id} className="bg-slate-900 text-white">
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">(Note décisions & actions)</span>
+            </div>
+          </div>
+
+          {/* Bouton d'ajout rapide de tâche en direct pendant la réunion */}
+          {!isReadOnly && currentUser?.role !== 'read' && onAddNewTask && (
+            <button
+              onClick={onAddNewTask}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/20 hover:bg-brand-500/30 text-brand-200 border border-brand-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ml-auto"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Nouvelle tâche en séance</span>
+            </button>
+          )}
+        </div>
+
       </div>
 
       {/* Barre d'étapes de la réunion (Responsive horizontal scroll on mobile) */}
@@ -209,7 +289,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           }`}
         >
           <span className="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px]">1</span>
-          Rétrospective par Associé
+          <span>Rétrospective par Associé</span>
+          <span className="text-[10px] opacity-75 font-normal px-1.5 py-0.5 rounded bg-black/20">15 min</span>
         </button>
 
         <button
@@ -221,7 +302,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           }`}
         >
           <span className="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px]">2</span>
-          Revue des Questions & Décisions ({openQuestions.length})
+          <span>Revue des Questions & Décisions</span>
+          <span className="text-[10px] opacity-75 font-normal px-1.5 py-0.5 rounded bg-black/20">30 min</span>
+          <span className="px-1.5 py-0.2 rounded-full bg-indigo-500 text-white text-[10px]">{openQuestions.length}</span>
         </button>
 
         <button
@@ -233,7 +316,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           }`}
         >
           <span className="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px]">3</span>
-          Pool Tâches non attribuées ({unassignedTasks.length})
+          <span>Plan d'Action & Tâches orphelines</span>
+          <span className="text-[10px] opacity-75 font-normal px-1.5 py-0.5 rounded bg-black/20">10 min</span>
+          <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px]">{unassignedTasks.length}</span>
         </button>
       </div>
 
@@ -458,9 +543,21 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 Passez en revue les questions et validez la décision définitive en séance (directement ou depuis une proposition).
               </p>
             </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 self-start sm:self-auto">
-              {openQuestions.length} restante{openQuestions.length > 1 ? 's' : ''} à traiter
-            </span>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">
+                {openQuestions.length} restante{openQuestions.length > 1 ? 's' : ''} à traiter
+              </span>
+              {!isReadOnly && currentUser?.role !== 'read' && onAddNewQuestion && (
+                <button
+                  type="button"
+                  onClick={onAddNewQuestion}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Poser une question</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -673,14 +770,26 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
             <div>
-              <h3 className="font-bold text-base text-slate-800">Tâches orphelines à attribuer en réunion</h3>
+              <h3 className="font-bold text-base text-slate-800">Plan d'action & Tâches orphelines à attribuer</h3>
               <p className="text-xs text-slate-500">
                 L'administrateur peut attribuer ces tâches en un clic à l'associé qui s'en charge.
               </p>
             </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 self-start sm:self-auto">
-              {unassignedTasks.length} tâche{unassignedTasks.length > 1 ? 's' : ''} en attente
-            </span>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+                {unassignedTasks.length} tâche{unassignedTasks.length > 1 ? 's' : ''} en attente
+              </span>
+              {!isReadOnly && currentUser?.role !== 'read' && onAddNewTask && (
+                <button
+                  type="button"
+                  onClick={onAddNewTask}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Ajouter une tâche au pool</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-3">

@@ -12,7 +12,7 @@ import { LoginPage } from './components/LoginPage';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import {
   Plus, LayoutGrid, Home, Filter, UserCheck, UserPlus,
-  RefreshCw, CheckCircle2, AlertCircle, ShieldAlert
+  RefreshCw, CheckCircle2, AlertCircle, ShieldAlert, Search, X
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -31,6 +31,8 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'tasks' | 'questions' | 'meeting'>('tasks');
   const [taskViewMode, setTaskViewMode] = useState<'kanban' | 'property'>('kanban');
   const [taskFilter, setTaskFilter] = useState<'all' | 'me' | 'unassigned' | number>('me');
+  const [taskSearchQuery, setTaskSearchQuery] = useState('');
+  const [taskPropertyFilter, setTaskPropertyFilter] = useState<number | 'all'>('all');
 
   // Modales
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -467,12 +469,32 @@ export const App: React.FC = () => {
     }
   };
 
-  // Filtrage des tâches selon la sélection
+  // Filtrage des tâches selon la sélection, le logement et la recherche
   const filteredTasks = tasks.filter(t => {
-    if (taskFilter === 'all') return true;
-    if (taskFilter === 'me') return t.assigned_to === currentUser?.id;
-    if (taskFilter === 'unassigned') return !t.assigned_to;
-    if (typeof taskFilter === 'number') return t.assigned_to === taskFilter;
+    // 1. Filtre par associé / assigné
+    if (taskFilter === 'me') {
+      if (t.assigned_to !== currentUser?.id) return false;
+    } else if (taskFilter === 'unassigned') {
+      if (t.assigned_to) return false;
+    } else if (typeof taskFilter === 'number') {
+      if (t.assigned_to !== taskFilter) return false;
+    }
+
+    // 2. Filtre par logement
+    if (taskPropertyFilter !== 'all') {
+      if (t.property_id !== taskPropertyFilter) return false;
+    }
+
+    // 3. Recherche instantanée (titre, description, logement, sous-tâches)
+    if (taskSearchQuery.trim()) {
+      const q = taskSearchQuery.toLowerCase();
+      const matchTitle = t.title.toLowerCase().includes(q);
+      const matchDesc = (t.description || '').toLowerCase().includes(q);
+      const matchProp = (t.property_name || '').toLowerCase().includes(q);
+      const matchSub = (t.subtasks || []).some(st => st.title.toLowerCase().includes(q));
+      if (!matchTitle && !matchDesc && !matchProp && !matchSub) return false;
+    }
+
     return true;
   });
 
@@ -629,8 +651,43 @@ export const App: React.FC = () => {
               </div>
 
               {/* Sélecteur de vue (Statut vs Logement) + Bouton Nouvelle Tâche */}
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
                 
+                {/* Barre de Recherche Instantanée */}
+                <div className="relative flex-1 sm:w-48 max-w-xs">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={taskSearchQuery}
+                    onChange={(e) => setTaskSearchQuery(e.target.value)}
+                    placeholder="Rechercher..."
+                    className="w-full pl-8 pr-7 py-1 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                  {taskSearchQuery && (
+                    <button
+                      onClick={() => setTaskSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtre par Logement */}
+                {properties.length > 0 && (
+                  <select
+                    value={taskPropertyFilter}
+                    onChange={(e) => setTaskPropertyFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-slate-700 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
+                    title="Filtrer par logement"
+                  >
+                    <option value="all">Tous les logements</option>
+                    {properties.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
+
                 {/* Switch vue Kanban / Logement */}
                 <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
                   <button
@@ -759,6 +816,11 @@ export const App: React.FC = () => {
               setIsTaskModalOpen(true);
             }}
             onToggleStar={handleToggleStar}
+            onAddNewTask={() => {
+              setEditingTask(null);
+              setIsTaskModalOpen(true);
+            }}
+            onAddNewQuestion={() => setActiveTab('questions')}
             isReadOnly={isReadOnly}
           />
         )}
