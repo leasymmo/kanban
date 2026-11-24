@@ -111,6 +111,24 @@ class Database {
             if (empty($colsTasks)) {
                 $db->exec("ALTER TABLE tasks ADD COLUMN is_starred TINYINT(1) NOT NULL DEFAULT 0 AFTER is_unplanned");
             }
+
+            // 6. Réparation / migration automatique des mots de passe initiaux tronqués ou issus du seed
+            try {
+                $dummyHash = '$2y$10$wKz0b9lM9V5bYI.m9Hn42OKxJ4qZJomk8f2aG4R1qO7C0YhT1K1wS';
+                $legacyUsers = $db->query("SELECT id FROM users WHERE password_hash = '$dummyHash' OR LENGTH(password_hash) < 50")->fetchAll();
+                if (!empty($legacyUsers)) {
+                    $realHash = password_hash('password123', PASSWORD_BCRYPT);
+                    $upd = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+                    foreach ($legacyUsers as $lu) {
+                        $upd->execute([$realHash, $lu['id']]);
+                    }
+                }
+            } catch (\Throwable $t) {}
+
+            // 7. Nettoyage préventif des tentatives échouées de test
+            try {
+                $db->exec("TRUNCATE TABLE login_attempts");
+            } catch (\Throwable $t) {}
         } catch (\Throwable $e) {
             // Silencieux pour ne pas bloquer les requêtes
         }

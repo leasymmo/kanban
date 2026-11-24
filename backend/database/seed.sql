@@ -6,10 +6,10 @@ SET NAMES utf8mb4;
 
 /* 1. Utilisateurs Démo */
 INSERT INTO `users` (`id`, `name`, `email`, `password_hash`, `role`, `avatar_color`, `initials`) VALUES
-(1, 'Alexandre', 'alexandre@example.com', '$2y$10$wKz0b9lM9V5bYI.m9Hn42OKxJ4qZJomk8f2aG4R1qO7C0YhT1K1wS', 'admin', '#2563EB', 'AL'),
-(2, 'Béatrice', 'beatrice@example.com', '$2y$10$wKz0b9lM9V5bYI.m9Hn42OKxJ4qZJomk8f2aG4R1qO7C0YhT1K1wS', 'admin', '#7C3AED', 'BE'),
-(3, 'Camille', 'camille@example.com', '$2y$10$wKz0b9lM9V5bYI.m9Hn42OKxJ4qZJomk8f2aG4R1qO7C0YhT1K1wS', 'write', '#059669', 'CA'),
-(4, 'Damien', 'damien@example.com', '$2y$10$wKz0b9lM9V5bYI.m9Hn42OKxJ4qZJomk8f2aG4R1qO7C0YhT1K1wS', 'write', '#D97706', 'DA');
+(1, 'Alexandre', 'alexandre@example.com', '$2y$10$hlNwWbr0bWb6zib8A3iUXuHidlfR4XADpvmRTvXCbxnguwUtxdfai', 'admin', '#2563EB', 'AL'),
+(2, 'Béatrice', 'beatrice@example.com', '$2y$10$hlNwWbr0bWb6zib8A3iUXuHidlfR4XADpvmRTvXCbxnguwUtxdfai', 'admin', '#7C3AED', 'BE'),
+(3, 'Camille', 'camille@example.com', '$2y$10$hlNwWbr0bWb6zib8A3iUXuHidlfR4XADpvmRTvXCbxnguwUtxdfai', 'write', '#059669', 'CA'),
+(4, 'Damien', 'damien@example.com', '$2y$10$hlNwWbr0bWb6zib8A3iUXuHidlfR4XADpvmRTvXCbxnguwUtxdfai', 'write', '#D97706', 'DA');
 
 /* 2. Propriétés Démo */
 INSERT INTO `properties` (`id`, `name`, `code`, `color`, `is_active`) VALUES
