@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Script de préparation du déploiement hébergement web mutualisé (Apache / PHP)
+# Script de préparation du package de déploiement (Apache / PHP / OVHcloud)
 # ==============================================================================
 
 set -e
@@ -8,9 +8,14 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/deploy/www"
 
+# Détection de Node 22 si présent sur macOS Homebrew
+if [ -d "/usr/local/Cellar/node/22.10.0/bin" ]; then
+    export PATH="/usr/local/Cellar/node/22.10.0/bin:$PATH"
+fi
+
 echo "==> 1. Compilation du Frontend React / Vite..."
 cd "$PROJECT_ROOT/frontend"
-PATH="/usr/local/Cellar/node/22.10.0/bin:$PATH" npm run build
+npm run build
 
 echo "==> 2. Préparation du dossier de déploiement ($BUILD_DIR)..."
 rm -rf "$BUILD_DIR"
@@ -26,20 +31,31 @@ cp -R "$PROJECT_ROOT/backend/config" "$BUILD_DIR/api/"
 cp "$PROJECT_ROOT/backend/public/index.php" "$BUILD_DIR/api/index.php"
 cp "$PROJECT_ROOT/backend/public/.htaccess" "$BUILD_DIR/api/.htaccess"
 
+# Si un fichier .env local existe, on l'embarque dans api/ pour la production
+if [ -f "$PROJECT_ROOT/backend/.env" ]; then
+    echo "==> 4b. Copie de backend/.env vers $BUILD_DIR/api/.env..."
+    cp "$PROJECT_ROOT/backend/.env" "$BUILD_DIR/api/.env"
+fi
+
 echo "==> 5. Copie des scripts SQL pour phpMyAdmin..."
 cp "$PROJECT_ROOT/backend/database/schema.sql" "$BUILD_DIR/database/"
 cp "$PROJECT_ROOT/backend/database/seed.sql" "$BUILD_DIR/database/"
 
-echo "==> 6. Création du fichier .htaccess racine pour Apache..."
+# Si la seed de production existe localement dans .agents/notes/, on la copie aussi pour phpMyAdmin
+if [ -f "$PROJECT_ROOT/.agents/notes/seed-carredhotes.sql" ]; then
+    cp "$PROJECT_ROOT/.agents/notes/seed-carredhotes.sql" "$BUILD_DIR/database/seed-production.sql"
+fi
+
+echo "==> 6. Création du fichier .htaccess racine pour Apache OVH..."
 cat << 'EOF' > "$BUILD_DIR/.htaccess"
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
 
-    # Redirection de l'API vers le sous-dossier api/
+    # Redirection des requêtes API vers api/index.php
     RewriteRule ^api/(.*)$ api/index.php [QSA,L]
 
-    # Redirection SPA (Frontend React) pour toutes les autres requêtes
+    # Redirection SPA React pour toutes les autres requêtes
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^ index.html [L]
@@ -56,7 +72,7 @@ echo "==> 7. Création de config.local.example.php..."
 cat << 'EOF' > "$BUILD_DIR/api/config/config.local.example.php"
 <?php
 // Renommez ce fichier en config.local.php sur votre serveur
-// et renseignez les identifiants de votre base de données MySQL.
+// si vous n'utilisez pas de fichier .env.
 return [
     'driver' => 'mysql',
     'mysql' => [
@@ -70,6 +86,10 @@ return [
 EOF
 
 echo "------------------------------------------------------------------"
-echo "✅ Package de déploiement généré avec succès dans : deploy/www/"
-echo "Vous pouvez envoyer le contenu de deploy/www/ dans le dossier www/ de votre hébergement."
+echo "✅ Package prêt dans le dossier : deploy/www/"
+echo "Contenu à envoyer sur le serveur OVH :"
+echo "  - .htaccess"
+echo "  - index.html"
+echo "  - assets/"
+echo "  - api/"
 echo "------------------------------------------------------------------"
