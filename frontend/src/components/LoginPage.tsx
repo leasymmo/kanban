@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { Lock, Mail, Eye, EyeOff, LogIn, Shield, UserCheck, AlertCircle, Sparkles } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, LogIn, Shield, UserCheck, AlertCircle } from 'lucide-react';
 
 interface LoginPageProps {
   users: User[];
@@ -229,14 +229,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
             </button>
 
           </form>
-
-          {/* Indication mot de passe initial */}
-          <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span className="flex items-center gap-1 text-slate-500">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              Mot de passe initial : <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">password123</code>
-            </span>
-          </div>
 
         </div>
 
