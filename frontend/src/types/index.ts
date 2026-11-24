@@ -20,9 +20,11 @@ export interface Property {
 export interface Subtask {
   id: number;
   task_id: number;
+  parent_id?: number | null;
   title: string;
   is_done: number | boolean;
   position: number;
+  children?: Subtask[];
 }
 
 export type TaskStatus = 'todo' | 'in_progress' | 'blocked' | 'done';
@@ -72,6 +74,19 @@ export interface Sprint {
 
 export type QuestionStatus = 'open' | 'discussed' | 'resolved';
 
+export interface QuestionAnswer {
+  id: number;
+  question_id: number;
+  user_id: number;
+  user_name?: string;
+  user_initials?: string;
+  user_color?: string;
+  content: string;
+  created_at: string;
+  can_edit?: boolean;
+  can_delete?: boolean;
+}
+
 export interface Question {
   id: number;
   sprint_id: number;
@@ -84,6 +99,11 @@ export interface Question {
   title: string;
   details?: string;
   status: QuestionStatus;
+  final_answer?: string | null;
+  answered_by?: number | null;
+  answered_by_name?: string | null;
+  answered_at?: string | null;
+  answers?: QuestionAnswer[];
   can_edit?: boolean;
   can_delete?: boolean;
 }

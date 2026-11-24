@@ -30,7 +30,7 @@ export const App: React.FC = () => {
   // Tabs & Views
   const [activeTab, setActiveTab] = useState<'tasks' | 'questions' | 'meeting'>('tasks');
   const [taskViewMode, setTaskViewMode] = useState<'kanban' | 'property'>('kanban');
-  const [taskFilter, setTaskFilter] = useState<'all' | 'me' | 'unassigned' | number>('all');
+  const [taskFilter, setTaskFilter] = useState<'all' | 'me' | 'unassigned' | number>('me');
 
   // Modales
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -265,6 +265,16 @@ export const App: React.FC = () => {
     }
   };
 
+  // Ajout direct d'une sous-tâche hiérarchique
+  const handleAddSubtask = async (taskId: number, title: string, parentId?: number | null) => {
+    try {
+      await api.addSubtask(taskId, title, parentId);
+      if (currentSprintId) loadSprintDetails(currentSprintId);
+    } catch (e: any) {
+      alert(e.message || "Erreur lors de l'ajout de la sous-tâche");
+    }
+  };
+
   // Questions : Ajout / Modif / Suppr
   const handleAddQuestion = async (data: any) => {
     try {
@@ -306,6 +316,45 @@ export const App: React.FC = () => {
       await api.deleteQuestion(id);
     } catch {
       // Mode local
+    }
+  };
+
+  // Réponses collaboratives sur les questions
+  const handleAddAnswer = async (questionId: number, content: string) => {
+    try {
+      await api.addQuestionAnswer(questionId, content);
+      if (currentSprintId) loadSprintDetails(currentSprintId);
+    } catch (e: any) {
+      alert(e.message || "Erreur lors de l'envoi de la proposition");
+    }
+  };
+
+  const handleUpdateAnswer = async (answerId: number, content: string) => {
+    try {
+      await api.updateQuestionAnswer(answerId, content);
+      if (currentSprintId) loadSprintDetails(currentSprintId);
+    } catch (e: any) {
+      alert(e.message || "Erreur lors de la modification de la réponse");
+    }
+  };
+
+  const handleDeleteAnswer = async (answerId: number) => {
+    if (!window.confirm('Supprimer cette proposition de réponse ?')) return;
+    try {
+      await api.deleteQuestionAnswer(answerId);
+      if (currentSprintId) loadSprintDetails(currentSprintId);
+    } catch (e: any) {
+      alert(e.message || "Erreur lors de la suppression");
+    }
+  };
+
+  // Arbitrage / Décision définitive prise en réunion
+  const handleSetQuestionDecision = async (questionId: number, finalAnswer: string, status: string = 'resolved') => {
+    try {
+      await api.setQuestionDecision(questionId, finalAnswer, status);
+      if (currentSprintId) loadSprintDetails(currentSprintId);
+    } catch (e: any) {
+      alert(e.message || "Erreur lors de l'enregistrement de la décision");
     }
   };
 
@@ -407,7 +456,7 @@ export const App: React.FC = () => {
       />
 
       {/* Conteneur Principal */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
 
         {/* Message d'erreur API si échec */}
         {apiError && (
@@ -438,10 +487,10 @@ export const App: React.FC = () => {
           <>
             {/* TAB 1 : TÂCHES */}
             {activeTab === 'tasks' && (
-          <div className="space-y-5">
+          <div className="space-y-4 sm:space-y-5">
             
             {/* Barre de contrôles des tâches */}
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3">
               
               {/* Filtres par associé / pool */}
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -449,23 +498,11 @@ export const App: React.FC = () => {
                   Filtres :
                 </span>
 
-                {/* Toutes */}
-                <button
-                  onClick={() => setTaskFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    taskFilter === 'all'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Toutes ({tasks.length})
-                </button>
-
-                {/* Mes tâches */}
+                {/* Mes tâches (DEFAULT) */}
                 {currentUser && (
                   <button
                     onClick={() => setTaskFilter('me')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       taskFilter === 'me'
                         ? 'bg-brand-600 text-white shadow-xs'
                         : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
@@ -476,10 +513,22 @@ export const App: React.FC = () => {
                   </button>
                 )}
 
+                {/* Toutes */}
+                <button
+                  onClick={() => setTaskFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    taskFilter === 'all'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Toutes ({tasks.length})
+                </button>
+
                 {/* Tâches non attribuées (pool commun) */}
                 <button
                   onClick={() => setTaskFilter('unassigned')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     taskFilter === 'unassigned'
                       ? 'bg-amber-600 text-white shadow-xs'
                       : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
@@ -489,7 +538,7 @@ export const App: React.FC = () => {
                   Non attribuées ({tasks.filter(t => !t.assigned_to).length})
                 </button>
 
-                {/* Filtre par autres associés (le compte connecté n'apparaît pas car couvert par "Mes tâches" conformément au brief) */}
+                {/* Filtre par autres associés */}
                 {allUsers
                   .filter(u => u.id !== currentUser?.id)
                   .map(u => {
@@ -500,7 +549,7 @@ export const App: React.FC = () => {
                       <button
                         key={u.id}
                         onClick={() => setTaskFilter(u.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                           isSelected
                             ? 'text-white shadow-xs'
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -520,13 +569,13 @@ export const App: React.FC = () => {
               </div>
 
               {/* Sélecteur de vue (Statut vs Logement) + Bouton Nouvelle Tâche */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
                 
                 {/* Switch vue Kanban / Logement */}
                 <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
                   <button
                     onClick={() => setTaskViewMode('kanban')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                       taskViewMode === 'kanban'
                         ? 'bg-white text-slate-900 shadow-xs'
                         : 'text-slate-500 hover:text-slate-900'
@@ -539,7 +588,7 @@ export const App: React.FC = () => {
 
                   <button
                     onClick={() => setTaskViewMode('property')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                       taskViewMode === 'property'
                         ? 'bg-white text-slate-900 shadow-xs'
                         : 'text-slate-500 hover:text-slate-900'
@@ -558,10 +607,10 @@ export const App: React.FC = () => {
                       setEditingTask(null);
                       setIsTaskModalOpen(true);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-sm shadow-brand-600/30 transition-all"
+                    className="flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
-                    Nouvelle tâche
+                    <span>Nouvelle tâche</span>
                   </button>
                 )}
               </div>
@@ -579,6 +628,7 @@ export const App: React.FC = () => {
                 }}
                 onDeleteTask={handleDeleteTask}
                 onToggleSubtask={handleToggleSubtask}
+                onAddSubtask={handleAddSubtask}
                 onUpdateStatus={handleUpdateTaskStatus}
                 onAddNewTask={() => {
                   setEditingTask(null);
@@ -597,6 +647,7 @@ export const App: React.FC = () => {
                 }}
                 onDeleteTask={handleDeleteTask}
                 onToggleSubtask={handleToggleSubtask}
+                onAddSubtask={handleAddSubtask}
                 onAddNewTask={() => {
                   setEditingTask(null);
                   setIsTaskModalOpen(true);
@@ -618,6 +669,9 @@ export const App: React.FC = () => {
             onAddQuestion={handleAddQuestion}
             onUpdateQuestion={handleUpdateQuestion}
             onDeleteQuestion={handleDeleteQuestion}
+            onAddAnswer={handleAddAnswer}
+            onUpdateAnswer={handleUpdateAnswer}
+            onDeleteAnswer={handleDeleteAnswer}
             isReadOnly={isReadOnly}
           />
         )}
@@ -636,6 +690,7 @@ export const App: React.FC = () => {
             onAssignTask={handleAssignTask}
             onToggleSubtask={handleToggleSubtask}
             onUpdateQuestionStatus={(qId, st) => handleUpdateQuestion(qId, { status: st })}
+            onSetQuestionDecision={handleSetQuestionDecision}
             onEditTask={(t) => {
               setEditingTask(t);
               setIsTaskModalOpen(true);

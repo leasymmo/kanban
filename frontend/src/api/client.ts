@@ -186,10 +186,10 @@ export const api = {
   },
 
   // Subtasks
-  async addSubtask(taskId: number, title: string) {
-    return request<{ success: boolean; subtask_id: number }>(`/tasks/${taskId}/subtasks`, {
+  async addSubtask(taskId: number, title: string, parentId?: number | null) {
+    return request<{ success: boolean; subtask_id: number; subtask?: any }>(`/tasks/${taskId}/subtasks`, {
       method: 'POST',
-      body: JSON.stringify({ title })
+      body: JSON.stringify({ title, parent_id: parentId || null })
     });
   },
 
@@ -227,6 +227,35 @@ export const api = {
   async deleteQuestion(id: number) {
     return request<{ success: boolean }>(`/questions/${id}`, {
       method: 'DELETE'
+    });
+  },
+
+  // Questions collaborative answers
+  async addQuestionAnswer(questionId: number, content: string) {
+    return request<{ success: boolean; answer: any; message: string }>(`/questions/${questionId}/answers`, {
+      method: 'POST',
+      body: JSON.stringify({ content })
+    });
+  },
+
+  async updateQuestionAnswer(answerId: number, content: string) {
+    return request<{ success: boolean; content: string; message: string }>(`/answers/${answerId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content })
+    });
+  },
+
+  async deleteQuestionAnswer(answerId: number) {
+    return request<{ success: boolean; message: string }>(`/answers/${answerId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Questions definitive decision (in meeting)
+  async setQuestionDecision(questionId: number, finalAnswer: string, status: string = 'resolved') {
+    return request<{ success: boolean; message: string; final_answer: string; status: string; answered_by?: number; answered_by_name?: string; answered_at?: string }>(`/questions/${questionId}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ final_answer: finalAnswer, status })
     });
   }
 };

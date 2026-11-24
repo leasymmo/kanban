@@ -10,6 +10,7 @@ interface PropertyBoardProps {
   onEditTask: (task: Task) => void;
   onDeleteTask: (id: number) => void;
   onToggleSubtask: (subtaskId: number) => void;
+  onAddSubtask?: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
   onAddNewTask: (propertyId?: number) => void;
   isReadOnly: boolean;
 }
@@ -21,6 +22,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   onEditTask,
   onDeleteTask,
   onToggleSubtask,
+  onAddSubtask,
   onAddNewTask,
   isReadOnly
 }) => {
@@ -106,6 +108,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                       onEdit={onEditTask}
                       onDelete={onDeleteTask}
                       onToggleSubtask={onToggleSubtask}
+                      onAddSubtask={onAddSubtask}
                     />
                   ))
                 ) : (

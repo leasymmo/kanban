@@ -96,6 +96,12 @@ $router->add('POST', '/api/questions', [QuestionController::class, 'create']);
 $router->add('PUT', '/api/questions/{id}', [QuestionController::class, 'update']);
 $router->add('PATCH', '/api/questions/{id}', [QuestionController::class, 'update']);
 $router->add('DELETE', '/api/questions/{id}', [QuestionController::class, 'delete']);
+$router->add('POST', '/api/questions/{id}/answers', [QuestionController::class, 'addAnswer']);
+$router->add('PUT', '/api/answers/{id}', [QuestionController::class, 'updateAnswer']);
+$router->add('PATCH', '/api/answers/{id}', [QuestionController::class, 'updateAnswer']);
+$router->add('DELETE', '/api/answers/{id}', [QuestionController::class, 'deleteAnswer']);
+$router->add('POST', '/api/questions/{id}/decision', [QuestionController::class, 'setDecision']);
+$router->add('PATCH', '/api/questions/{id}/decision', [QuestionController::class, 'setDecision']);
 
 // Exécution de la requête
 $router->dispatch();

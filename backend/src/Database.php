@@ -44,6 +44,8 @@ class Database {
                         PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
                     ]);
                 }
+
+                self::migrateSchema(self::$instance);
             } catch (PDOException $e) {
                 http_response_code(500);
                 header('Content-Type: application/json; charset=utf-8');
@@ -56,5 +58,45 @@ class Database {
         }
 
         return self::$instance;
+    }
+
+    private static function migrateSchema(PDO $db): void {
+        try {
+            // 1. Colonne parent_id dans subtasks (sous-tâches récursives)
+            $colsSubtasks = $db->query("SHOW COLUMNS FROM subtasks LIKE 'parent_id'")->fetchAll();
+            if (empty($colsSubtasks)) {
+                $db->exec("ALTER TABLE subtasks ADD COLUMN parent_id INT NULL DEFAULT NULL AFTER task_id");
+                try {
+                    $db->exec("ALTER TABLE subtasks ADD CONSTRAINT fk_subtasks_parent FOREIGN KEY (parent_id) REFERENCES subtasks(id) ON DELETE CASCADE");
+                } catch (\Throwable $t) {}
+            }
+
+            // 2. Colonnes pour décision finale dans questions
+            $colsQ = $db->query("SHOW COLUMNS FROM questions LIKE 'final_answer'")->fetchAll();
+            if (empty($colsQ)) {
+                $db->exec("ALTER TABLE questions ADD COLUMN final_answer TEXT NULL DEFAULT NULL AFTER status");
+                $db->exec("ALTER TABLE questions ADD COLUMN answered_by INT NULL DEFAULT NULL AFTER final_answer");
+                $db->exec("ALTER TABLE questions ADD COLUMN answered_at DATETIME NULL DEFAULT NULL AFTER answered_by");
+                try {
+                    $db->exec("ALTER TABLE questions ADD CONSTRAINT fk_questions_answered_by FOREIGN KEY (answered_by) REFERENCES users(id) ON DELETE SET NULL");
+                } catch (\Throwable $t) {}
+            }
+
+            // 3. Table des réponses collaboratives
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS question_answers (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    question_id INT NOT NULL,
+                    user_id INT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
+        } catch (\Throwable $e) {
+            // Silencieux pour ne pas bloquer les requêtes
+        }
     }
 }

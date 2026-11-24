@@ -129,20 +129,47 @@ class SprintController {
         $stmtQ = $db->prepare("
             SELECT q.*,
                    u.name as user_name, u.initials as user_initials, u.avatar_color as user_color,
-                   uc.name as created_by_name
+                   uc.name as created_by_name,
+                   ua.name as answered_by_name
             FROM questions q
             JOIN users u ON u.id = q.user_id
             JOIN users uc ON uc.id = q.created_by
+            LEFT JOIN users ua ON ua.id = q.answered_by
             WHERE q.sprint_id = ?
             ORDER BY q.user_id ASC, q.id ASC
         ");
         $stmtQ->execute([$id]);
         $questions = $stmtQ->fetchAll();
 
+        // Récupération des réponses collaboratives
+        $qIds = array_column($questions, 'id');
+        $answersMap = [];
+        if (!empty($qIds)) {
+            $inClause = implode(',', array_fill(0, count($qIds), '?'));
+            $stmtAnswers = $db->prepare("
+                SELECT a.*, u.name as user_name, u.initials as user_initials, u.avatar_color as user_color
+                FROM question_answers a
+                JOIN users u ON u.id = a.user_id
+                WHERE a.question_id IN ($inClause)
+                ORDER BY a.created_at ASC, a.id ASC
+            ");
+            $stmtAnswers->execute($qIds);
+            while ($ans = $stmtAnswers->fetch()) {
+                $answersMap[$ans['question_id']][] = $ans;
+            }
+        }
+
         foreach ($questions as &$q) {
             $q['can_edit'] = ($currentUser['role'] === 'admin')
                 || ($currentUser['role'] === 'write' && $q['user_id'] == $currentUser['id']);
             $q['can_delete'] = $q['can_edit'];
+
+            $rawAnswers = $answersMap[$q['id']] ?? [];
+            foreach ($rawAnswers as &$ans) {
+                $ans['can_edit'] = ($currentUser['role'] === 'admin') || ($ans['user_id'] == $currentUser['id']);
+                $ans['can_delete'] = $ans['can_edit'];
+            }
+            $q['answers'] = $rawAnswers;
         }
 
         Response::json([
@@ -236,12 +263,12 @@ class SprintController {
             $stmtGetSubtasks = $db->prepare("
                 SELECT * FROM subtasks
                 WHERE task_id = ?
-                ORDER BY position ASC, id ASC
+                ORDER BY parent_id ASC, position ASC, id ASC
             ");
 
             $stmtInsertSubtask = $db->prepare("
-                INSERT INTO subtasks (task_id, title, is_done, position)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO subtasks (task_id, parent_id, title, is_done, position)
+                VALUES (?, ?, ?, ?, ?)
             ");
 
             foreach ($pendingTasks as $oldTask) {
@@ -264,17 +291,24 @@ class SprintController {
                 $newTaskId = (int)$db->lastInsertId();
                 $rolledOverTasksCount++;
 
-                // Report de TOUTES les sous-tâches (faites ou non)
+                // Report de TOUTES les sous-tâches (faites ou non) avec préservation de la hiérarchie parent/enfant
                 $stmtGetSubtasks->execute([$oldTask['id']]);
                 $oldSubtasks = $stmtGetSubtasks->fetchAll();
 
+                $subtaskIdMap = [];
                 foreach ($oldSubtasks as $sub) {
+                    $newParentId = !empty($sub['parent_id']) && isset($subtaskIdMap[$sub['parent_id']])
+                        ? $subtaskIdMap[$sub['parent_id']]
+                        : null;
+
                     $stmtInsertSubtask->execute([
                         $newTaskId,
+                        $newParentId,
                         $sub['title'],
                         $sub['is_done'], // Conserve l'état coché ou non
                         $sub['position']
                     ]);
+                    $subtaskIdMap[$sub['id']] = (int)$db->lastInsertId();
                     $rolledOverSubtasksCount++;
                 }
             }

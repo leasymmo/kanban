@@ -6,6 +6,7 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 /* 0. Suppression dans l'ordre inverse des dépendances */
+DROP TABLE IF EXISTS `question_answers`;
 DROP TABLE IF EXISTS `subtasks`;
 DROP TABLE IF EXISTS `tasks`;
 DROP TABLE IF EXISTS `questions`;
@@ -74,15 +75,17 @@ CREATE TABLE `tasks` (
   FOREIGN KEY (`parent_task_id`) REFERENCES `tasks`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-/* 5. Sous-tâches (Checklist & hiérarchie) */
+/* 5. Sous-tâches (Checklist & hiérarchie récursive multi-niveaux) */
 CREATE TABLE `subtasks` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `task_id` INT NOT NULL,
+  `parent_id` INT NULL DEFAULT NULL,
   `title` VARCHAR(255) NOT NULL,
   `is_done` TINYINT(1) NOT NULL DEFAULT 0,
   `position` INT DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON DELETE CASCADE
+  FOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`parent_id`) REFERENCES `subtasks`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 /* 6. Questions / Sujets stratégiques de réunion */
@@ -94,10 +97,26 @@ CREATE TABLE `questions` (
   `title` VARCHAR(255) NOT NULL,
   `details` TEXT NULL,
   `status` ENUM('open', 'discussed', 'resolved') DEFAULT 'open',
+  `final_answer` TEXT NULL DEFAULT NULL,
+  `answered_by` INT NULL DEFAULT NULL,
+  `answered_at` DATETIME NULL DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`sprint_id`) REFERENCES `sprints`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE
+  FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`answered_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+/* 6b. Réponses collaboratives aux questions */
+CREATE TABLE `question_answers` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `question_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `content` TEXT NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`question_id`) REFERENCES `questions`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 /* 7. Journal des sessions */

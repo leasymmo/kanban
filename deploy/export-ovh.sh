@@ -61,6 +61,9 @@ fi
 echo "==> 5. Copie des scripts SQL pour phpMyAdmin..."
 cp "$PROJECT_ROOT/backend/database/schema.sql" "$BUILD_DIR/database/"
 cp "$PROJECT_ROOT/backend/database/seed.sql" "$BUILD_DIR/database/"
+if [ -f "$PROJECT_ROOT/backend/database/migration_v2.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v2.sql" "$BUILD_DIR/database/"
+fi
 
 # Si la seed de production existe localement dans .agents/notes/, on la copie aussi pour phpMyAdmin
 if [ -f "$PROJECT_ROOT/.agents/notes/seed-carredhotes.sql" ]; then
@@ -84,7 +87,7 @@ cat << 'EOF' > "$BUILD_DIR/.htaccess"
 <IfModule mod_headers.c>
     Header always set Access-Control-Allow-Origin "*"
     Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-User-Id"
 </IfModule>
 EOF
 

@@ -78,16 +78,26 @@ class TaskController {
         ]);
         $taskId = (int)$db->lastInsertId();
 
-        // Insertion des sous-tâches si fournies
+        // Insertion des sous-tâches si fournies (support hiérarchique au moins 4 niveaux)
         if (!empty($body['subtasks']) && is_array($body['subtasks'])) {
-            $stmtSub = $db->prepare("INSERT INTO subtasks (task_id, title, is_done, position) VALUES (?, ?, 0, ?)");
-            $subPos = 1;
-            foreach ($body['subtasks'] as $subTitle) {
-                $trimmed = trim(is_string($subTitle) ? $subTitle : ($subTitle['title'] ?? ''));
-                if (!empty($trimmed)) {
-                    $stmtSub->execute([$taskId, $trimmed, $subPos++]);
+            $insertTree = function($subtasksList, $parentId = null) use (&$insertTree, $db, $taskId) {
+                $pos = 1;
+                foreach ($subtasksList as $item) {
+                    $title = is_string($item) ? trim($item) : trim($item['title'] ?? '');
+                    if (empty($title)) continue;
+                    $itemParent = $parentId;
+                    if (is_array($item) && isset($item['parent_id']) && $item['parent_id'] !== null && $parentId === null) {
+                        $itemParent = (int)$item['parent_id'];
+                    }
+                    $stmtSub = $db->prepare("INSERT INTO subtasks (task_id, parent_id, title, is_done, position) VALUES (?, ?, ?, 0, ?)");
+                    $stmtSub->execute([$taskId, $itemParent, $title, $pos++]);
+                    $newSubId = (int)$db->lastInsertId();
+                    if (is_array($item) && !empty($item['children']) && is_array($item['children'])) {
+                        $insertTree($item['children'], $newSubId);
+                    }
                 }
-            }
+            };
+            $insertTree($body['subtasks']);
         }
 
         Response::json([
@@ -168,6 +178,62 @@ class TaskController {
             $title, $description, $status, $assignedTo,
             $propertyId, $priority, $dueDate, $id
         ]);
+
+        // Synchronisation des sous-tâches si transmises dans la mise à jour
+        if (array_key_exists('subtasks', $body) && is_array($body['subtasks'])) {
+            $stmtExisting = $db->prepare("SELECT id FROM subtasks WHERE task_id = ?");
+            $stmtExisting->execute([$id]);
+            $existingIds = $stmtExisting->fetchAll(PDO::FETCH_COLUMN);
+
+            $keptIds = [];
+            $tempIdMap = [];
+
+            // Première passe : créer ou mettre à jour les éléments racines / existants
+            foreach ($body['subtasks'] as $idx => $st) {
+                if (is_string($st)) {
+                    $st = ['title' => $st, 'is_done' => 0, 'position' => $idx + 1];
+                }
+                $stTitle = trim($st['title'] ?? '');
+                if (empty($stTitle)) continue;
+
+                $stDone = !empty($st['is_done']) ? 1 : 0;
+                $stPos = isset($st['position']) ? (int)$st['position'] : ($idx + 1);
+                $stId = !empty($st['id']) ? (int)$st['id'] : null;
+                $stParent = !empty($st['parent_id']) ? (int)$st['parent_id'] : null;
+
+                // Résolution de parent via temp_id si applicable
+                if (!$stParent && !empty($st['parent_temp_id']) && isset($tempIdMap[$st['parent_temp_id']])) {
+                    $stParent = $tempIdMap[$st['parent_temp_id']];
+                }
+
+                if ($stId && in_array($stId, $existingIds)) {
+                    $stmtUp = $db->prepare("UPDATE subtasks SET title = ?, is_done = ?, parent_id = ?, position = ? WHERE id = ? AND task_id = ?");
+                    $stmtUp->execute([$stTitle, $stDone, $stParent, $stPos, $stId, $id]);
+                    $keptIds[] = $stId;
+                    if (!empty($st['temp_id'])) {
+                        $tempIdMap[$st['temp_id']] = $stId;
+                    }
+                } else {
+                    $stmtIns = $db->prepare("INSERT INTO subtasks (task_id, parent_id, title, is_done, position) VALUES (?, ?, ?, ?, ?)");
+                    $stmtIns->execute([$id, $stParent, $stTitle, $stDone, $stPos]);
+                    $newId = (int)$db->lastInsertId();
+                    $keptIds[] = $newId;
+                    if (!empty($st['temp_id'])) {
+                        $tempIdMap[$st['temp_id']] = $newId;
+                    }
+                }
+            }
+
+            // Supprimer les anciennes sous-tâches non conservées
+            $toDelete = array_diff($existingIds, $keptIds);
+            if (!empty($toDelete)) {
+                $delClause = implode(',', array_fill(0, count($toDelete), '?'));
+                $stmtDel = $db->prepare("DELETE FROM subtasks WHERE id IN ($delClause) AND task_id = ?");
+                $params = array_values($toDelete);
+                $params[] = $id;
+                $stmtDel->execute($params);
+            }
+        }
 
         Response::success(null, 'Tâche mise à jour');
     }
@@ -276,16 +342,39 @@ class TaskController {
             Response::error('Titre de la sous-tâche requis', 400);
         }
 
-        $stmtPos = $db->prepare("SELECT MAX(position) as max_pos FROM subtasks WHERE task_id = ?");
-        $stmtPos->execute([$id]);
+        $parentId = !empty($body['parent_id']) ? (int)$body['parent_id'] : null;
+        if ($parentId) {
+            $stmtP = $db->prepare("SELECT id FROM subtasks WHERE id = ? AND task_id = ?");
+            $stmtP->execute([$parentId, $id]);
+            if (!$stmtP->fetch()) {
+                Response::error('Sous-tâche parente introuvable pour cette tâche', 400);
+            }
+        }
+
+        $stmtPos = $db->prepare("SELECT MAX(position) as max_pos FROM subtasks WHERE task_id = ? AND " . ($parentId ? "parent_id = ?" : "parent_id IS NULL"));
+        if ($parentId) {
+            $stmtPos->execute([$id, $parentId]);
+        } else {
+            $stmtPos->execute([$id]);
+        }
         $maxPos = (int)($stmtPos->fetch()['max_pos'] ?? 0);
 
-        $stmtInsert = $db->prepare("INSERT INTO subtasks (task_id, title, is_done, position) VALUES (?, ?, 0, ?)");
-        $stmtInsert->execute([$id, $title, $maxPos + 1]);
+        $stmtInsert = $db->prepare("INSERT INTO subtasks (task_id, parent_id, title, is_done, position) VALUES (?, ?, ?, 0, ?)");
+        $stmtInsert->execute([$id, $parentId, $title, $maxPos + 1]);
+        $newSubtaskId = (int)$db->lastInsertId();
 
         Response::json([
             'success' => true,
-            'subtask_id' => $db->lastInsertId(),
+            'subtask_id' => $newSubtaskId,
+            'subtask' => [
+                'id' => $newSubtaskId,
+                'task_id' => $id,
+                'parent_id' => $parentId,
+                'title' => $title,
+                'is_done' => 0,
+                'position' => $maxPos + 1,
+                'children' => []
+            ],
             'message' => 'Sous-tâche ajoutée'
         ]);
     }
