@@ -19,26 +19,32 @@ class Router {
             Response::json(['status' => 'OK']);
         }
 
-        $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+        $rawUri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 
-        // Nettoyage du préfixe de sous-répertoire éventuel (ex: /kanban/api/...)
-        $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
-        if ($scriptDir !== '/' && strpos($uri, $scriptDir) === 0) {
-            $uri = substr($uri, strlen($scriptDir));
-        }
+        // Nettoyage de l'URI : extrait le chemin relatif à l'API de manière transparente
+        $normalize = function(string $path): string {
+            $path = '/' . trim($path, '/');
+            $pos = strpos($path, '/api');
+            if ($pos !== false) {
+                $path = substr($path, $pos + 4);
+            }
+            return '/' . trim($path, '/');
+        };
 
-        $uri = '/' . ltrim($uri, '/');
+        $normalizedUri = $normalize($rawUri);
 
         foreach ($this->routes as $route) {
             if ($route['method'] !== $requestMethod) {
                 continue;
             }
 
-            // Convertit le pattern en regex : /api/tasks/{id} => #^/api/tasks/([0-9]+)$#
-            $regex = preg_replace('/\{([a-zA-Z0-9_]+)\}/', '([^/]+)', $route['pattern']);
+            $normalizedPattern = $normalize($route['pattern']);
+
+            // Convertit le pattern en regex : /tasks/{id} => #^/tasks/([^/]+)$#
+            $regex = preg_replace('/\{([a-zA-Z0-9_]+)\}/', '([^/]+)', $normalizedPattern);
             $regex = '#^' . $regex . '$#';
 
-            if (preg_match($regex, $uri, $matches)) {
+            if (preg_match($regex, $normalizedUri, $matches)) {
                 array_shift($matches); // Supprime le match complet
 
                 $handler = $route['handler'];
@@ -53,6 +59,6 @@ class Router {
             }
         }
 
-        Response::error("Route introuvable : {$requestMethod} {$uri}", 404);
+        Response::error("Route introuvable : {$requestMethod} {$rawUri}", 404);
     }
 }

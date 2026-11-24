@@ -35,6 +35,27 @@ cp "$PROJECT_ROOT/backend/public/.htaccess" "$BUILD_DIR/api/.htaccess"
 if [ -f "$PROJECT_ROOT/backend/.env" ]; then
     echo "==> 4b. Copie de backend/.env vers $BUILD_DIR/api/.env..."
     cp "$PROJECT_ROOT/backend/.env" "$BUILD_DIR/api/.env"
+
+    echo "==> 4c. Création de config.local.php pour compatibilité FTP maximale..."
+    DB_HOST=$(grep -E '^DB_HOST=' "$PROJECT_ROOT/backend/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    DB_NAME=$(grep -E '^DB_NAME=' "$PROJECT_ROOT/backend/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    DB_USER=$(grep -E '^DB_USER=' "$PROJECT_ROOT/backend/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+    DB_PASS=$(grep -E '^DB_PASSWORD=' "$PROJECT_ROOT/backend/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+
+    cat << EOF > "$BUILD_DIR/api/config/config.local.php"
+<?php
+// Configuration générée automatiquement pour OVH
+return [
+    'driver' => 'mysql',
+    'mysql' => [
+        'host' => '${DB_HOST:-carredjkanban.mysql.db}',
+        'database' => '${DB_NAME:-carredjkanban}',
+        'username' => '${DB_USER:-carredjkanban}',
+        'password' => '${DB_PASS}',
+        'charset' => 'utf8mb4',
+    ]
+];
+EOF
 fi
 
 echo "==> 5. Copie des scripts SQL pour phpMyAdmin..."

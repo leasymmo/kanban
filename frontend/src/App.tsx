@@ -246,15 +246,31 @@ export const App: React.FC = () => {
         api.getSprints().catch(() => null)
       ]);
 
-      if (usersRes?.users) setAllUsers(usersRes.users);
-      if (propsRes?.properties) setProperties(propsRes.properties);
-      if (sprintsRes?.sprints?.length) {
+      let activeUser = currentUser;
+      if (usersRes?.users && usersRes.users.length > 0) {
+        setAllUsers(usersRes.users);
+        const storedUserId = api.getCurrentUserId();
+        activeUser = (storedUserId ? usersRes.users.find(u => u.id === storedUserId) : null) || usersRes.users[0];
+        setCurrentUser(activeUser);
+        api.setCurrentUserId(activeUser.id);
+      }
+
+      if (propsRes?.properties) {
+        setProperties(propsRes.properties);
+      }
+
+      if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
         setSprints(sprintsRes.sprints);
         const active = sprintsRes.sprints.find(s => s.status === 'active') || sprintsRes.sprints[0];
         setCurrentSprintId(active.id);
         loadSprintDetails(active.id);
+      } else if (usersRes?.users && usersRes.users.length > 0) {
+        // La BDD est connectée et les utilisateurs sont présents, mais aucun sprint n'est encore enregistré
+        setSprints([]);
+        setTasks([]);
+        setQuestions([]);
       } else {
-        enrichLocalTasks(DEFAULT_TASKS, DEFAULT_USERS[0]);
+        enrichLocalTasks(DEFAULT_TASKS, activeUser || DEFAULT_USERS[0]);
       }
     } catch (e) {
       console.warn("API indisponible, fonctionnement en mode local réactif :", e);
@@ -295,7 +311,11 @@ export const App: React.FC = () => {
   const handleSwitchUser = (userId: number) => {
     const user = allUsers.find(u => u.id === userId) || null;
     setCurrentUser(user);
+    api.setCurrentUserId(userId);
     enrichLocalTasks(tasks, user);
+    if (currentSprintId) {
+      loadSprintDetails(currentSprintId);
+    }
   };
 
   // Sélection d'un sprint

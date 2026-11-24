@@ -7,7 +7,9 @@
 // Autoload simple PSR-4 sans composer obligatoire
 spl_autoload_register(function ($class) {
     $prefix = 'App\\';
-    $baseDir = __DIR__ . '/../src/';
+    
+    // Supporte à la fois /backend/public/ (dev local) et /api/ (production deploy/www/api/)
+    $baseDir = is_dir(__DIR__ . '/src/') ? __DIR__ . '/src/' : __DIR__ . '/../src/';
 
     $len = strlen($prefix);
     if (strncmp($prefix, $class, $len) !== 0) {
@@ -31,6 +33,32 @@ use App\Controllers\PropertyController;
 use App\Controllers\UserController;
 
 $router = new Router();
+
+// --- Test & Diagnostic de connexion ---
+$router->add('GET', '/api/test', function() {
+    try {
+        $db = \App\Database::getConnection();
+        $usersCount = (int)$db->query("SELECT COUNT(*) FROM users")->fetchColumn();
+        $sprintsCount = (int)$db->query("SELECT COUNT(*) FROM sprints")->fetchColumn();
+        $tasksCount = (int)$db->query("SELECT COUNT(*) FROM tasks")->fetchColumn();
+        \App\Response::json([
+            'status' => 'ok',
+            'php_version' => PHP_VERSION,
+            'database' => 'connected',
+            'counts' => [
+                'users' => $usersCount,
+                'sprints' => $sprintsCount,
+                'tasks' => $tasksCount
+            ]
+        ]);
+    } catch (\Throwable $e) {
+        \App\Response::json([
+            'status' => 'error',
+            'database' => 'connection_failed',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
 
 // --- Authentification ---
 $router->add('POST', '/api/auth/login', [AuthController::class, 'login']);

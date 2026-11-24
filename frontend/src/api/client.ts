@@ -6,12 +6,20 @@ function getStoredToken(): string | null {
   return localStorage.getItem('kanban_token');
 }
 
+function getStoredUserId(): string | null {
+  return localStorage.getItem('kanban_current_user_id');
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
+  const userId = getStoredUserId();
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+  if (userId) {
+    headers.set('X-User-Id', userId);
   }
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -30,6 +38,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  setCurrentUserId(id: number) {
+    localStorage.setItem('kanban_current_user_id', String(id));
+  },
+
+  getCurrentUserId(): number | null {
+    const val = localStorage.getItem('kanban_current_user_id');
+    return val ? Number(val) : null;
+  },
+
   // Auth
   async login(userIdOrEmail: number | string, password?: string, direct?: boolean) {
     const body: Record<string, any> = { password: password || 'password123' };

@@ -21,22 +21,49 @@ class Auth {
             $token = $_COOKIE['kanban_token'];
         }
 
-        if (!$token) {
-            return null;
+        $db = Database::getConnection();
+
+        if ($token) {
+            $stmt = $db->prepare("
+                SELECT u.id, u.name, u.email, u.role, u.avatar_color, u.initials
+                FROM user_sessions s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.token = ? AND s.expires_at > NOW()
+                LIMIT 1
+            ");
+            $stmt->execute([$token]);
+            $user = $stmt->fetch();
+            if ($user) {
+                return $user;
+            }
         }
 
-        $db = Database::getConnection();
-        $stmt = $db->prepare("
-            SELECT u.id, u.name, u.email, u.role, u.avatar_color, u.initials
-            FROM user_sessions s
-            JOIN users u ON u.id = s.user_id
-            WHERE s.token = ? AND s.expires_at > NOW()
+        // Support header X-User-Id pour le switcher rapide d'associés dans le dashboard
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+        $userId = $headers['X-User-Id'] ?? $headers['x-user-id'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
+        if ($userId) {
+            $stmt = $db->prepare("
+                SELECT id, name, email, role, avatar_color, initials
+                FROM users
+                WHERE id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([(int)$userId]);
+            $user = $stmt->fetch();
+            if ($user) {
+                return $user;
+            }
+        }
+
+        // Fallback d'équipe : premier utilisateur admin par défaut
+        $stmtDefault = $db->query("
+            SELECT id, name, email, role, avatar_color, initials
+            FROM users
+            ORDER BY id ASC
             LIMIT 1
         ");
-        $stmt->execute([$token]);
-        $user = $stmt->fetch();
-
-        return $user ?: null;
+        $defaultUser = $stmtDefault->fetch();
+        return $defaultUser ?: null;
     }
 
     /**

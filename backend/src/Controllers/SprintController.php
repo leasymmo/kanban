@@ -13,7 +13,6 @@ class SprintController {
      * Liste tous les sprints avec statistiques
      */
     public function list(): void {
-        Auth::requireAuth();
         $db = Database::getConnection();
 
         $stmt = $db->query("
@@ -40,7 +39,6 @@ class SprintController {
      * Récupère le sprint actif en cours
      */
     public function current(): void {
-        Auth::requireAuth();
         $db = Database::getConnection();
 
         $stmt = $db->query("
@@ -72,7 +70,7 @@ class SprintController {
      * Détail d'un sprint complet (avec tâches, sous-tâches, questions)
      */
     public function get(int $id): void {
-        $currentUser = Auth::requireAuth();
+        $currentUser = Auth::getCurrentUser();
         $db = Database::getConnection();
 
         $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ?");
