@@ -125,6 +125,11 @@ class SprintController {
                 ));
             $task['can_delete'] = $task['can_edit'];
             $task['can_assign'] = ($currentUser['role'] === 'admin');
+            $task['can_star'] = ($currentUser['role'] === 'admin')
+                || ($currentUser['role'] === 'write' && (
+                    $task['assigned_to'] == $currentUser['id']
+                    || ($task['assigned_to'] === null && $task['created_by'] == $currentUser['id'])
+                ));
         }
 
         // Récupération des questions du sprint
@@ -255,10 +260,10 @@ class SprintController {
             $stmtInsertTask = $db->prepare("
                 INSERT INTO tasks (
                     sprint_id, title, description, status, assigned_to, created_by,
-                    property_id, priority, due_date, position, is_unplanned, parent_task_id
+                    property_id, priority, due_date, position, is_unplanned, parent_task_id, is_starred
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, 0, ?
+                    ?, ?, ?, ?, 0, ?, ?
                 )
             ");
 
@@ -288,7 +293,8 @@ class SprintController {
                     $oldTask['priority'],
                     $oldTask['due_date'],
                     $oldTask['position'],
-                    $oldTask['id'] // parent_task_id pour traçabilité
+                    $oldTask['id'], // parent_task_id pour traçabilité
+                    !empty($oldTask['is_starred']) ? 1 : 0
                 ]);
                 $newTaskId = (int)$db->lastInsertId();
                 $rolledOverTasksCount++;
@@ -357,5 +363,115 @@ class SprintController {
             $db->rollBack();
             Response::error('Erreur lors de la bascule du sprint : ' . $e->getMessage(), 500);
         }
+    }
+
+    /**
+     * POST /api/sprints/{id}/reopen
+     * Réouvre un sprint fermé par erreur (Admin uniquement)
+     */
+    public function reopen(int $id): void {
+        $currentUser = Auth::requireAdmin();
+        $db = Database::getConnection();
+
+        $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ?");
+        $stmt->execute([$id]);
+        $sprint = $stmt->fetch();
+
+        if (!$sprint) {
+            Response::error('Sprint introuvable', 404);
+        }
+
+        if ($sprint['status'] === 'active') {
+            Response::error('Ce sprint est déjà actif', 400);
+        }
+
+        $db->beginTransaction();
+        try {
+            // Passer tout autre sprint actif en 'closed' pour assurer l'unicité du sprint actif
+            $db->exec("UPDATE sprints SET status = 'closed' WHERE status = 'active'");
+
+            // Réouvrir le sprint cible
+            $stmtReopen = $db->prepare("
+                UPDATE sprints
+                SET status = 'active', closed_at = NULL, closed_by = NULL
+                WHERE id = ?
+            ");
+            $stmtReopen->execute([$id]);
+
+            $db->commit();
+
+            Response::json([
+                'success' => true,
+                'message' => "Le sprint « {$sprint['name']} » a été réouvert avec succès.",
+                'sprint_id' => $id
+            ]);
+        } catch (\Throwable $e) {
+            $db->rollBack();
+            Response::error('Erreur lors de la réouverture du sprint : ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * PUT /api/sprints/{id}
+     * Modification des métadonnées d'un sprint (Admin uniquement)
+     */
+    public function update(int $id): void {
+        $currentUser = Auth::requireAdmin();
+        $db = Database::getConnection();
+
+        $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ?");
+        $stmt->execute([$id]);
+        $sprint = $stmt->fetch();
+
+        if (!$sprint) {
+            Response::error('Sprint introuvable', 404);
+        }
+
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $name = isset($body['name']) ? trim($body['name']) : $sprint['name'];
+        $number = isset($body['number']) ? (int)$body['number'] : (int)$sprint['number'];
+        $notes = isset($body['notes']) ? trim($body['notes']) : $sprint['notes'];
+        $startedAt = !empty($body['started_at']) ? $body['started_at'] : $sprint['started_at'];
+
+        $stmtUp = $db->prepare("
+            UPDATE sprints
+            SET name = ?, number = ?, notes = ?, started_at = ?
+            WHERE id = ?
+        ");
+        $stmtUp->execute([$name, $number, $notes, $startedAt, $id]);
+
+        Response::success(null, 'Sprint mis à jour avec succès');
+    }
+
+    /**
+     * DELETE /api/sprints/{id}
+     * Suppression d'un sprint (Admin uniquement)
+     */
+    public function delete(int $id): void {
+        $currentUser = Auth::requireAdmin();
+        $db = Database::getConnection();
+
+        $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ?");
+        $stmt->execute([$id]);
+        $sprint = $stmt->fetch();
+
+        if (!$sprint) {
+            Response::error('Sprint introuvable', 404);
+        }
+
+        // Vérifier s'il reste au moins 1 sprint
+        $totalSprints = (int)$db->query("SELECT COUNT(*) FROM sprints")->fetchColumn();
+        if ($totalSprints <= 1) {
+            Response::error('Impossible de supprimer le dernier sprint restant.', 400);
+        }
+
+        $db->prepare("DELETE FROM sprints WHERE id = ?")->execute([$id]);
+
+        // Si le sprint supprimé était actif, activer le dernier sprint existant
+        if ($sprint['status'] === 'active') {
+            $db->exec("UPDATE sprints SET status = 'active' ORDER BY number DESC LIMIT 1");
+        }
+
+        Response::success(null, 'Sprint supprimé avec succès');
     }
 }

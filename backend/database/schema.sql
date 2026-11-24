@@ -65,6 +65,7 @@ CREATE TABLE `tasks` (
   `due_date` DATE NULL,
   `position` INT DEFAULT 0,
   `is_unplanned` TINYINT(1) DEFAULT 0,
+  `is_starred` TINYINT(1) DEFAULT 0,
   `parent_task_id` INT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

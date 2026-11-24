@@ -105,6 +105,12 @@ class Database {
                     INDEX idx_ip_time (ip_address, attempted_at)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             ");
+
+            // 5. Colonne is_starred dans tasks (mise en avant pour réunion hebdomadaire)
+            $colsTasks = $db->query("SHOW COLUMNS FROM tasks LIKE 'is_starred'")->fetchAll();
+            if (empty($colsTasks)) {
+                $db->exec("ALTER TABLE tasks ADD COLUMN is_starred TINYINT(1) NOT NULL DEFAULT 0 AFTER is_unplanned");
+            }
         } catch (\Throwable $e) {
             // Silencieux pour ne pas bloquer les requêtes
         }

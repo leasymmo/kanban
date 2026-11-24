@@ -4,7 +4,8 @@ import { buildSubtaskTree, HierarchicalSubtask } from '../utils/subtasks';
 import {
   Users, CheckCircle2, Clock, AlertTriangle, ArrowRight, UserPlus,
   HelpCircle, Shield, CheckSquare, Square, RefreshCw, Calendar,
-  Sparkles, MessageSquare, Check, Edit3, X, ChevronRight
+  Sparkles, MessageSquare, Check, Edit3, X, ChevronRight, Star,
+  ChevronDown, ChevronUp, ListFilter
 } from 'lucide-react';
 
 interface MeetingViewProps {
@@ -21,6 +22,7 @@ interface MeetingViewProps {
   onUpdateQuestionStatus: (questionId: number, status: Question['status']) => void;
   onSetQuestionDecision?: (questionId: number, finalAnswer: string, status?: string) => Promise<void>;
   onEditTask: (task: Task) => void;
+  onToggleStar?: (taskId: number) => void;
   isReadOnly: boolean;
 }
 
@@ -38,10 +40,21 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   onUpdateQuestionStatus,
   onSetQuestionDecision,
   onEditTask,
+  onToggleStar,
   isReadOnly
 }) => {
   const isAdmin = currentUser?.role === 'admin';
   const [meetingStep, setMeetingStep] = useState<'retro' | 'questions' | 'unassigned'>('retro');
+
+  // Accordéons des tâches non mises en avant (par associé)
+  const [expandedAccordions, setExpandedAccordions] = useState<{ [userId: number]: boolean }>({});
+
+  const toggleAccordion = (userId: number) => {
+    setExpandedAccordions(prev => ({
+      ...prev,
+      [userId]: !prev[userId]
+    }));
+  };
 
   // Gestion des décisions de réunion (par question)
   const [decisionInputs, setDecisionInputs] = useState<{ [questionId: number]: string }>({});
@@ -233,7 +246,121 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             const userTasks = tasks.filter(t => t.assigned_to === user.id);
             const userDone = userTasks.filter(t => t.status === 'done');
             const userPending = userTasks.filter(t => t.status !== 'done');
+            const userStarred = userTasks.filter(t => !!t.is_starred);
+            const userUnstarred = userTasks.filter(t => !t.is_starred);
             const canEditThis = !isReadOnly && (isAdmin || currentUser?.id === user.id);
+            const isAccordionOpen = !!expandedAccordions[user.id];
+
+            const renderRetroTask = (t: Task, isHighlighted: boolean) => {
+              const hierarchicalSubtasks = buildSubtaskTree(t.subtasks || []);
+
+              return (
+                <div
+                  key={t.id}
+                  className={`p-3 rounded-xl border text-xs transition-all ${
+                    isHighlighted
+                      ? 'bg-amber-50/40 border-amber-300 ring-1 ring-amber-300/60 shadow-2xs'
+                      : t.status === 'done'
+                      ? 'bg-emerald-50/40 border-emerald-200'
+                      : t.status === 'blocked'
+                      ? 'bg-red-50/40 border-red-200'
+                      : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      {/* Toggle rapide statut en séance */}
+                      {canEditThis ? (
+                        <button
+                          onClick={() => onUpdateTaskStatus(t.id, t.status === 'done' ? 'in_progress' : 'done')}
+                          className="mt-0.5 text-slate-400 hover:text-emerald-600 transition-colors shrink-0 cursor-pointer"
+                          title="Marquer fait / en cours"
+                        >
+                          {t.status === 'done' ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-400" />
+                          )}
+                        </button>
+                      ) : (
+                        <span className="mt-0.5 shrink-0">
+                          {t.status === 'done' ? '✅' : t.status === 'blocked' ? '❌' : '🚧'}
+                        </span>
+                      )}
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Étoile interactive si autorisé */}
+                          {(t.can_star || !!t.is_starred) && (
+                            <button
+                              type="button"
+                              disabled={!t.can_star}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (t.can_star && onToggleStar) {
+                                  onToggleStar(t.id);
+                                }
+                              }}
+                              className={`p-0.5 rounded transition-all shrink-0 ${
+                                t.is_starred
+                                  ? 'text-amber-500 hover:text-amber-600'
+                                  : t.can_star
+                                  ? 'text-slate-300 hover:text-amber-400 cursor-pointer'
+                                  : 'hidden'
+                              }`}
+                              title={t.is_starred ? 'Mise en avant activée (cliquer pour retirer)' : 'Mettre en avant pour la réunion'}
+                            >
+                              <Star className={`w-3.5 h-3.5 ${t.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-300'}`} />
+                            </button>
+                          )}
+
+                          <span className={`font-semibold text-slate-800 break-words ${t.status === 'done' ? 'line-through text-slate-400' : ''}`}>
+                            {t.title}
+                          </span>
+
+                          {t.property_name && (
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white shrink-0"
+                              style={{ backgroundColor: t.property_color || '#3B82F6' }}
+                            >
+                              {t.property_name}
+                            </span>
+                          )}
+                        </div>
+
+                        {t.description && (
+                          <p className="mt-1 text-slate-600 text-[11px] leading-relaxed break-words">
+                            <span className="text-brand-600 font-bold mr-1">→</span>
+                            {t.description}
+                          </p>
+                        )}
+
+                        {/* Sous-tâches hiérarchiques jusqu'à 4 niveaux */}
+                        {t.subtasks && t.subtasks.length > 0 && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-200/60">
+                            {renderRetroSubtasks(hierarchicalSubtasks, canEditThis)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Statut sélecteur rapide pour la réunion */}
+                    {canEditThis && (
+                      <select
+                        value={t.status}
+                        onChange={(e) => onUpdateTaskStatus(t.id, e.target.value as Task['status'])}
+                        className="text-[11px] font-semibold border border-slate-200 rounded px-1.5 py-0.5 bg-white text-slate-700 cursor-pointer shrink-0"
+                      >
+                        <option value="todo">À faire</option>
+                        <option value="in_progress">🚧 En cours</option>
+                        <option value="blocked">❌ Bloqué</option>
+                        <option value="done">✅ Fait</option>
+                      </select>
+                    )}
+                  </div>
+                </div>
+              );
+            };
 
             return (
               <div
@@ -257,99 +384,61 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                     </div>
                   </div>
 
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-700">
-                    {userPending.length} en cours
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {userStarred.length > 0 && (
+                      <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-amber-500 text-amber-600" />
+                        {userStarred.length} mise{userStarred.length > 1 ? 's' : ''} en avant
+                      </span>
+                    )}
+                    <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-700">
+                      {userPending.length} en cours
+                    </span>
+                  </div>
                 </div>
 
-                {/* Tâches de l'associé */}
-                <div className="space-y-2.5 flex-1 max-h-[420px] overflow-y-auto pr-1">
-                  {userTasks.length > 0 ? (
-                    userTasks.map((t) => {
-                      const hierarchicalSubtasks = buildSubtaskTree(t.subtasks || []);
-
-                      return (
-                        <div
-                          key={t.id}
-                          className={`p-3 rounded-xl border text-xs transition-all ${
-                            t.status === 'done'
-                              ? 'bg-emerald-50/40 border-emerald-200'
-                              : t.status === 'blocked'
-                              ? 'bg-red-50/40 border-red-200'
-                              : 'bg-slate-50 border-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-start gap-2 flex-1">
-                              {/* Toggle rapide statut en séance */}
-                              {canEditThis ? (
-                                <button
-                                  onClick={() => onUpdateTaskStatus(t.id, t.status === 'done' ? 'in_progress' : 'done')}
-                                  className="mt-0.5 text-slate-400 hover:text-emerald-600 transition-colors shrink-0 cursor-pointer"
-                                  title="Marquer fait / en cours"
-                                >
-                                  {t.status === 'done' ? (
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                  ) : (
-                                    <Square className="w-4 h-4 text-slate-400" />
-                                  )}
-                                </button>
-                              ) : (
-                                <span className="mt-0.5 shrink-0">
-                                  {t.status === 'done' ? '✅' : t.status === 'blocked' ? '❌' : '🚧'}
-                                </span>
-                              )}
-
-                              <div className="flex-1">
-                                <span className={`font-semibold text-slate-800 ${t.status === 'done' ? 'line-through text-slate-400' : ''}`}>
-                                  {t.title}
-                                </span>
-
-                                {t.property_name && (
-                                  <span
-                                    className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded text-white"
-                                    style={{ backgroundColor: t.property_color || '#3B82F6' }}
-                                  >
-                                    {t.property_name}
-                                  </span>
-                                )}
-
-                                {t.description && (
-                                  <p className="mt-1 text-slate-600 text-[11px] leading-relaxed">
-                                    <span className="text-brand-600 font-bold mr-1">→</span>
-                                    {t.description}
-                                  </p>
-                                )}
-
-                                {/* Sous-tâches hiérarchiques jusqu'à 4 niveaux */}
-                                {t.subtasks && t.subtasks.length > 0 && (
-                                  <div className="mt-2.5 pt-2 border-t border-slate-200/60">
-                                    {renderRetroSubtasks(hierarchicalSubtasks, canEditThis)}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Statut sélecteur rapide pour la réunion */}
-                            {canEditThis && (
-                              <select
-                                value={t.status}
-                                onChange={(e) => onUpdateTaskStatus(t.id, e.target.value as Task['status'])}
-                                className="text-[11px] font-semibold border border-slate-200 rounded px-1.5 py-0.5 bg-white text-slate-700 cursor-pointer shrink-0"
-                              >
-                                <option value="todo">À faire</option>
-                                <option value="in_progress">🚧 En cours</option>
-                                <option value="blocked">❌ Bloqué</option>
-                                <option value="done">✅ Fait</option>
-                              </select>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
+                {/* Tâches de l'associé : SEULES LES TÂCHES AVEC ÉTOILE SONT AFFICHÉES DIRECTEMENT */}
+                <div className="space-y-3 flex-1 max-h-[520px] overflow-y-auto pr-1">
+                  {userStarred.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {userStarred.map(t => renderRetroTask(t, true))}
+                    </div>
                   ) : (
-                    <div className="h-24 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-xs text-slate-400 font-medium">
-                      Aucune tâche attribuée pour ce sprint
+                    <div className="p-4 border border-dashed border-amber-200/90 bg-amber-50/20 rounded-xl text-center">
+                      <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-900">
+                        <Star className="w-4 h-4 text-amber-500" />
+                        Aucune tâche mise en avant avec l'étoile
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        {userUnstarred.length > 0
+                          ? `Dépliez l'accordéon ci-dessous pour voir les ${userUnstarred.length} autres tâches de ${user.name}.`
+                          : 'Aucune tâche assignée à cet associé pour ce sprint.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ACCORDÉON EN BAS POUR LES AUTRES TÂCHES NON MISES EN AVANT */}
+                  {userUnstarred.length > 0 && (
+                    <div className="pt-2 border-t border-slate-100 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleAccordion(user.id)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/90 text-xs font-semibold text-slate-700 transition-all border border-slate-200/80 cursor-pointer group"
+                      >
+                        <span className="flex items-center gap-2">
+                          <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isAccordionOpen ? 'rotate-180' : ''}`} />
+                          <span>Autres tâches non mises en avant ({userUnstarred.length})</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-700 uppercase tracking-wider">
+                          {isAccordionOpen ? 'Masquer' : 'Afficher'}
+                        </span>
+                      </button>
+
+                      {isAccordionOpen && (
+                        <div className="mt-2.5 space-y-2.5 animate-fade-in">
+                          {userUnstarred.map(t => renderRetroTask(t, false))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

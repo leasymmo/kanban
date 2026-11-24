@@ -3,7 +3,7 @@ import { Task, User, Property, TaskPriority, TaskStatus, Subtask } from '../type
 import { buildSubtaskTree, flattenSubtaskTree, HierarchicalSubtask } from '../utils/subtasks';
 import {
   X, Plus, Trash2, Home, CheckSquare, Square,
-  UserPlus, AlertCircle, ShieldAlert, CornerDownRight, Check
+  UserPlus, AlertCircle, ShieldAlert, CornerDownRight, Check, Star
 } from 'lucide-react';
 
 interface TaskModalProps {
@@ -49,6 +49,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [assignedTo, setAssignedTo] = useState<number | ''>('');
   const [dueDate, setDueDate] = useState('');
   const [isUnplanned, setIsUnplanned] = useState(false);
+  const [isStarred, setIsStarred] = useState(false);
   const [subtasks, setSubtasks] = useState<ModalSubtaskItem[]>([]);
   const [newRootTitle, setNewRootTitle] = useState('');
   const [activeChildParentId, setActiveChildParentId] = useState<string | number | null>(null);
@@ -66,6 +67,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setAssignedTo(task.assigned_to || '');
       setDueDate(task.due_date ? task.due_date.substring(0, 10) : '');
       setIsUnplanned(!!task.is_unplanned);
+      setIsStarred(!!task.is_starred);
 
       // Convertir les sous-tâches en liste plate hiérarchisée
       const tree = buildSubtaskTree(task.subtasks || []);
@@ -205,6 +207,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         assigned_to: assignedTo !== '' ? Number(assignedTo) : null,
         due_date: dueDate || null,
         is_unplanned: isUnplanned ? 1 : 0,
+        is_starred: isStarred ? 1 : 0,
         subtasks: formattedSubtasks
       };
 
@@ -552,6 +555,23 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 <Plus className="w-3.5 h-3.5" />
                 Ajouter
               </button>
+            </div>
+          </div>
+
+          {/* Option Mise en avant avec Étoile */}
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_starred"
+                checked={isStarred}
+                onChange={(e) => setIsStarred(e.target.checked)}
+                className="w-4 h-4 rounded text-amber-500 border-slate-300 focus:ring-amber-400 cursor-pointer"
+              />
+              <label htmlFor="is_starred" className="text-xs text-slate-700 select-none flex items-center gap-1.5 font-medium cursor-pointer">
+                <Star className={`w-3.5 h-3.5 ${isStarred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'}`} />
+                <span><strong>Mettre en avant cette tâche</strong> pour la prochaine réunion hebdomadaire</span>
+              </label>
             </div>
           </div>
 

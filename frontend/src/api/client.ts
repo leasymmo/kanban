@@ -157,6 +157,35 @@ export const api = {
     });
   },
 
+  async reopenSprint(id: number) {
+    return request<{
+      success: boolean;
+      message: string;
+      sprint_id: number;
+    }>(`/sprints/${id}/reopen`, {
+      method: 'POST'
+    });
+  },
+
+  async updateSprint(id: number, data: Partial<Sprint>) {
+    return request<{
+      success: boolean;
+      message: string;
+    }>(`/sprints/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteSprint(id: number) {
+    return request<{
+      success: boolean;
+      message: string;
+    }>(`/sprints/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
   // Tasks
   async createTask(data: Partial<Task> & { sprint_id: number; subtasks?: string[] }) {
     return request<{ success: boolean; task_id: number; message: string }>('/tasks', {
@@ -176,6 +205,12 @@ export const api = {
     return request<{ success: boolean }>(`/tasks/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status })
+    });
+  },
+
+  async toggleTaskStar(id: number) {
+    return request<{ success: boolean; task_id: number; is_starred: boolean; message: string }>(`/tasks/${id}/star`, {
+      method: 'PATCH'
     });
   },
 

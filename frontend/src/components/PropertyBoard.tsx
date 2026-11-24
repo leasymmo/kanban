@@ -12,6 +12,7 @@ interface PropertyBoardProps {
   onToggleSubtask: (subtaskId: number) => void;
   onAddSubtask?: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
   onUpdateStatus?: (taskId: number, newStatus: TaskStatus) => void;
+  onToggleStar?: (taskId: number) => void;
   onAddNewTask: (propertyId?: number) => void;
   isReadOnly: boolean;
 }
@@ -25,6 +26,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   onToggleSubtask,
   onAddSubtask,
   onUpdateStatus,
+  onToggleStar,
   onAddNewTask,
   isReadOnly
 }) => {
@@ -112,6 +114,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                       onToggleSubtask={onToggleSubtask}
                       onAddSubtask={onAddSubtask}
                       onUpdateStatus={onUpdateStatus}
+                      onToggleStar={onToggleStar}
                     />
                   ))
                 ) : (

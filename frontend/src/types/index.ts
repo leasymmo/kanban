@@ -50,11 +50,13 @@ export interface Task {
   due_date?: string | null;
   position: number;
   is_unplanned?: number | boolean;
+  is_starred?: number | boolean;
   parent_task_id?: number | null;
   subtasks: Subtask[];
   can_edit?: boolean;
   can_delete?: boolean;
   can_assign?: boolean;
+  can_star?: boolean;
 }
 
 export interface Sprint {

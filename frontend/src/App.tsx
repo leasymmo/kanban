@@ -9,7 +9,7 @@ import { MeetingView } from './components/MeetingView';
 import { TaskModal } from './components/TaskModal';
 import { CloseSprintModal } from './components/CloseSprintModal';
 import { LoginPage } from './components/LoginPage';
-import { UserManagerModal } from './components/UserManagerModal';
+import { AdminPanelModal } from './components/AdminPanelModal';
 import {
   Plus, LayoutGrid, Home, Filter, UserCheck, UserPlus,
   RefreshCw, CheckCircle2, AlertCircle, ShieldAlert
@@ -36,7 +36,7 @@ export const App: React.FC = () => {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isCloseSprintModalOpen, setIsCloseSprintModalOpen] = useState(false);
-  const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
 
   // Synchronisation avec l'API
   useEffect(() => {
@@ -407,6 +407,66 @@ export const App: React.FC = () => {
     }
   };
 
+  // Bascule de l'étoile de mise en avant (Highlight)
+  const handleToggleStar = async (taskId: number) => {
+    // Mise à jour optimiste de l'UI
+    setTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, is_starred: !t.is_starred };
+      }
+      return t;
+    }));
+
+    try {
+      await api.toggleTaskStar(taskId);
+    } catch (err: any) {
+      console.error("Erreur lors de la mise en avant :", err);
+      // Rétablissement en cas d'erreur
+      setTasks(prev => prev.map(t => {
+        if (t.id === taskId) {
+          return { ...t, is_starred: !t.is_starred };
+        }
+        return t;
+      }));
+      alert(err?.message || "Impossible de modifier la mise en avant.");
+    }
+  };
+
+  // Administration : Réouverture d'un sprint fermé par erreur
+  const handleSprintReopened = async (sprintId: number) => {
+    await api.reopenSprint(sprintId);
+    const sprintsRes = await api.getSprints();
+    if (sprintsRes?.sprints) {
+      setSprints(sprintsRes.sprints);
+      setCurrentSprintId(sprintId);
+      await loadSprintDetails(sprintId);
+    }
+  };
+
+  // Administration : Modification d'un sprint
+  const handleSprintUpdated = async (sprintId: number, data: Partial<Sprint>) => {
+    await api.updateSprint(sprintId, data);
+    const sprintsRes = await api.getSprints();
+    if (sprintsRes?.sprints) {
+      setSprints(sprintsRes.sprints);
+      if (currentSprintId === sprintId) {
+        await loadSprintDetails(sprintId);
+      }
+    }
+  };
+
+  // Administration : Suppression d'un sprint
+  const handleSprintDeleted = async (sprintId: number) => {
+    await api.deleteSprint(sprintId);
+    const sprintsRes = await api.getSprints();
+    if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
+      setSprints(sprintsRes.sprints);
+      const nextSprint = sprintsRes.sprints.find(s => s.status === 'active') || sprintsRes.sprints[0];
+      setCurrentSprintId(nextSprint.id);
+      await loadSprintDetails(nextSprint.id);
+    }
+  };
+
   // Filtrage des tâches selon la sélection
   const filteredTasks = tasks.filter(t => {
     if (taskFilter === 'all') return true;
@@ -452,7 +512,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         onChangeTab={setActiveTab}
         onLogout={handleLogout}
-        onOpenUserManager={() => setIsUserManagerOpen(true)}
+        onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
       />
 
       {/* Conteneur Principal */}
@@ -630,6 +690,7 @@ export const App: React.FC = () => {
                 onToggleSubtask={handleToggleSubtask}
                 onAddSubtask={handleAddSubtask}
                 onUpdateStatus={handleUpdateTaskStatus}
+                onToggleStar={handleToggleStar}
                 onAddNewTask={() => {
                   setEditingTask(null);
                   setIsTaskModalOpen(true);
@@ -649,6 +710,7 @@ export const App: React.FC = () => {
                 onToggleSubtask={handleToggleSubtask}
                 onAddSubtask={handleAddSubtask}
                 onUpdateStatus={handleUpdateTaskStatus}
+                onToggleStar={handleToggleStar}
                 onAddNewTask={() => {
                   setEditingTask(null);
                   setIsTaskModalOpen(true);
@@ -696,6 +758,7 @@ export const App: React.FC = () => {
               setEditingTask(t);
               setIsTaskModalOpen(true);
             }}
+            onToggleStar={handleToggleStar}
             isReadOnly={isReadOnly}
           />
         )}
@@ -726,12 +789,17 @@ export const App: React.FC = () => {
         onConfirmClose={handleConfirmCloseSprint}
       />
 
-      {/* Modale d'Administration des Utilisateurs (Admins uniquement) */}
-      <UserManagerModal
-        isOpen={isUserManagerOpen}
-        onClose={() => setIsUserManagerOpen(false)}
-        users={allUsers}
+      {/* Vraie Interface Administrateur (Sprints, Réouverture de sprint, Associés & Sécurité) */}
+      <AdminPanelModal
+        isOpen={isAdminPanelOpen}
+        onClose={() => setIsAdminPanelOpen(false)}
         currentUser={currentUser}
+        users={allUsers}
+        sprints={sprints}
+        currentSprintId={currentSprintId}
+        onSprintReopened={handleSprintReopened}
+        onSprintUpdated={handleSprintUpdated}
+        onSprintDeleted={handleSprintDeleted}
         onUserCreated={(newUser) => {
           setAllUsers([...allUsers, newUser]);
         }}

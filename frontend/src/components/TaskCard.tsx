@@ -3,7 +3,7 @@ import { Task, User, Subtask, TaskStatus } from '../types';
 import { buildSubtaskTree, calculateSubtaskStats, HierarchicalSubtask } from '../utils/subtasks';
 import {
   CheckSquare, Square, ChevronDown, ChevronUp, Clock, Home,
-  Trash2, Edit3, UserPlus, Plus, CornerDownRight, Check, X
+  Trash2, Edit3, UserPlus, Plus, CornerDownRight, Check, X, Star
 } from 'lucide-react';
 
 interface TaskCardProps {
@@ -14,6 +14,7 @@ interface TaskCardProps {
   onToggleSubtask: (subtaskId: number) => void;
   onAddSubtask?: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
   onUpdateStatus?: (taskId: number, newStatus: TaskStatus) => void;
+  onToggleStar?: (taskId: number) => void;
   onDragStart?: (e: React.DragEvent, task: Task) => void;
 }
 
@@ -25,6 +26,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onToggleSubtask,
   onAddSubtask,
   onUpdateStatus,
+  onToggleStar,
   onDragStart
 }) => {
   const [showSubtasks, setShowSubtasks] = useState(false);
@@ -161,7 +163,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       className={`bg-white rounded-xl p-3.5 shadow-xs border transition-all duration-150 group hover:shadow-md ${
         task.can_edit ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
       } ${
-        task.status === 'blocked' ? 'border-red-300 bg-red-50/20' : 'border-slate-200/90 hover:border-slate-300'
+        task.is_starred
+          ? 'border-amber-300 ring-1 ring-amber-300/70 bg-amber-50/15'
+          : task.status === 'blocked'
+          ? 'border-red-300 bg-red-50/20'
+          : 'border-slate-200/90 hover:border-slate-300'
       }`}
     >
       {/* Top Badges (Logement & Priorité) */}
@@ -186,27 +192,64 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           ) : null}
         </div>
 
-        {/* Actions (Modifier / Supprimer) : toujours visibles sur mobile, hover sur desktop */}
-        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 sm:transition-opacity shrink-0">
-          {task.can_edit && (
+        {/* Actions (Étoile / Modifier / Supprimer) */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Étoile de mise en avant (Highlight) : À gauche du bouton Modifier */}
+          {(task.can_star || !!task.is_starred) && (
             <button
-              onClick={() => onEdit(task)}
-              className="p-1 text-slate-400 hover:text-brand-600 rounded hover:bg-slate-100 cursor-pointer"
-              title="Modifier la tâche"
+              type="button"
+              disabled={!task.can_star}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (task.can_star && onToggleStar) {
+                  onToggleStar(task.id);
+                }
+              }}
+              className={`p-1 rounded transition-all cursor-pointer ${
+                task.is_starred
+                  ? 'text-amber-500 hover:text-amber-600 bg-amber-50 shadow-2xs'
+                  : task.can_star
+                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 text-slate-300 hover:text-amber-400 hover:bg-slate-100'
+                  : 'text-slate-200 cursor-not-allowed hidden'
+              }`}
+              title={
+                task.is_starred
+                  ? 'Mise en avant activée pour la réunion (cliquer pour retirer)'
+                  : task.can_star
+                  ? 'Mettre en avant pour la réunion'
+                  : 'Mise en avant'
+              }
             >
-              <Edit3 className="w-3.5 h-3.5" />
+              <Star
+                className={`w-3.5 h-3.5 ${
+                  task.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-300'
+                }`}
+              />
             </button>
           )}
 
-          {task.can_delete && (
-            <button
-              onClick={() => onDelete(task.id)}
-              className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-slate-100 cursor-pointer"
-              title="Supprimer la tâche"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
+          {/* Modifier & Supprimer */}
+          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 sm:transition-opacity">
+            {task.can_edit && (
+              <button
+                onClick={() => onEdit(task)}
+                className="p-1 text-slate-400 hover:text-brand-600 rounded hover:bg-slate-100 cursor-pointer"
+                title="Modifier la tâche"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {task.can_delete && (
+              <button
+                onClick={() => onDelete(task.id)}
+                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-slate-100 cursor-pointer"
+                title="Supprimer la tâche"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

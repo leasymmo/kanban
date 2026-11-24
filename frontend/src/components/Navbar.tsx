@@ -17,6 +17,7 @@ interface NavbarProps {
   onChangeTab: (tab: 'tasks' | 'questions' | 'meeting') => void;
   onSwitchUser?: (userId: number) => void;
   onLogout: () => void;
+  onOpenAdminPanel?: () => void;
   onOpenUserManager?: () => void;
 }
 
@@ -31,6 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onChangeTab,
   onSwitchUser,
   onLogout,
+  onOpenAdminPanel,
   onOpenUserManager
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -136,6 +138,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
+          {/* Bouton Raccourci Espace Administrateur (Desktop) */}
+          {currentUser?.role === 'admin' && (
+            <button
+              type="button"
+              onClick={() => onOpenAdminPanel ? onOpenAdminPanel() : onOpenUserManager?.()}
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-600/20 text-purple-300 border border-purple-500/40 hover:bg-purple-600/30 hover:text-white transition-all cursor-pointer shadow-xs"
+              title="Ouvrir le panneau d'administration des sprints et des utilisateurs"
+            >
+              <Shield className="w-3.5 h-3.5 text-purple-400" />
+              <span>Admin</span>
+            </button>
+          )}
+
           {/* Profil Associé & Dropdown avec Déconnexion et Admin */}
           <div className="relative shrink-0" ref={menuRef}>
             {currentUser && (
@@ -182,17 +197,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
                 <div className="py-1">
-                  {/* Option Admin : Gestion des utilisateurs */}
-                  {currentUser.role === 'admin' && onOpenUserManager && (
+                  {/* Option Admin : Panneau d'administration */}
+                  {currentUser.role === 'admin' && (
                     <button
                       onClick={() => {
                         setIsMenuOpen(false);
-                        onOpenUserManager();
+                        if (onOpenAdminPanel) onOpenAdminPanel();
+                        else if (onOpenUserManager) onOpenUserManager();
                       }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-200 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer text-left"
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-purple-300 hover:text-white hover:bg-purple-600/20 transition-colors cursor-pointer text-left"
                     >
-                      <UserCog className="w-4 h-4 text-purple-400" />
-                      <span>Gestion des utilisateurs</span>
+                      <Shield className="w-4 h-4 text-purple-400" />
+                      <span>Panneau d'Administration</span>
                     </button>
                   )}
 
@@ -252,6 +268,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Users className="w-3.5 h-3.5" />
             Réunion
           </button>
+
+          {currentUser?.role === 'admin' && (
+            <button
+              onClick={() => onOpenAdminPanel ? onOpenAdminPanel() : onOpenUserManager?.()}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold text-purple-300 hover:text-white"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              Admin
+            </button>
+          )}
         </div>
 
       </div>

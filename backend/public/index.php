@@ -71,13 +71,17 @@ $router->add('GET', '/api/properties', [PropertyController::class, 'list']);
 $router->add('GET', '/api/sprints', [SprintController::class, 'list']);
 $router->add('GET', '/api/sprints/current', [SprintController::class, 'current']);
 $router->add('GET', '/api/sprints/{id}', [SprintController::class, 'get']);
+$router->add('PUT', '/api/sprints/{id}', [SprintController::class, 'update']);
+$router->add('DELETE', '/api/sprints/{id}', [SprintController::class, 'delete']);
 $router->add('POST', '/api/sprints/{id}/close', [SprintController::class, 'close']);
+$router->add('POST', '/api/sprints/{id}/reopen', [SprintController::class, 'reopen']);
 
 // --- Tâches ---
 $router->add('POST', '/api/tasks', [TaskController::class, 'create']);
 $router->add('PUT', '/api/tasks/{id}', [TaskController::class, 'update']);
 $router->add('PATCH', '/api/tasks/{id}', [TaskController::class, 'update']);
 $router->add('PATCH', '/api/tasks/{id}/status', [TaskController::class, 'updateStatus']);
+$router->add('PATCH', '/api/tasks/{id}/star', [TaskController::class, 'toggleStar']);
 $router->add('DELETE', '/api/tasks/{id}', [TaskController::class, 'delete']);
 
 // --- Sous-tâches ---

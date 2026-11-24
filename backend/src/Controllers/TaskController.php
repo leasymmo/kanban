@@ -56,6 +56,7 @@ class TaskController {
         $description = trim($body['description'] ?? '');
         $dueDate = !empty($body['due_date']) ? $body['due_date'] : null;
         $isUnplanned = !empty($body['is_unplanned']) ? 1 : 0;
+        $isStarred = !empty($body['is_starred']) ? 1 : 0;
 
         // Position
         $stmtPos = $db->prepare("SELECT MAX(position) as max_pos FROM tasks WHERE sprint_id = ? AND status = ?");
@@ -66,15 +67,15 @@ class TaskController {
         $stmt = $db->prepare("
             INSERT INTO tasks (
                 sprint_id, title, description, status, assigned_to, created_by,
-                property_id, priority, due_date, position, is_unplanned
+                property_id, priority, due_date, position, is_unplanned, is_starred
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?
             )
         ");
         $stmt->execute([
             $sprintId, $title, $description, $status, $assignedTo, $currentUser['id'],
-            $propertyId, $priority, $dueDate, $position, $isUnplanned
+            $propertyId, $priority, $dueDate, $position, $isUnplanned, $isStarred
         ]);
         $taskId = (int)$db->lastInsertId();
 
@@ -160,6 +161,9 @@ class TaskController {
         $isUnplanned = array_key_exists('is_unplanned', $body)
             ? (!empty($body['is_unplanned']) ? 1 : 0)
             : (int)$task['is_unplanned'];
+        $isStarred = array_key_exists('is_starred', $body)
+            ? (!empty($body['is_starred']) ? 1 : 0)
+            : (int)($task['is_starred'] ?? 0);
 
         // Règle d'attribution : SEUL un admin peut modifier assigned_to
         $assignedTo = $task['assigned_to'];
@@ -174,12 +178,12 @@ class TaskController {
         $stmtUpdate = $db->prepare("
             UPDATE tasks
             SET title = ?, description = ?, status = ?, assigned_to = ?,
-                property_id = ?, priority = ?, due_date = ?, is_unplanned = ?
+                property_id = ?, priority = ?, due_date = ?, is_unplanned = ?, is_starred = ?
             WHERE id = ?
         ");
         $stmtUpdate->execute([
             $title, $description, $status, $assignedTo,
-            $propertyId, $priority, $dueDate, $isUnplanned, $id
+            $propertyId, $priority, $dueDate, $isUnplanned, $isStarred, $id
         ]);
 
         // Synchronisation des sous-tâches si transmises dans la mise à jour
@@ -285,6 +289,53 @@ class TaskController {
         $stmtUpdate->execute([$newStatus, $id]);
 
         Response::success(['status' => $newStatus], 'Statut mis à jour');
+    }
+
+    /**
+     * PATCH /api/tasks/{id}/star
+     * Active / désactive l'étoile de mise en avant (Highlight pour la réunion)
+     * Règle stricte : Un associé ne peut mettre en avant que ses propres tâches
+     */
+    public function toggleStar(int $id): void {
+        $currentUser = Auth::requireWrite();
+        $db = Database::getConnection();
+
+        $stmt = $db->prepare("
+            SELECT t.*, s.status as sprint_status
+            FROM tasks t
+            JOIN sprints s ON s.id = t.sprint_id
+            WHERE t.id = ?
+        ");
+        $stmt->execute([$id]);
+        $task = $stmt->fetch();
+
+        if (!$task) {
+            Response::error('Tâche introuvable', 404);
+        }
+
+        if ($task['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
+            Response::error('Sprint clôturé en lecture seule', 403);
+        }
+
+        // Seul le responsable (assigné ou créateur si non assignée), ou un admin, peut mettre en avant
+        if ($currentUser['role'] !== 'admin') {
+            $isMine = ($task['assigned_to'] == $currentUser['id'])
+                || ($task['assigned_to'] === null && $task['created_by'] == $currentUser['id']);
+            if (!$isMine) {
+                Response::error("Vous ne pouvez mettre en avant que vos propres tâches.", 403);
+            }
+        }
+
+        $newStarred = empty($task['is_starred']) ? 1 : 0;
+        $stmtUpdate = $db->prepare("UPDATE tasks SET is_starred = ? WHERE id = ?");
+        $stmtUpdate->execute([$newStarred, $id]);
+
+        Response::json([
+            'success' => true,
+            'task_id' => $id,
+            'is_starred' => (bool)$newStarred,
+            'message' => $newStarred ? 'Tâche mise en avant' : 'Mise en avant retirée'
+        ]);
     }
 
     /**

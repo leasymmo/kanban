@@ -11,6 +11,7 @@ interface KanbanBoardProps {
   onToggleSubtask: (subtaskId: number) => void;
   onAddSubtask?: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
   onUpdateStatus: (taskId: number, newStatus: TaskStatus) => void;
+  onToggleStar?: (taskId: number) => void;
   onAddNewTask: (initialStatus?: TaskStatus) => void;
   isReadOnly: boolean;
 }
@@ -67,6 +68,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onToggleSubtask,
   onAddSubtask,
   onUpdateStatus,
+  onToggleStar,
   onAddNewTask,
   isReadOnly
 }) => {
@@ -202,6 +204,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       onToggleSubtask={onToggleSubtask}
                       onAddSubtask={onAddSubtask}
                       onUpdateStatus={onUpdateStatus}
+                      onToggleStar={onToggleStar}
                       onDragStart={handleDragStart}
                     />
                   ))
