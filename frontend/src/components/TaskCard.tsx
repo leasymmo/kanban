@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Task, User, Subtask } from '../types';
+import { Task, User, Subtask, TaskStatus } from '../types';
 import { buildSubtaskTree, calculateSubtaskStats, HierarchicalSubtask } from '../utils/subtasks';
 import {
   CheckSquare, Square, ChevronDown, ChevronUp, Clock, Home,
@@ -13,6 +13,7 @@ interface TaskCardProps {
   onDelete: (id: number) => void;
   onToggleSubtask: (subtaskId: number) => void;
   onAddSubtask?: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
+  onUpdateStatus?: (taskId: number, newStatus: TaskStatus) => void;
   onDragStart?: (e: React.DragEvent, task: Task) => void;
 }
 
@@ -23,6 +24,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onDelete,
   onToggleSubtask,
   onAddSubtask,
+  onUpdateStatus,
   onDragStart
 }) => {
   const [showSubtasks, setShowSubtasks] = useState(false);
@@ -83,7 +85,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             ) : (
               <Square className="w-3.5 h-3.5 text-slate-300 shrink-0 mt-0.5" />
             )}
-            <span className={`${isDone ? 'line-through text-slate-400' : 'text-slate-700 font-medium'} leading-tight`}>
+            <span className={`${isDone ? 'line-through text-slate-400' : 'text-slate-700 font-medium'} leading-tight break-words`}>
               {node.title}
             </span>
           </button>
@@ -97,7 +99,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 setAddingChildToId(addingChildToId === node.id ? null : node.id);
                 setChildTitle('');
               }}
-              className="opacity-0 group-hover/item:opacity-100 p-0.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded transition-opacity"
+              className="opacity-100 sm:opacity-0 group-hover/item:opacity-100 p-0.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded transition-opacity cursor-pointer shrink-0"
               title={`Ajouter une sous-tâche de niveau ${node.depth + 2}`}
             >
               <CornerDownRight className="w-3 h-3" />
@@ -128,14 +130,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               type="button"
               disabled={isSubmittingChild || !childTitle.trim()}
               onClick={() => handleCreateChildSubtask(node.id)}
-              className="p-1 bg-brand-600 hover:bg-brand-700 text-white rounded text-[10px] disabled:opacity-50"
+              className="p-1 bg-brand-600 hover:bg-brand-700 text-white rounded text-[10px] disabled:opacity-50 cursor-pointer"
             >
               <Check className="w-3 h-3" />
             </button>
             <button
               type="button"
               onClick={() => setAddingChildToId(null)}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded text-[10px]"
+              className="p-1 text-slate-400 hover:text-slate-600 rounded text-[10px] cursor-pointer"
             >
               <X className="w-3 h-3" />
             </button>
@@ -184,8 +186,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           ) : null}
         </div>
 
-        {/* Actions (Modifier / Supprimer) si l'utilisateur a les droits */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Actions (Modifier / Supprimer) : toujours visibles sur mobile, hover sur desktop */}
+        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 sm:transition-opacity shrink-0">
           {task.can_edit && (
             <button
               onClick={() => onEdit(task)}
@@ -211,7 +213,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       {/* Titre de la tâche */}
       <h3
         onClick={() => task.can_edit && onEdit(task)}
-        className={`font-semibold text-sm text-slate-800 leading-snug hover:text-brand-600 transition-colors ${
+        className={`font-semibold text-sm text-slate-800 leading-snug hover:text-brand-600 transition-colors break-words ${
           task.status === 'done' ? 'line-through text-slate-400' : ''
         }`}
       >
@@ -220,7 +222,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Description / Remarques (style flèche '→ ...' du document) */}
       {task.description && (
-        <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 leading-relaxed font-normal">
+        <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 leading-relaxed font-normal break-words">
           <span className="text-brand-600 font-bold mr-1">→</span>
           {task.description}
         </div>
@@ -262,19 +264,20 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
       )}
 
-      {/* Footer : Assigné & Échéance */}
-      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+      {/* Footer : Assigné, Échéance & Changement rapide de statut (Touch/Mobile & Desktop) */}
+      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap text-xs">
+        
         {/* Responsable */}
         {task.assigned_to ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
             <div
-              className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] text-white shadow-xs"
+              className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] text-white shadow-xs shrink-0"
               style={{ backgroundColor: task.assigned_to_color || '#4B5563' }}
               title={`Assignée à ${task.assigned_to_name}`}
             >
               {task.assigned_to_initials}
             </div>
-            <span className="text-slate-600 font-medium text-xs truncate max-w-[110px]">
+            <span className="text-slate-600 font-medium text-xs truncate max-w-[100px] sm:max-w-[120px]">
               {task.assigned_to_name}
             </span>
           </div>
@@ -285,13 +288,35 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           </div>
         )}
 
-        {/* Échéance */}
-        {task.due_date && (
-          <div className="flex items-center gap-1 text-slate-500 text-[11px]">
-            <Clock className="w-3 h-3 text-slate-400" />
-            <span>{new Date(task.due_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Échéance */}
+          {task.due_date && (
+            <div className="flex items-center gap-1 text-slate-500 text-[11px]">
+              <Clock className="w-3 h-3 text-slate-400" />
+              <span>{new Date(task.due_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
+            </div>
+          )}
+
+          {/* Sélecteur de statut rapide (essentiel sur mobile tactile sans drag-and-drop) */}
+          {onUpdateStatus && task.can_edit && (
+            <select
+              value={task.status}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                onUpdateStatus(task.id, e.target.value as TaskStatus);
+              }}
+              className="text-[10px] font-semibold border border-slate-200 rounded-md px-1 py-0.5 bg-slate-50 hover:bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500"
+              title="Changer rapidement de statut"
+            >
+              <option value="todo">À faire</option>
+              <option value="in_progress">🚧 En cours</option>
+              <option value="blocked">❌ Bloqué</option>
+              <option value="done">✅ Fait</option>
+            </select>
+          )}
+        </div>
+
       </div>
     </div>
   );

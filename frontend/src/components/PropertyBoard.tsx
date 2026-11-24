@@ -1,5 +1,5 @@
 import React from 'react';
-import { Task, Property, User } from '../types';
+import { Task, Property, User, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { Home, Plus, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -11,6 +11,7 @@ interface PropertyBoardProps {
   onDeleteTask: (id: number) => void;
   onToggleSubtask: (subtaskId: number) => void;
   onAddSubtask?: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
+  onUpdateStatus?: (taskId: number, newStatus: TaskStatus) => void;
   onAddNewTask: (propertyId?: number) => void;
   isReadOnly: boolean;
 }
@@ -23,6 +24,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   onDeleteTask,
   onToggleSubtask,
   onAddSubtask,
+  onUpdateStatus,
   onAddNewTask,
   isReadOnly
 }) => {
@@ -109,6 +111,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                       onDelete={onDeleteTask}
                       onToggleSubtask={onToggleSubtask}
                       onAddSubtask={onAddSubtask}
+                      onUpdateStatus={onUpdateStatus}
                     />
                   ))
                 ) : (

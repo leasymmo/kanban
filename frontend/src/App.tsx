@@ -648,6 +648,7 @@ export const App: React.FC = () => {
                 onDeleteTask={handleDeleteTask}
                 onToggleSubtask={handleToggleSubtask}
                 onAddSubtask={handleAddSubtask}
+                onUpdateStatus={handleUpdateTaskStatus}
                 onAddNewTask={() => {
                   setEditingTask(null);
                   setIsTaskModalOpen(true);

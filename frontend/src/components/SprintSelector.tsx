@@ -18,13 +18,13 @@ export const SprintSelector: React.FC<SprintSelectorProps> = ({
   const currentSprint = sprints.find(s => s.id === currentSprintId);
 
   return (
-    <div className="relative inline-block text-left">
-      <div className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg border border-slate-700 text-sm shadow-sm transition-all">
-        <Calendar className="w-4 h-4 text-brand-500" />
+    <div className="relative inline-block text-left shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/80 hover:bg-slate-800 text-white px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs sm:text-sm shadow-xs transition-all">
+        <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-400 shrink-0" />
         <select
           value={currentSprintId || ''}
           onChange={(e) => onSelectSprint(Number(e.target.value))}
-          className="bg-transparent text-white font-medium focus:outline-none cursor-pointer pr-2"
+          className="bg-transparent text-white font-medium focus:outline-none cursor-pointer pr-1 max-w-[130px] xs:max-w-[180px] sm:max-w-[240px] md:max-w-none truncate"
         >
           {sprints.map((sprint) => (
             <option key={sprint.id} value={sprint.id} className="bg-slate-900 text-white">
@@ -33,11 +33,11 @@ export const SprintSelector: React.FC<SprintSelectorProps> = ({
           ))}
         </select>
         {isReadOnly ? (
-          <span className="flex items-center gap-1 text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30 font-medium">
+          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md border border-amber-500/30 font-medium shrink-0">
             <Lock className="w-3 h-3" /> Lecture seule
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-medium">
+          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-500/30 font-medium shrink-0">
             <CheckCircle2 className="w-3 h-3" /> Actif
           </span>
         )}

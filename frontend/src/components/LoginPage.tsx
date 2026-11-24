@@ -106,7 +106,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
                   Choisissez votre compte :
                 </label>
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 xs:grid-cols-2 gap-2.5">
                   {users.map((u) => {
                     const isSelected = selectedUser?.id === u.id;
                     return (

@@ -204,13 +204,13 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
         </div>
 
         {/* Titre */}
-        <h4 className={`text-sm sm:text-base font-bold text-slate-800 leading-snug ${isDone ? 'line-through text-slate-400' : ''}`}>
+        <h4 className={`text-sm sm:text-base font-bold text-slate-800 leading-snug break-words ${isDone ? 'line-through text-slate-400' : ''}`}>
           {q.title}
         </h4>
 
         {/* Détails */}
         {q.details && (
-          <p className="mt-2 text-xs sm:text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed font-normal whitespace-pre-line">
+          <p className="mt-2 text-xs sm:text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed font-normal whitespace-pre-line break-words">
             {q.details}
           </p>
         )}
@@ -271,7 +271,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
 
                       {/* Actions sur sa propre proposition */}
                       {ans.can_edit && !isEditingThis && !isReadOnly && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover/ans:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover/ans:opacity-100 sm:transition-opacity">
                           <button
                             type="button"
                             onClick={() => {
@@ -323,7 +323,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <p className="leading-relaxed whitespace-pre-line pl-7 text-slate-700 font-medium">
+                      <p className="leading-relaxed whitespace-pre-line pl-7 text-slate-700 font-medium break-words">
                         {ans.content}
                       </p>
                     )}
@@ -339,7 +339,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder="Proposer une réponse / piste de solution..."
+                  placeholder="Proposer une réponse..."
                   value={newAnswerText[q.id] || ''}
                   onChange={(e) => setNewAnswerText({ ...newAnswerText, [q.id]: e.target.value })}
                   onKeyDown={(e) => {

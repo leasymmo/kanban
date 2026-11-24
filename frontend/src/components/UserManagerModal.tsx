@@ -362,7 +362,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     <Palette className="w-3.5 h-3.5 text-slate-500" />
                     Couleur du profil :
                   </label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {PRESET_COLORS.map((col) => (
                       <button
                         type="button"
@@ -444,11 +444,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                         )}
                         {getRoleBadge(u.role)}
                       </div>
-                      <p className="text-xs text-slate-500">{u.email}</p>
+                      <p className="text-xs text-slate-500 truncate max-w-[150px] sm:max-w-xs">{u.email}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => handleStartEdit(u)}
                       className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer"

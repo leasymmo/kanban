@@ -110,8 +110,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const scrollToColumn = (status: TaskStatus) => {
     setActiveMobileColumn(status);
     const element = document.getElementById(`kanban-col-${status}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    if (element && scrollContainerRef.current) {
+      const offset = element.offsetLeft - scrollContainerRef.current.offsetLeft;
+      scrollContainerRef.current.scrollTo({ left: offset, behavior: 'smooth' });
     }
   };
 
@@ -200,6 +201,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       onDelete={onDeleteTask}
                       onToggleSubtask={onToggleSubtask}
                       onAddSubtask={onAddSubtask}
+                      onUpdateStatus={onUpdateStatus}
                       onDragStart={handleDragStart}
                     />
                   ))

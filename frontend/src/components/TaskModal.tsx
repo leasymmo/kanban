@@ -226,11 +226,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const getDepthStyle = (depth: number) => {
     switch (depth) {
       case 1:
-        return 'ml-4 pl-3 border-l-2 border-indigo-400 bg-indigo-50/20';
+        return 'ml-2 sm:ml-4 pl-2.5 sm:pl-3 border-l-2 border-indigo-400 bg-indigo-50/20';
       case 2:
-        return 'ml-8 pl-3 border-l-2 border-amber-400 bg-amber-50/20';
+        return 'ml-4 sm:ml-8 pl-2.5 sm:pl-3 border-l-2 border-amber-400 bg-amber-50/20';
       case 3:
-        return 'ml-12 pl-3 border-l-2 border-emerald-400 bg-emerald-50/20';
+        return 'ml-6 sm:ml-12 pl-2.5 sm:pl-3 border-l-2 border-emerald-400 bg-emerald-50/20';
       default:
         return 'bg-slate-50 border-slate-200';
     }
@@ -443,6 +443,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                           type="text"
                           value={sub.title}
                           onChange={(e) => handleUpdateSubtaskTitle(idx, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              (e.target as HTMLElement).blur();
+                            }
+                          }}
                           className={`flex-1 bg-transparent border-0 p-0 text-xs font-medium focus:outline-none focus:ring-0 ${
                             sub.is_done ? 'line-through text-slate-400' : 'text-slate-800'
                           }`}

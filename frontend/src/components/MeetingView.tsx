@@ -426,12 +426,12 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   </div>
 
                   {/* Intitulé & détails */}
-                  <h4 className={`text-sm sm:text-base font-bold text-slate-800 ${isResolved ? 'text-slate-600' : ''}`}>
+                  <h4 className={`text-sm sm:text-base font-bold text-slate-800 break-words ${isResolved ? 'text-slate-600' : ''}`}>
                     {q.title}
                   </h4>
 
                   {q.details && (
-                    <p className="mt-2 text-xs sm:text-sm text-slate-600 bg-white p-3 rounded-xl border border-slate-200/70 leading-relaxed font-normal whitespace-pre-line">
+                    <p className="mt-2 text-xs sm:text-sm text-slate-600 bg-white p-3 rounded-xl border border-slate-200/70 leading-relaxed font-normal whitespace-pre-line break-words">
                       {q.details}
                     </p>
                   )}
@@ -543,6 +543,20 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                           />
 
                           <div className="flex items-center justify-end gap-2">
+                            {hasFinalAnswer && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (window.confirm('Supprimer la décision finale et réouvrir cette question ?')) {
+                                    await onSetQuestionDecision?.(q.id, '', 'open');
+                                    setEditingDecisionForId(null);
+                                  }
+                                }}
+                                className="px-3 py-2 text-red-600 hover:bg-red-50 text-xs font-semibold rounded-xl cursor-pointer"
+                              >
+                                Supprimer la décision
+                              </button>
+                            )}
                             <button
                               type="button"
                               disabled={!currentInput.trim() || isSubmittingDecision[q.id]}
