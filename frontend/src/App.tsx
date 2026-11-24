@@ -8,210 +8,12 @@ import { QuestionsView } from './components/QuestionsView';
 import { MeetingView } from './components/MeetingView';
 import { TaskModal } from './components/TaskModal';
 import { CloseSprintModal } from './components/CloseSprintModal';
+import { LoginPage } from './components/LoginPage';
+import { UserManagerModal } from './components/UserManagerModal';
 import {
   Plus, LayoutGrid, Home, Filter, UserCheck, UserPlus,
   RefreshCw, CheckCircle2, AlertCircle, ShieldAlert
 } from 'lucide-react';
-
-// Données de secours démo (utilisées uniquement si le backend PHP n'est pas démarré)
-const DEFAULT_USERS: User[] = [
-  { id: 1, name: 'Alexandre', email: 'alexandre@example.com', role: 'admin', avatar_color: '#2563EB', initials: 'AL' },
-  { id: 2, name: 'Béatrice', email: 'beatrice@example.com', role: 'admin', avatar_color: '#7C3AED', initials: 'BE' },
-  { id: 3, name: 'Camille', email: 'camille@example.com', role: 'write', avatar_color: '#059669', initials: 'CA' },
-  { id: 4, name: 'Damien', email: 'damien@example.com', role: 'write', avatar_color: '#D97706', initials: 'DA' }
-];
-
-const DEFAULT_PROPERTIES: Property[] = [
-  { id: 1, name: 'Résidence Centre', code: 'RC', color: '#3B82F6', is_active: 1 },
-  { id: 2, name: 'Studio Sud', code: 'SS', color: '#EC4899', is_active: 1 },
-  { id: 3, name: 'Villa Colline', code: 'VC', color: '#10B981', is_active: 1 },
-  { id: 4, name: 'Loft Urbain', code: 'LU', color: '#8B5CF6', is_active: 1 },
-  { id: 5, name: 'Appartement Panorama', code: 'AP', color: '#F59E0B', is_active: 1 }
-];
-
-const DEFAULT_SPRINTS: Sprint[] = [
-  { id: 1, number: 1, name: 'Sprint 1 — Lancement', status: 'active', started_at: '2026-11-24 10:00:00' }
-];
-
-const DEFAULT_TASKS: Task[] = [
-  {
-    id: 1,
-    sprint_id: 1,
-    title: "Préparation des modèles de contrats pour les nouveaux clients",
-    description: "Mettre en forme le document avec les clauses standards.",
-    status: 'todo',
-    assigned_to: null,
-    created_by: 1,
-    created_by_name: 'Alexandre',
-    property_id: null,
-    priority: 'medium',
-    position: 1,
-    subtasks: []
-  },
-  {
-    id: 2,
-    sprint_id: 1,
-    title: "Mise à jour du site web et vérification des coordonnées",
-    description: "Vérifier le formulaire de contact.",
-    status: 'todo',
-    assigned_to: null,
-    created_by: 2,
-    created_by_name: 'Béatrice',
-    property_id: null,
-    priority: 'low',
-    position: 2,
-    subtasks: []
-  },
-  {
-    id: 3,
-    sprint_id: 1,
-    title: "Contrôle des stocks de consommables et fournitures",
-    description: "Faire l'inventaire général de fin de mois.",
-    status: 'in_progress',
-    assigned_to: 4,
-    assigned_to_name: 'Damien',
-    assigned_to_initials: 'DA',
-    assigned_to_color: '#D97706',
-    created_by: 4,
-    created_by_name: 'Damien',
-    property_id: 1,
-    property_name: 'Résidence Centre',
-    property_color: '#3B82F6',
-    priority: 'high',
-    position: 1,
-    subtasks: [
-      { id: 101, task_id: 3, title: "Compter les produits d'accueil restants", is_done: 1, position: 1 },
-      { id: 102, task_id: 3, title: "Passer la commande auprès du fournisseur", is_done: 0, position: 2 }
-    ]
-  },
-  {
-    id: 4,
-    sprint_id: 1,
-    title: "Remplacement des serrures connectées",
-    description: "Installation et test d'ouverture par smartphone.",
-    status: 'in_progress',
-    assigned_to: 4,
-    assigned_to_name: 'Damien',
-    assigned_to_initials: 'DA',
-    assigned_to_color: '#D97706',
-    created_by: 4,
-    created_by_name: 'Damien',
-    property_id: 2,
-    property_name: 'Studio Sud',
-    property_color: '#EC4899',
-    priority: 'high',
-    position: 2,
-    subtasks: [
-      { id: 103, task_id: 4, title: "Acheter les nouveaux boîtiers", is_done: 1, position: 1 },
-      { id: 104, task_id: 4, title: "Programmer les codes d'accès temporaires", is_done: 0, position: 2 }
-    ]
-  },
-  {
-    id: 5,
-    sprint_id: 1,
-    title: "Répondre aux demandes et avis clients de la semaine",
-    description: "Traitement des messages en attente.",
-    status: 'in_progress',
-    assigned_to: 3,
-    assigned_to_name: 'Camille',
-    assigned_to_initials: 'CA',
-    assigned_to_color: '#059669',
-    created_by: 3,
-    created_by_name: 'Camille',
-    property_id: null,
-    priority: 'medium',
-    position: 1,
-    subtasks: []
-  },
-  {
-    id: 6,
-    sprint_id: 1,
-    title: "Finaliser le tableau de bord prévisionnel trimestriel",
-    description: "Point comptable avant validation finale.",
-    status: 'in_progress',
-    assigned_to: 2,
-    assigned_to_name: 'Béatrice',
-    assigned_to_initials: 'BE',
-    assigned_to_color: '#7C3AED',
-    created_by: 2,
-    created_by_name: 'Béatrice',
-    property_id: null,
-    priority: 'high',
-    position: 1,
-    subtasks: []
-  },
-  {
-    id: 7,
-    sprint_id: 1,
-    title: "Configuration et déploiement du tableau Kanban",
-    description: "Vérifier la bonne synchronisation avec la base de données.",
-    status: 'done',
-    assigned_to: 1,
-    assigned_to_name: 'Alexandre',
-    assigned_to_initials: 'AL',
-    assigned_to_color: '#2563EB',
-    created_by: 1,
-    created_by_name: 'Alexandre',
-    property_id: null,
-    priority: 'high',
-    position: 1,
-    subtasks: [
-      { id: 105, task_id: 7, title: "Créer la structure des tables MySQL", is_done: 1, position: 1 },
-      { id: 106, task_id: 7, title: "Tester l'API REST", is_done: 1, position: 2 }
-    ]
-  }
-];
-
-const DEFAULT_QUESTIONS: Question[] = [
-  {
-    id: 1,
-    sprint_id: 1,
-    user_id: 4,
-    user_name: 'Damien',
-    user_initials: 'DA',
-    user_color: '#D97706',
-    created_by: 4,
-    title: "Organisation des plannings d'intervention pour le mois prochain",
-    details: "Définir les créneaux prioritaires avec les prestataires.",
-    status: 'open'
-  },
-  {
-    id: 2,
-    sprint_id: 1,
-    user_id: 3,
-    user_name: 'Camille',
-    user_initials: 'CA',
-    user_color: '#059669',
-    created_by: 3,
-    title: "Optimisation des messages automatiques d'accueil",
-    details: "Harmoniser les consignes d'arrivée envoyées aux voyageurs.",
-    status: 'open'
-  },
-  {
-    id: 3,
-    sprint_id: 1,
-    user_id: 2,
-    user_name: 'Béatrice',
-    user_initials: 'BE',
-    user_color: '#7C3AED',
-    created_by: 2,
-    title: "Validation des devis pour les travaux de rénovation",
-    details: "Arbitrage sur les deux propositions reçues.",
-    status: 'open'
-  },
-  {
-    id: 4,
-    sprint_id: 1,
-    user_id: 1,
-    user_name: 'Alexandre',
-    user_initials: 'AL',
-    user_color: '#2563EB',
-    created_by: 1,
-    title: "Point sur les nouvelles fonctionnalités souhaitées pour le tableau",
-    details: "Recueillir les retours des utilisateurs après la première semaine.",
-    status: 'open'
-  }
-];
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -234,6 +36,7 @@ export const App: React.FC = () => {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isCloseSprintModalOpen, setIsCloseSprintModalOpen] = useState(false);
+  const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
 
   // Synchronisation avec l'API
   useEffect(() => {
@@ -244,20 +47,35 @@ export const App: React.FC = () => {
     setIsLoading(true);
     setApiError(null);
     try {
-      const [usersRes, propsRes, sprintsRes] = await Promise.all([
-        api.getUsers(),
-        api.getProperties(),
-        api.getSprints()
-      ]);
-
-      let activeUser: User | null = null;
+      // 1. Charger la liste des utilisateurs (public)
+      const usersRes = await api.getUsers().catch(() => ({ success: false, users: [] as User[] }));
       if (usersRes?.users && usersRes.users.length > 0) {
         setAllUsers(usersRes.users);
-        const storedUserId = api.getCurrentUserId();
-        activeUser = (storedUserId ? usersRes.users.find(u => u.id === storedUserId) : null) || usersRes.users[0];
-        setCurrentUser(activeUser);
-        api.setCurrentUserId(activeUser.id);
       }
+
+      // 2. Vérifier si une session active existe
+      let meRes: { success: boolean; user: User } | null = null;
+      try {
+        meRes = await api.getMe();
+      } catch {
+        meRes = null;
+      }
+
+      if (!meRes?.user) {
+        setCurrentUser(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. Utilisateur authentifié !
+      setCurrentUser(meRes.user);
+      api.setCurrentUserId(meRes.user.id);
+
+      // 4. Charger logements et sprints
+      const [propsRes, sprintsRes] = await Promise.all([
+        api.getProperties().catch(() => ({ success: false, properties: [] })),
+        api.getSprints().catch(() => ({ success: false, sprints: [] }))
+      ]);
 
       if (propsRes?.properties) {
         setProperties(propsRes.properties);
@@ -278,6 +96,28 @@ export const App: React.FC = () => {
       setApiError(e?.message || "Impossible de joindre l'API REST.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleLoginSuccess = async (user: User, token: string) => {
+    setCurrentUser(user);
+    api.setCurrentUserId(user.id);
+    await loadInitialData();
+  };
+
+  const handleLoginSubmit = async (emailOrId: string | number, password: string) => {
+    return api.login(emailOrId, password);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch (err) {
+      console.warn("Erreur déconnexion :", err);
+    } finally {
+      setCurrentUser(null);
+      localStorage.removeItem('kanban_token');
+      localStorage.removeItem('kanban_current_user_id');
     }
   };
 
@@ -529,6 +369,26 @@ export const App: React.FC = () => {
 
   const activeSprint = sprints.find(s => s.id === currentSprintId) || sprints[0];
 
+  // Si non connecté, afficher la page de connexion sécurisée
+  if (isLoading && !currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white p-4">
+        <div className="w-12 h-12 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin mb-4" />
+        <p className="text-sm font-semibold text-slate-300">Vérification de la session Carré d'Hôtes...</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <LoginPage
+        users={allUsers}
+        onLoginSuccess={handleLoginSuccess}
+        onLoginSubmit={handleLoginSubmit}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
       
@@ -542,8 +402,8 @@ export const App: React.FC = () => {
         isReadOnly={isReadOnly}
         activeTab={activeTab}
         onChangeTab={setActiveTab}
-        onSwitchUser={handleSwitchUser}
-        onLogout={() => {}}
+        onLogout={handleLogout}
+        onOpenUserManager={() => setIsUserManagerOpen(true)}
       />
 
       {/* Conteneur Principal */}
@@ -808,6 +668,29 @@ export const App: React.FC = () => {
         currentSprint={activeSprint}
         tasks={tasks}
         onConfirmClose={handleConfirmCloseSprint}
+      />
+
+      {/* Modale d'Administration des Utilisateurs (Admins uniquement) */}
+      <UserManagerModal
+        isOpen={isUserManagerOpen}
+        onClose={() => setIsUserManagerOpen(false)}
+        users={allUsers}
+        currentUser={currentUser}
+        onUserCreated={(newUser) => {
+          setAllUsers([...allUsers, newUser]);
+        }}
+        onUserUpdated={(updatedUser) => {
+          setAllUsers(allUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
+          if (currentUser?.id === updatedUser.id) {
+            setCurrentUser(updatedUser);
+          }
+        }}
+        onUserDeleted={(deletedId) => {
+          setAllUsers(allUsers.filter(u => u.id !== deletedId));
+        }}
+        apiCreateUser={api.createUser}
+        apiUpdateUser={api.updateUser}
+        apiDeleteUser={api.deleteUser}
       />
 
     </div>

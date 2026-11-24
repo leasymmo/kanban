@@ -102,6 +102,26 @@ export const api = {
     return request<{ success: boolean; users: User[] }>('/users');
   },
 
+  async createUser(data: { name: string; email: string; password?: string; role: string; avatar_color?: string; initials?: string }) {
+    return request<{ success: boolean; message: string; user: User }>('/users', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateUser(id: number, data: { name?: string; email?: string; password?: string; role?: string; avatar_color?: string; initials?: string }) {
+    return request<{ success: boolean; message: string; user: User }>(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteUser(id: number) {
+    return request<{ success: boolean; message: string }>(`/users/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
   async getProperties() {
     return request<{ success: boolean; properties: Property[] }>('/properties');
   },

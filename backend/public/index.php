@@ -67,6 +67,9 @@ $router->add('POST', '/api/auth/logout', [AuthController::class, 'logout']);
 
 // --- Utilisateurs & Logements ---
 $router->add('GET', '/api/users', [UserController::class, 'list']);
+$router->add('POST', '/api/users', [UserController::class, 'create']);
+$router->add('PUT', '/api/users/{id}', [UserController::class, 'update']);
+$router->add('DELETE', '/api/users/{id}', [UserController::class, 'delete']);
 $router->add('GET', '/api/properties', [PropertyController::class, 'list']);
 
 // --- Sprints ---
