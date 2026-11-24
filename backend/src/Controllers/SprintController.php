@@ -13,6 +13,7 @@ class SprintController {
      * Liste tous les sprints avec statistiques
      */
     public function list(): void {
+        Auth::requireAuth();
         $db = Database::getConnection();
 
         $stmt = $db->query("
@@ -39,6 +40,7 @@ class SprintController {
      * Récupère le sprint actif en cours
      */
     public function current(): void {
+        Auth::requireAuth();
         $db = Database::getConnection();
 
         $stmt = $db->query("
@@ -70,7 +72,7 @@ class SprintController {
      * Détail d'un sprint complet (avec tâches, sous-tâches, questions)
      */
     public function get(int $id): void {
-        $currentUser = Auth::getCurrentUser();
+        $currentUser = Auth::requireAuth();
         $db = Database::getConnection();
 
         $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ?");
@@ -291,25 +293,51 @@ class SprintController {
                 $newTaskId = (int)$db->lastInsertId();
                 $rolledOverTasksCount++;
 
-                // Report de TOUTES les sous-tâches (faites ou non) avec préservation de la hiérarchie parent/enfant
+                // Report de TOUTES les sous-tâches (faites ou non) avec préservation exacte de la hiérarchie parent/enfant
                 $stmtGetSubtasks->execute([$oldTask['id']]);
                 $oldSubtasks = $stmtGetSubtasks->fetchAll();
 
                 $subtaskIdMap = [];
-                foreach ($oldSubtasks as $sub) {
-                    $newParentId = !empty($sub['parent_id']) && isset($subtaskIdMap[$sub['parent_id']])
-                        ? $subtaskIdMap[$sub['parent_id']]
-                        : null;
+                $remaining = $oldSubtasks;
+                $maxIterations = 10;
+                $iter = 0;
 
-                    $stmtInsertSubtask->execute([
-                        $newTaskId,
-                        $newParentId,
-                        $sub['title'],
-                        $sub['is_done'], // Conserve l'état coché ou non
-                        $sub['position']
-                    ]);
-                    $subtaskIdMap[$sub['id']] = (int)$db->lastInsertId();
-                    $rolledOverSubtasksCount++;
+                while (!empty($remaining) && $iter < $maxIterations) {
+                    $nextRemaining = [];
+                    $iter++;
+                    foreach ($remaining as $sub) {
+                        $oldParentId = !empty($sub['parent_id']) ? (int)$sub['parent_id'] : null;
+                        if ($oldParentId === null || isset($subtaskIdMap[$oldParentId])) {
+                            $newParentId = $oldParentId ? $subtaskIdMap[$oldParentId] : null;
+                            $stmtInsertSubtask->execute([
+                                $newTaskId,
+                                $newParentId,
+                                $sub['title'],
+                                $sub['is_done'], // Conserve l'état validé ou non
+                                $sub['position']
+                            ]);
+                            $subtaskIdMap[$sub['id']] = (int)$db->lastInsertId();
+                            $rolledOverSubtasksCount++;
+                        } else {
+                            $nextRemaining[] = $sub;
+                        }
+                    }
+                    if (count($nextRemaining) === count($remaining)) {
+                        // Cas exceptionnel d'orphelin : insérer à la racine pour éviter toute perte
+                        foreach ($nextRemaining as $orphan) {
+                            $stmtInsertSubtask->execute([
+                                $newTaskId,
+                                null,
+                                $orphan['title'],
+                                $orphan['is_done'],
+                                $orphan['position']
+                            ]);
+                            $subtaskIdMap[$orphan['id']] = (int)$db->lastInsertId();
+                            $rolledOverSubtasksCount++;
+                        }
+                        break;
+                    }
+                    $remaining = $nextRemaining;
                 }
             }
 

@@ -13,14 +13,21 @@ class Auth {
     }
 
     /**
-     * Récupère l'utilisateur actuellement authentifié via le Bearer Token ou le Cookie
+     * Extrait le token de la requête (Bearer header ou Cookie)
      */
-    public static function getCurrentUser(): ?array {
+    public static function getTokenFromRequest(): ?string {
         $token = self::getBearerToken();
         if (!$token && isset($_COOKIE['kanban_token'])) {
             $token = $_COOKIE['kanban_token'];
         }
+        return $token;
+    }
 
+    /**
+     * Récupère l'utilisateur actuellement authentifié via le Bearer Token ou le Cookie
+     */
+    public static function getCurrentUser(): ?array {
+        $token = self::getTokenFromRequest();
         if (!$token) {
             return null;
         }

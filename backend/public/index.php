@@ -36,6 +36,7 @@ $router = new Router();
 
 // --- Test & Diagnostic de connexion ---
 $router->add('GET', '/api/test', function() {
+    \App\Auth::requireAdmin();
     try {
         $db = \App\Database::getConnection();
         $usersCount = (int)$db->query("SELECT COUNT(*) FROM users")->fetchColumn();
@@ -43,8 +44,6 @@ $router->add('GET', '/api/test', function() {
         $tasksCount = (int)$db->query("SELECT COUNT(*) FROM tasks")->fetchColumn();
         \App\Response::json([
             'status' => 'ok',
-            'php_version' => PHP_VERSION,
-            'database' => 'connected',
             'counts' => [
                 'users' => $usersCount,
                 'sprints' => $sprintsCount,
@@ -52,11 +51,7 @@ $router->add('GET', '/api/test', function() {
             ]
         ]);
     } catch (\Throwable $e) {
-        \App\Response::json([
-            'status' => 'error',
-            'database' => 'connection_failed',
-            'error' => $e->getMessage()
-        ], 500);
+        \App\Response::error('Erreur interne', 500);
     }
 });
 

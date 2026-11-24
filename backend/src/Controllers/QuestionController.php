@@ -233,12 +233,22 @@ class QuestionController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $stmt = $db->prepare("SELECT * FROM question_answers WHERE id = ?");
+        $stmt = $db->prepare("
+            SELECT a.*, s.status as sprint_status
+            FROM question_answers a
+            JOIN questions q ON q.id = a.question_id
+            JOIN sprints s ON s.id = q.sprint_id
+            WHERE a.id = ?
+        ");
         $stmt->execute([$answerId]);
         $answer = $stmt->fetch();
 
         if (!$answer) {
             Response::error('Réponse introuvable', 404);
+        }
+
+        if ($answer['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
+            Response::error('Sprint clôturé en lecture seule', 403);
         }
 
         if ($currentUser['role'] !== 'admin' && $answer['user_id'] != $currentUser['id']) {
@@ -269,12 +279,22 @@ class QuestionController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $stmt = $db->prepare("SELECT * FROM question_answers WHERE id = ?");
+        $stmt = $db->prepare("
+            SELECT a.*, s.status as sprint_status
+            FROM question_answers a
+            JOIN questions q ON q.id = a.question_id
+            JOIN sprints s ON s.id = q.sprint_id
+            WHERE a.id = ?
+        ");
         $stmt->execute([$answerId]);
         $answer = $stmt->fetch();
 
         if (!$answer) {
             Response::error('Réponse introuvable', 404);
+        }
+
+        if ($answer['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
+            Response::error('Sprint clôturé en lecture seule', 403);
         }
 
         if ($currentUser['role'] !== 'admin' && $answer['user_id'] != $currentUser['id']) {
@@ -305,6 +325,9 @@ class QuestionController {
 
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
         $finalAnswer = isset($body['final_answer']) ? trim($body['final_answer']) : null;
+        if ($finalAnswer === '') {
+            $finalAnswer = null;
+        }
         $status = in_array($body['status'] ?? '', ['open', 'discussed', 'resolved']) ? $body['status'] : 'resolved';
 
         $answeredBy = !empty($finalAnswer) ? $currentUser['id'] : null;

@@ -18,15 +18,33 @@ class AuthController {
         $userId = $body['user_id'] ?? null;
         $password = $body['password'] ?? '';
 
-        if (empty($password) && empty($body['direct'])) {
+        if (empty($password)) {
             Response::error('Mot de passe requis', 400);
         }
 
         $db = Database::getConnection();
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+
+        // Protection force-brute : max 10 tentatives échouées par tranche de 10 minutes par IP
+        try {
+            if (mt_rand(1, 20) === 1) {
+                $db->exec("DELETE FROM login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+            }
+            $stmtAttempts = $db->prepare("
+                SELECT COUNT(*) FROM login_attempts
+                WHERE ip_address = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+            ");
+            $stmtAttempts->execute([$ip]);
+            $failCount = (int)$stmtAttempts->fetchColumn();
+
+            if ($failCount >= 10) {
+                Response::error('Trop de tentatives de connexion échouées. Veuillez patienter 10 minutes.', 429);
+            }
+        } catch (\Throwable $t) {}
         
         if ($userId) {
             $stmt = $db->prepare("SELECT * FROM users WHERE id = ? LIMIT 1");
-            $stmt->execute([$userId]);
+            $stmt->execute([(int)$userId]);
         } else if (!empty($email)) {
             $stmt = $db->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
             $stmt->execute([$email]);
@@ -36,23 +54,37 @@ class AuthController {
 
         $user = $stmt->fetch();
         if (!$user) {
-            Response::error('Utilisateur introuvable', 404);
+            try {
+                $db->prepare("INSERT INTO login_attempts (ip_address) VALUES (?)")->execute([$ip]);
+            } catch (\Throwable $t) {}
+            Response::error('Identifiants incorrects', 401);
         }
 
-        // Vérification mot de passe (avec fallback SHA256 si mot de passe initial)
+        // Vérification sécurisée du mot de passe
         $passwordValid = false;
         if (password_verify($password, $user['password_hash'])) {
             $passwordValid = true;
+            if (password_needs_rehash($user['password_hash'], PASSWORD_BCRYPT)) {
+                $newHash = password_hash($password, PASSWORD_BCRYPT);
+                $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$newHash, $user['id']]);
+            }
         } else if (hash('sha256', $password) === $user['password_hash']) {
             $passwordValid = true;
-        } else if ($password === 'password123') {
-            // Sécurité de secours pour l'installation initiale
-            $passwordValid = true;
+            $newHash = password_hash($password, PASSWORD_BCRYPT);
+            $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$newHash, $user['id']]);
         }
 
         if (!$passwordValid) {
-            Response::error('Mot de passe incorrect', 401);
+            try {
+                $db->prepare("INSERT INTO login_attempts (ip_address) VALUES (?)")->execute([$ip]);
+            } catch (\Throwable $t) {}
+            Response::error('Identifiants incorrects', 401);
         }
+
+        // Connexion réussie : effacer les tentatives échouées de cette IP
+        try {
+            $db->prepare("DELETE FROM login_attempts WHERE ip_address = ?")->execute([$ip]);
+        } catch (\Throwable $t) {}
 
         // Création du token de session
         $token = Auth::generateToken();
@@ -99,11 +131,7 @@ class AuthController {
      * POST /api/auth/logout
      */
     public function logout(): void {
-        $headers = function_exists('getallheaders') ? getallheaders() : [];
-        $token = null;
-        if (isset($_COOKIE['kanban_token'])) {
-            $token = $_COOKIE['kanban_token'];
-        }
+        $token = Auth::getTokenFromRequest();
         
         if ($token) {
             $db = Database::getConnection();

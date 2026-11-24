@@ -157,6 +157,9 @@ class TaskController {
         $dueDate = array_key_exists('due_date', $body)
             ? (!empty($body['due_date']) ? $body['due_date'] : null)
             : $task['due_date'];
+        $isUnplanned = array_key_exists('is_unplanned', $body)
+            ? (!empty($body['is_unplanned']) ? 1 : 0)
+            : (int)$task['is_unplanned'];
 
         // Règle d'attribution : SEUL un admin peut modifier assigned_to
         $assignedTo = $task['assigned_to'];
@@ -171,12 +174,12 @@ class TaskController {
         $stmtUpdate = $db->prepare("
             UPDATE tasks
             SET title = ?, description = ?, status = ?, assigned_to = ?,
-                property_id = ?, priority = ?, due_date = ?
+                property_id = ?, priority = ?, due_date = ?, is_unplanned = ?
             WHERE id = ?
         ");
         $stmtUpdate->execute([
             $title, $description, $status, $assignedTo,
-            $propertyId, $priority, $dueDate, $id
+            $propertyId, $priority, $dueDate, $isUnplanned, $id
         ]);
 
         // Synchronisation des sous-tâches si transmises dans la mise à jour
@@ -329,11 +332,28 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $stmt = $db->prepare("SELECT * FROM tasks WHERE id = ?");
+        $stmt = $db->prepare("
+            SELECT t.*, s.status as sprint_status
+            FROM tasks t
+            JOIN sprints s ON s.id = t.sprint_id
+            WHERE t.id = ?
+        ");
         $stmt->execute([$id]);
         $task = $stmt->fetch();
         if (!$task) {
             Response::error('Tâche introuvable', 404);
+        }
+
+        if ($task['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
+            Response::error('Sprint clôturé en lecture seule', 403);
+        }
+
+        if ($currentUser['role'] !== 'admin') {
+            $canAdd = ($task['assigned_to'] == $currentUser['id'])
+                || ($task['assigned_to'] === null && $task['created_by'] == $currentUser['id']);
+            if (!$canAdd) {
+                Response::error("Vous ne pouvez ajouter des sous-tâches qu'à vos propres tâches.", 403);
+            }
         }
 
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -403,6 +423,14 @@ class TaskController {
 
         if ($subtask['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
             Response::error('Sprint clôturé en lecture seule', 403);
+        }
+
+        if ($currentUser['role'] !== 'admin') {
+            $canToggle = ($subtask['assigned_to'] == $currentUser['id'])
+                || ($subtask['assigned_to'] === null && $subtask['created_by'] == $currentUser['id']);
+            if (!$canToggle) {
+                Response::error("Vous ne pouvez cocher que les sous-tâches de vos propres tâches.", 403);
+            }
         }
 
         $newDone = $subtask['is_done'] ? 0 : 1;

@@ -14,13 +14,25 @@ class UserController {
      */
     public function list(): void {
         $db = Database::getConnection();
+        $currentUser = Auth::getCurrentUser();
 
-        $stmt = $db->query("
-            SELECT id, name, email, role, avatar_color, initials, created_at
-            FROM users
-            ORDER BY id ASC
-        ");
-        $users = $stmt->fetchAll();
+        if (!$currentUser) {
+            // Utilisateur non connecté : liste publique minimale pour le sélecteur d'avatar
+            $stmt = $db->query("
+                SELECT id, name, avatar_color, initials
+                FROM users
+                ORDER BY id ASC
+            ");
+            $users = $stmt->fetchAll();
+        } else {
+            // Utilisateur connecté : liste complète
+            $stmt = $db->query("
+                SELECT id, name, email, role, avatar_color, initials, created_at
+                FROM users
+                ORDER BY id ASC
+            ");
+            $users = $stmt->fetchAll();
+        }
 
         Response::json([
             'success' => true,

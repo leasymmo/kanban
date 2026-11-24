@@ -51,7 +51,7 @@ class Database {
                 header('Content-Type: application/json; charset=utf-8');
                 echo json_encode([
                     'error' => 'Erreur de connexion à la base de données',
-                    'message' => $e->getMessage()
+                    'message' => 'Impossible de joindre le serveur de données SQL.'
                 ]);
                 exit;
             }
@@ -93,6 +93,16 @@ class Database {
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ");
+
+            // 4. Table de limitation des tentatives de connexion (anti force-brute)
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS login_attempts (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    ip_address VARCHAR(45) NOT NULL,
+                    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_ip_time (ip_address, attempted_at)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             ");
         } catch (\Throwable $e) {
