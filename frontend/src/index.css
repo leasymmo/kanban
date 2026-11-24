@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Scrollbars personnalisées style Trello */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.kanban-board-bg {
+  background-color: #0c4a6e;
+  background-image: radial-gradient(#0369a1 1px, transparent 1px), radial-gradient(#0369a1 1px, #075985 1px);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+}

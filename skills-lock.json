@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "find-reverse-engineered": {
+      "source": "alexgaoth/awesome-reverse-engineered",
+      "sourceType": "github",
+      "skillPath": "plugin/skills/find-reverse-engineered/SKILL.md",
+      "computedHash": "dace1b00ae9c26550de2fdefb76f13c17cb65595d1036b6450a58222ac7b103a"
+    }
+  }
+}

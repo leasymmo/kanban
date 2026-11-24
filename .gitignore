@@ -1,0 +1,58 @@
+# ==========================================
+# .gitignore - Dashboard Kanban
+# ==========================================
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node & Dependencies
+node_modules/
+*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build Outputs & Artifacts
+dist/
+*/dist/
+deploy/www/
+*.tar.gz
+*.zip
+
+# Local Configs & Secrets (ne JAMAIS commiter de mots de passe de production)
+backend/config/config.local.php
+.env
+*/.env
+*.env
+backend/.env
+.env.local
+.env.*.local
+*.log
+
+# Bases de données locales & Caches
+*.sqlite
+*.sqlite3
+*.db
+.cache/
+
+# Documents et notes internes confidentiels
+ressources/
+.agents/notes/
+*.docx
+*.pdf
+
+# IDE & Editeurs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
