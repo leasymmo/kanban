@@ -1,13 +1,26 @@
 import { Sprint, Task, Question, User, Property } from '../types';
 
-const API_BASE = '/api';
-
 function getStoredToken(): string | null {
   return localStorage.getItem('kanban_token');
 }
 
 function getStoredUserId(): string | null {
   return localStorage.getItem('kanban_current_user_id');
+}
+
+export function getApiBase(): string {
+  if (typeof window === 'undefined') return '/api';
+
+  const env = (import.meta as any).env;
+  // En environnement de développement local avec Vite
+  if (env && env.VITE_API_URL && !env.PROD) {
+    return env.VITE_API_URL + '/api';
+  }
+
+  // Détection dynamique du dossier d'hébergement (ex: /kanban/ ou /)
+  const pathname = window.location.pathname.replace(/\/index\.html.*$/, '');
+  const cleanBase = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  return `${cleanBase}/api`;
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -22,7 +35,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('X-User-Id', userId);
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  const apiBase = getApiBase();
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${apiBase}${cleanEndpoint}`;
+
+  const response = await fetch(url, {
     ...options,
     headers,
   });
@@ -30,7 +47,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const errorMsg = data.error || data.message || `Erreur serveur (${response.status})`;
+    const errorMsg = data.error || data.message || `Erreur serveur (${response.status}) sur ${url}`;
     throw new Error(errorMsg);
   }
 

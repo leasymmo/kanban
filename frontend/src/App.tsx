@@ -214,14 +214,16 @@ const DEFAULT_QUESTIONS: Question[] = [
 ];
 
 export const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(DEFAULT_USERS[0]);
-  const [allUsers, setAllUsers] = useState<User[]>(DEFAULT_USERS);
-  const [properties, setProperties] = useState<Property[]>(DEFAULT_PROPERTIES);
-  const [sprints, setSprints] = useState<Sprint[]>(DEFAULT_SPRINTS);
-  const [currentSprintId, setCurrentSprintId] = useState<number>(1);
-  const [tasks, setTasks] = useState<Task[]>(DEFAULT_TASKS);
-  const [questions, setQuestions] = useState<Question[]>(DEFAULT_QUESTIONS);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [currentSprintId, setCurrentSprintId] = useState<number | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Tabs & Views
   const [activeTab, setActiveTab] = useState<'tasks' | 'questions' | 'meeting'>('tasks');
@@ -239,14 +241,16 @@ export const App: React.FC = () => {
   }, []);
 
   const loadInitialData = async () => {
+    setIsLoading(true);
+    setApiError(null);
     try {
       const [usersRes, propsRes, sprintsRes] = await Promise.all([
-        api.getUsers().catch(() => null),
-        api.getProperties().catch(() => null),
-        api.getSprints().catch(() => null)
+        api.getUsers(),
+        api.getProperties(),
+        api.getSprints()
       ]);
 
-      let activeUser = currentUser;
+      let activeUser: User | null = null;
       if (usersRes?.users && usersRes.users.length > 0) {
         setAllUsers(usersRes.users);
         const storedUserId = api.getCurrentUserId();
@@ -263,18 +267,17 @@ export const App: React.FC = () => {
         setSprints(sprintsRes.sprints);
         const active = sprintsRes.sprints.find(s => s.status === 'active') || sprintsRes.sprints[0];
         setCurrentSprintId(active.id);
-        loadSprintDetails(active.id);
-      } else if (usersRes?.users && usersRes.users.length > 0) {
-        // La BDD est connectée et les utilisateurs sont présents, mais aucun sprint n'est encore enregistré
+        await loadSprintDetails(active.id);
+      } else {
         setSprints([]);
         setTasks([]);
         setQuestions([]);
-      } else {
-        enrichLocalTasks(DEFAULT_TASKS, activeUser || DEFAULT_USERS[0]);
       }
-    } catch (e) {
-      console.warn("API indisponible, fonctionnement en mode local réactif :", e);
-      enrichLocalTasks(DEFAULT_TASKS, DEFAULT_USERS[0]);
+    } catch (e: any) {
+      console.error("Erreur de chargement API :", e);
+      setApiError(e?.message || "Impossible de joindre l'API REST.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -286,8 +289,8 @@ export const App: React.FC = () => {
         setQuestions(details.questions);
         setIsReadOnly(details.is_read_only);
       }
-    } catch {
-      // Fallback
+    } catch (err: any) {
+      console.error("Erreur chargement sprint :", err);
       const sprint = sprints.find(s => s.id === sprintId);
       setIsReadOnly(sprint?.status === 'closed' && currentUser?.role !== 'admin');
     }
@@ -340,7 +343,7 @@ export const App: React.FC = () => {
       } else {
         const newTask: Task = {
           id: Date.now(),
-          sprint_id: currentSprintId,
+          sprint_id: currentSprintId || 1,
           title: taskData.title,
           description: taskData.description,
           status: taskData.status,
@@ -431,7 +434,7 @@ export const App: React.FC = () => {
       const targetUser = allUsers.find(u => u.id === data.user_id) || currentUser;
       const newQ: Question = {
         id: Date.now(),
-        sprint_id: currentSprintId,
+        sprint_id: currentSprintId || 1,
         user_id: data.user_id || currentUser?.id || 1,
         user_name: targetUser?.name,
         user_initials: targetUser?.initials,
@@ -546,8 +549,35 @@ export const App: React.FC = () => {
       {/* Conteneur Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-        {/* TAB 1 : TÂCHES */}
-        {activeTab === 'tasks' && (
+        {/* Message d'erreur API si échec */}
+        {apiError && (
+          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+              <div>
+                <p className="font-semibold text-sm">Erreur de communication avec l'API :</p>
+                <p className="text-xs text-red-700">{apiError}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => loadInitialData()}
+              className="px-3 py-1.5 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors cursor-pointer"
+            >
+              Réessayer
+            </button>
+          </div>
+        )}
+
+        {/* État de chargement initial */}
+        {isLoading && allUsers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-slate-400">
+            <RefreshCw className="w-8 h-8 animate-spin text-brand-600 mb-3" />
+            <p className="text-sm font-medium text-slate-600">Chargement du tableau de bord Carré d'Hôtes...</p>
+          </div>
+        ) : (
+          <>
+            {/* TAB 1 : TÂCHES */}
+            {activeTab === 'tasks' && (
           <div className="space-y-5">
             
             {/* Barre de contrôles des tâches */}
@@ -724,7 +754,7 @@ export const App: React.FC = () => {
             questions={questions}
             users={allUsers}
             currentUser={currentUser}
-            sprintId={currentSprintId}
+            sprintId={currentSprintId || 1}
             onAddQuestion={handleAddQuestion}
             onUpdateQuestion={handleUpdateQuestion}
             onDeleteQuestion={handleDeleteQuestion}
@@ -754,6 +784,9 @@ export const App: React.FC = () => {
           />
         )}
 
+          </>
+        )}
+
       </main>
 
       {/* Modale d'Édition / Création de Tâche */}
@@ -761,7 +794,7 @@ export const App: React.FC = () => {
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
         task={editingTask}
-        sprintId={currentSprintId}
+        sprintId={currentSprintId || 1}
         currentUser={currentUser}
         users={allUsers}
         properties={properties}

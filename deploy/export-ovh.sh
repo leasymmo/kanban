@@ -71,7 +71,6 @@ echo "==> 6. Création du fichier .htaccess racine pour Apache OVH..."
 cat << 'EOF' > "$BUILD_DIR/.htaccess"
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /
 
     # Redirection des requêtes API vers api/index.php
     RewriteRule ^api/(.*)$ api/index.php [QSA,L]
