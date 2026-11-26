@@ -398,7 +398,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               className="text-[10px] font-semibold border border-black/[0.12] rounded-md px-1 py-0.5 bg-slate-50 hover:bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500"
               title="Changer rapidement de statut"
             >
-              <option value="todo">À faire</option>
+              <option value="todo">⏳ À faire</option>
               <option value="in_progress">🚧 En cours</option>
               <option value="blocked">❌ Bloqué</option>
               <option value="done">✅ Fait</option>

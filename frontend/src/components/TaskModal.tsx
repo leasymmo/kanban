@@ -911,7 +911,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
                   className="w-full px-3 py-2 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white cursor-pointer font-medium"
                 >
-                  <option value="todo">À faire</option>
+                  <option value="todo">⏳ À faire</option>
                   <option value="in_progress">🚧 En cours</option>
                   <option value="blocked">❌ Bloqué / Litige</option>
                   <option value="done">✅ Fait (Terminé)</option>

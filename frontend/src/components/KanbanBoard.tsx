@@ -31,7 +31,7 @@ interface ColumnConfig {
 const COLUMNS: ColumnConfig[] = [
   {
     id: 'todo',
-    title: 'À faire',
+    title: '⏳ À faire',
     icon: <ListTodo className="w-4 h-4 text-slate-500" strokeWidth={2.25} />,
     headerColor: 'text-slate-700',
     badgeBg: 'bg-slate-200 text-slate-700'

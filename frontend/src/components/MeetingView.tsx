@@ -703,7 +703,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                         </button>
                       ) : (
                         <span className="mt-0.5 shrink-0">
-                          {t.status === 'done' ? '✅' : t.status === 'blocked' ? '❌' : '🚧'}
+                          {t.status === 'done'
+                            ? '✅'
+                            : t.status === 'blocked'
+                            ? '❌'
+                            : t.status === 'in_progress'
+                            ? '🚧'
+                            : '⏳'}
                         </span>
                       )}
 
@@ -770,7 +776,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                         onChange={(e) => onUpdateTaskStatus(t.id, e.target.value as TaskStatus)}
                         className="text-xs font-semibold border border-black/[0.12] rounded-lg px-2 py-1 bg-white text-slate-700 cursor-pointer shrink-0"
                       >
-                        <option value="todo">À faire</option>
+                        <option value="todo">⏳ À faire</option>
                         <option value="in_progress">🚧 En cours</option>
                         <option value="blocked">❌ Bloqué</option>
                         <option value="done">✅ Fait</option>
