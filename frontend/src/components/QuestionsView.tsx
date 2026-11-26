@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Question, User } from '../types';
 import { QuestionModal } from './QuestionModal';
-import { formatQuestionDate, hasFinalDecision } from '../utils/questions';
+import { formatQuestionDate } from '../utils/questions';
 import {
-  HelpCircle, Plus, Edit3, Trash2, CheckCircle2, Send, UserCheck
+  HelpCircle, Plus, Edit3, Trash2, Send, UserCheck
 } from 'lucide-react';
 
 interface QuestionsViewProps {
@@ -112,7 +112,6 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   const orphanAllQuestions = questions.filter(q => !knownUserIds.has(q.user_id));
 
   const renderQuestionCard = (q: Question, isFullWidth: boolean) => {
-    const hasDecision = hasFinalDecision(q);
     const answers = q.answers || [];
     const myAnswer = currentUser ? answers.find(a => a.user_id === currentUser.id) : undefined;
     const otherAnswers = myAnswer ? answers.filter(a => a.id !== myAnswer.id) : answers;
@@ -130,7 +129,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           isFullWidth
             ? 'rounded-[18px] sm:rounded-[20px] p-3.5 sm:p-4'
             : 'rounded-[14px] p-3'
-        } ${hasDecision ? 'border-emerald-300/80 bg-emerald-50/20' : ''}`}
+        }`}
       >
         {/* Question + Détail de la question */}
         <div className="flex items-start justify-between gap-2.5">
@@ -173,19 +172,6 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
             </div>
           )}
         </div>
-
-        {/* Réponse définitive actée en réunion (si présente) */}
-        {hasDecision && (
-          <div className="px-3 py-2 rounded-[10px] bg-emerald-50/90 border border-emerald-200 border-l-4 border-l-emerald-600 text-xs">
-            <div className="flex items-center gap-1.5 font-bold text-emerald-950">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2.25} />
-              <span>Réponse définitive</span>
-            </div>
-            <p className="mt-0.5 text-slate-900 font-medium pl-5 whitespace-pre-line break-words leading-relaxed">
-              {q.final_answer}
-            </p>
-          </div>
-        )}
 
         {/* Réponses éventuelles + saisie facultative (toujours visible) */}
         {hasAnswersSection && (
