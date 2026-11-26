@@ -5,7 +5,7 @@ import { BlurredIconSwap } from './BlurredIconSwap';
 import {
   X, Plus, Trash2, Home, CheckSquare, Square,
   AlertCircle, CornerDownRight, Check, Star,
-  GripVertical, Zap, ClipboardList, Layers, Sparkles
+  GripVertical, Zap, ClipboardList, Sparkles
 } from 'lucide-react';
 
 interface TaskModalProps {
@@ -730,31 +730,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" strokeWidth={1.75} />
                 <span>{error}</span>
-              </div>
-            )}
-
-            {/* Bandeau explicatif si création multiple */}
-            {isMultiCreate && (
-              <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs flex items-start gap-2.5">
-                <Layers className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" strokeWidth={2.25} />
-                <div>
-                  <p className="font-bold">
-                    {multiCount} tâches identiques vont être créées simultanément (une par logement sélectionné) :
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {properties
-                      .filter(p => selectedPropertyIds.includes(p.id))
-                      .map(p => (
-                        <span
-                          key={p.id}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold text-white"
-                          style={{ backgroundColor: p.color || '#3B82F6' }}
-                        >
-                          {p.name}
-                        </span>
-                      ))}
-                  </div>
-                </div>
               </div>
             )}
 
