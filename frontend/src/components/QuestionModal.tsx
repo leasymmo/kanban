@@ -109,7 +109,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
       onClick={() => !isSubmitting && onClose()}
     >
       <div
@@ -119,7 +119,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
         aria-labelledby="question-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col animate-modal-in focus:outline-none"
+        className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
 
         {/* Header compact */}
@@ -203,19 +203,19 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
             )}
           </div>
 
-          <div className="px-4 sm:px-5 py-3 bg-slate-50 border-t border-black/[0.12] flex items-center justify-end gap-2.5 shrink-0">
+          <div className="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-slate-50 border-t border-black/[0.12] flex items-center justify-end gap-2.5 shrink-0">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-3.5 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-lg cursor-pointer transition-colors"
+              className="px-3.5 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl sm:rounded-lg cursor-pointer transition-colors"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-1.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg text-sm font-bold shadow-sm shadow-brand-600/25 cursor-pointer transition-all"
+              className="px-4 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-xl sm:rounded-lg text-sm font-bold shadow-sm shadow-brand-600/25 cursor-pointer transition-all"
             >
               {isSubmitting ? 'Enregistrement...' : isEdit ? 'Enregistrer' : 'Ajouter la question'}
             </button>

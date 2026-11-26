@@ -8,6 +8,9 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+      },
       screens: {
         'xs': '480px',
       },
@@ -24,6 +27,10 @@ export default {
           '0%': { opacity: '0', transform: 'translateY(8px) scale(0.97)' },
           '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
+        'sheet-up': {
+          '0%': { opacity: '0', transform: 'translateY(24px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
         'toast-in': {
           '0%': { opacity: '0', transform: 'translateY(10px) scale(0.97)' },
           '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
@@ -38,6 +45,7 @@ export default {
         'fade-in': 'fade-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'backdrop-in': 'backdrop-in 150ms ease-out both',
         'modal-in': 'modal-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'sheet-up': 'sheet-up 240ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'toast-in': 'toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'shake': 'shake 320ms ease-in-out both',
       },

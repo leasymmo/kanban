@@ -257,7 +257,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   ? (canStar ? 'Retirer la mise en avant' : 'Mise en avant pour la réunion')
                   : 'Mettre en avant pour la réunion'
               }
-              className={`p-1.5 sm:p-1 rounded-md transition-all active:scale-95 ${
+              className={`min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 rounded-lg sm:rounded-md transition-all active:scale-95 ${
                 task.is_starred
                   ? `text-amber-500 bg-amber-50 shadow-2xs ${canStar ? 'hover:text-amber-600 cursor-pointer' : 'cursor-default'}`
                   : canStar
@@ -271,7 +271,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               }
             >
               <Star
-                className={`w-3.5 h-3.5 ${
+                className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${
                   task.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'
                 }`}
                 strokeWidth={1.75}
@@ -287,10 +287,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   type="button"
                   onClick={() => onEdit(task)}
                   aria-label="Modifier la tâche"
-                  className="p-1.5 sm:p-1 text-slate-400 hover:text-brand-600 rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
+                  className="min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-slate-400 hover:text-brand-600 rounded-lg sm:rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
                   title="Modifier la tâche"
                 >
-                  <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                  <Edit3 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
                 </button>
               )}
 
@@ -299,10 +299,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   type="button"
                   onClick={() => onDelete(task.id)}
                   aria-label="Supprimer la tâche"
-                  className="p-1.5 sm:p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
+                  className="min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-slate-400 hover:text-red-600 rounded-lg sm:rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
                   title="Supprimer la tâche"
                 >
-                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                  <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
                 </button>
               )}
             </div>
@@ -420,7 +420,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 e.stopPropagation();
                 onUpdateStatus(task.id, e.target.value as TaskStatus);
               }}
-              className="text-[11px] font-semibold border border-black/[0.15] rounded-md px-1.5 py-0.5 bg-slate-50 hover:bg-white text-slate-800 cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="text-xs sm:text-[11px] font-semibold border border-black/[0.15] rounded-lg sm:rounded-md px-2 py-1 sm:px-1.5 sm:py-0.5 min-h-[32px] sm:min-h-0 bg-slate-50 hover:bg-white text-slate-800 cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500"
               title="Changer rapidement de statut"
             >
               <option value="todo">⏳ À faire</option>

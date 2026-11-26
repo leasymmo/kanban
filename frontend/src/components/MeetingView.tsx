@@ -852,7 +852,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       </div>
 
       {/* Barre d'étapes de la réunion (Responsive horizontal scroll on mobile) */}
-      <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-black/[0.12] shadow-xs overflow-x-auto">
+      <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-black/[0.12] shadow-xs overflow-x-auto no-scrollbar">
         <button
           onClick={() => setMeetingStep('retro')}
           aria-keyshortcuts="1"

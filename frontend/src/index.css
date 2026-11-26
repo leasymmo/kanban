@@ -5,10 +5,25 @@
 @layer base {
   html {
     scrollbar-gutter: stable;
+    overflow-x: clip;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
     caret-color: oklch(0.49 0.19 260);
+    overflow-x: clip;
+    overscroll-behavior-y: contain;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Empêcher le zoom automatique sur iOS Safari lors du focus sur un champ (< 16px) */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
   }
 
   ::selection {
@@ -37,6 +52,16 @@
   }
 }
 
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Scrollbars thématisées sur la palette neutre */
 ::-webkit-scrollbar {
   width: 8px;
@@ -59,13 +84,6 @@
   background-image: radial-gradient(#0369a1 1px, transparent 1px), radial-gradient(#0369a1 1px, #075985 1px);
   background-size: 40px 40px;
   background-position: 0 0, 20px 20px;
-}
-
-@media (max-width: 767px) {
-  .kanban-carousel-fade {
-    -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
-    mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

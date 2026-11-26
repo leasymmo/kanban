@@ -70,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="bg-slate-900/95 backdrop-blur-md border-b border-white/[0.08] text-white sticky top-0 z-30 shadow-md">
+    <header className="bg-slate-900/95 backdrop-blur-md border-b border-white/[0.08] text-white sticky top-0 z-30 shadow-md pt-[env(safe-area-inset-top)]">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 lg:px-8">
 
         {/* Ligne principale */}
@@ -181,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isMenuOpen && currentUser && (
               <div
                 role="menu"
-                className="absolute right-0 mt-2 w-64 bg-slate-800 border border-slate-700/90 rounded-2xl shadow-2xl py-2 z-50 text-white animate-fade-in"
+                className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] bg-slate-800 border border-slate-700/90 rounded-2xl shadow-2xl py-2 z-50 text-white animate-fade-in"
               >
                 {/* En-tête profil */}
                 <div className="px-4 py-3 border-b border-slate-700/80 flex items-center gap-3">
@@ -247,10 +247,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => onChangeTab('tasks')}
             aria-current={activeTab === 'tasks' ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[42px] rounded-lg text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
               activeTab === 'tasks'
                 ? 'bg-brand-600 text-white shadow-xs'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
             <CheckSquare className="w-3.5 h-3.5" strokeWidth={2.25} />
@@ -261,10 +261,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => onChangeTab('questions')}
             aria-current={activeTab === 'questions' ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[42px] rounded-lg text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
               activeTab === 'questions'
                 ? 'bg-brand-600 text-white shadow-xs'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
             <HelpCircle className="w-3.5 h-3.5" strokeWidth={2.25} />
@@ -275,10 +275,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => onChangeTab('meeting')}
             aria-current={activeTab === 'meeting' ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[42px] rounded-lg text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
               activeTab === 'meeting'
                 ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
             <Users className="w-3.5 h-3.5" strokeWidth={2.25} />

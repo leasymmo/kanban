@@ -70,7 +70,7 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
       onClick={() => !isSubmitting && onClose()}
     >
       <div
@@ -80,32 +80,33 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
         aria-labelledby="close-sprint-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden animate-modal-in focus:outline-none"
+        className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
         
         {/* Header */}
-        <div className="bg-slate-900 text-white p-6 relative border-b border-slate-800">
+        <div className="bg-slate-900 text-white p-4 sm:p-6 relative border-b border-slate-800 shrink-0">
           <button
             type="button"
             onClick={onClose}
             aria-label="Fermer la fenêtre"
-            className="absolute top-4 right-4 text-slate-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
+            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-slate-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
           >
             <X className="w-5 h-5" strokeWidth={1.75} />
           </button>
           
-          <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase tracking-wider mb-1">
-            <RefreshCw className="w-4 h-4" strokeWidth={2.25} />
-            Fin de réunion hebdomadaire
+          <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase tracking-wider mb-1 pr-8">
+            <RefreshCw className="w-4 h-4 shrink-0" strokeWidth={2.25} />
+            <span>Fin de réunion hebdomadaire</span>
           </div>
-          <h2 id="close-sprint-modal-title" className="text-xl font-bold">Valider & Clôturer {currentSprint.name}</h2>
+          <h2 id="close-sprint-modal-title" className="text-lg sm:text-xl font-bold pr-8">Valider & Clôturer {currentSprint.name}</h2>
           <p className="text-xs text-slate-300 mt-1">
             Cette action fige le compte rendu actuel et ouvre immédiatement le sprint suivant.
           </p>
         </div>
 
         {/* Formulaire & Récapitulatif */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1">
           {error && (
             <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs flex items-center gap-2 font-medium">
               <AlertCircle className="w-4 h-4 shrink-0" strokeWidth={2} />
@@ -198,24 +199,25 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
               className="w-full p-2.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
+          </div>
 
           {/* Boutons d'action */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/[0.12]">
+          <div className="px-4 sm:px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3.5 bg-slate-50 border-t border-black/[0.12] flex items-center justify-end gap-2.5 shrink-0">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg"
+              className="px-4 py-2 min-h-[42px] sm:min-h-0 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl sm:rounded-lg cursor-pointer"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-bold shadow-sm shadow-brand-600/25 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-4 sm:px-5 py-2.5 min-h-[42px] sm:min-h-0 bg-brand-600 hover:bg-brand-700 text-white rounded-xl sm:rounded-lg text-sm font-bold shadow-sm shadow-brand-600/25 transition-all cursor-pointer"
             >
-              <CheckCircle2 className="w-4 h-4" strokeWidth={2.25} />
-              {isSubmitting ? 'Bascule en cours...' : `Clôturer et ouvrir le Point ${nextNumber}`}
+              <CheckCircle2 className="w-4 h-4 shrink-0" strokeWidth={2.25} />
+              <span>{isSubmitting ? 'Bascule en cours...' : `Clôturer & Point ${nextNumber}`}</span>
             </button>
           </div>
 

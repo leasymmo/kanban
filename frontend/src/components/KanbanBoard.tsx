@@ -119,8 +119,33 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     setActiveMobileColumn(status);
     const element = document.getElementById(`kanban-col-${status}`);
     if (element && scrollContainerRef.current) {
-      const offset = element.offsetLeft - scrollContainerRef.current.offsetLeft;
-      scrollContainerRef.current.scrollTo({ left: offset, behavior: 'smooth' });
+      const container = scrollContainerRef.current;
+      const targetLeft =
+        element.offsetLeft - (container.clientWidth - element.clientWidth) / 2;
+      container.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+    }
+  };
+
+  const handleMobileCarouselScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container || window.innerWidth >= 768) return;
+    const containerCenter = container.scrollLeft + container.clientWidth / 2;
+    let closestId: TaskStatus | null = null;
+    let closestDistance = Infinity;
+
+    for (const col of visibleColumns) {
+      const el = document.getElementById(`kanban-col-${col.id}`);
+      if (!el) continue;
+      const elCenter = el.offsetLeft + el.clientWidth / 2;
+      const dist = Math.abs(elCenter - containerCenter);
+      if (dist < closestDistance) {
+        closestDistance = dist;
+        closestId = col.id;
+      }
+    }
+
+    if (closestId && closestId !== effectiveMobileColumn) {
+      setActiveMobileColumn(closestId);
     }
   };
 
@@ -137,7 +162,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   return (
     <div className="space-y-3">
       {/* Pills de sélection rapide de colonne sur mobile (< md) */}
-      <div className="flex md:hidden items-center justify-between gap-1 overflow-x-auto pb-1 px-1">
+      <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
         {visibleColumns.map(col => {
           const count = tasks.filter(t => t.status === col.id).length;
           const isActive = effectiveMobileColumn === col.id;
@@ -145,15 +170,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           return (
             <button
               key={col.id}
+              type="button"
               onClick={() => scrollToColumn(col.id)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer tabular-nums ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 min-h-[40px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] shrink-0 cursor-pointer tabular-nums ${
                 isActive
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-white text-slate-700 border border-black/[0.12]'
               }`}
             >
               {col.icon}
-              <span className="truncate">{col.title}</span>
+              <span>{col.title}</span>
               <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-700'}`}>
                 {count}
               </span>
@@ -165,7 +191,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       {/* Colonnes adaptatives selon les statuts visibles */}
       <div
         ref={scrollContainerRef}
-        className={`flex md:grid ${getGridClass(visibleColumns.length)} gap-4 items-start overflow-x-auto snap-x snap-mandatory pb-4 -mx-3 px-4 sm:mx-0 sm:px-0 kanban-carousel-fade`}
+        onScroll={handleMobileCarouselScroll}
+        className={`flex md:grid ${getGridClass(visibleColumns.length)} gap-3 sm:gap-4 items-start overflow-x-auto no-scrollbar md:overflow-visible snap-x snap-mandatory pb-2 md:pb-4 -mx-3 px-3 sm:mx-0 sm:px-0`}
       >
         {visibleColumns.map((col) => {
           const colTasks = tasks.filter((t) => t.status === col.id);
@@ -178,7 +205,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               onDragOver={(e) => handleDragOverContainer(e, col.id)}
               onDragLeave={handleDragLeaveContainer}
               onDrop={(e) => handleDropOnContainer(e, col.id)}
-              className={`flex flex-col bg-slate-200/70 rounded-3xl sm:rounded-[26px] p-3 sm:p-3.5 border min-h-[480px] w-[86vw] xs:w-[320px] md:w-auto shrink-0 snap-center md:shrink transition-all duration-200 ${
+              className={`flex flex-col bg-slate-200/70 rounded-2xl sm:rounded-[26px] p-3 sm:p-3.5 border min-h-[260px] md:min-h-[480px] w-[calc(100vw-2.25rem)] max-w-[360px] md:max-w-none md:w-auto shrink-0 snap-center md:shrink transition-all duration-200 ${
                 isHovered
                   ? 'border-brand-500 bg-brand-50/40 ring-2 ring-brand-400/30'
                   : 'border-black/[0.12]'
@@ -198,9 +225,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
                 {showQuickAddButtons && (
                   <button
+                    type="button"
                     onClick={() => onAddNewTask(col.id)}
                     aria-label={`Ajouter dans ${col.title}`}
-                    className="p-1 text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
+                    className="p-2 sm:p-1 text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
                     title={`Ajouter dans "${col.title}"`}
                   >
                     <Plus className="w-4 h-4" strokeWidth={1.75} />
@@ -209,7 +237,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               </div>
 
               {/* Liste des cartes */}
-              <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[calc(100dvh-270px)] pr-1">
+              <div className="space-y-2.5 flex-1 md:overflow-y-auto md:max-h-[calc(100dvh-270px)] md:pr-1">
                 {colTasks.length > 0 ? (
                   colTasks.map((task) => {
                     const indicator =

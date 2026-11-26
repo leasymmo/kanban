@@ -89,7 +89,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   };
 
   const listMaxHeightClass =
-    sections.length <= 2 ? 'max-h-[calc(100dvh-300px)]' : 'max-h-[480px]';
+    sections.length <= 2 ? 'md:max-h-[calc(100dvh-300px)]' : 'md:max-h-[480px]';
 
   if (sections.length === 0) {
     return (
@@ -116,7 +116,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
               onDragOver={(e) => handleDragOverContainer(e, section.id)}
               onDragLeave={handleDragLeaveContainer}
               onDrop={(e) => handleDropOnContainer(e, section.id)}
-              className={`rounded-[28px] p-4 border flex flex-col min-h-[340px] transition-all duration-200 ${
+              className={`rounded-2xl sm:rounded-[28px] p-3 sm:p-4 border flex flex-col min-h-[160px] md:min-h-[340px] transition-all duration-200 ${
                 isHovered
                   ? 'bg-brand-50/40 border-brand-500 ring-2 ring-brand-400/30'
                   : 'bg-slate-200/70 border-black/[0.12]'
@@ -171,7 +171,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
               </div>
 
               {/* Cartes de tâches du logement */}
-              <div className={`space-y-2.5 flex-1 overflow-y-auto ${listMaxHeightClass} pr-1`}>
+              <div className={`space-y-2.5 flex-1 md:overflow-y-auto ${listMaxHeightClass} md:pr-1`}>
                 {section.tasks.length > 0 ? (
                   section.tasks.map((task) => {
                     const indicator =

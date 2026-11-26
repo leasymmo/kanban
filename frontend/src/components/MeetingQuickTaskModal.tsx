@@ -174,7 +174,7 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-backdrop-in"
       onClick={() => !isSubmitting && onClose()}
     >
       <div
@@ -184,7 +184,7 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
         aria-labelledby="meeting-quick-task-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-indigo-200 overflow-hidden max-h-[92dvh] flex flex-col animate-modal-in focus:outline-none"
+        className="bg-white rounded-t-3xl sm:rounded-2xl max-w-xl w-full shadow-2xl border border-indigo-200 overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
 
         {/* Header spécifique Réunion */}
@@ -467,7 +467,7 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
             </div>
           </div>
 
-          <div className="px-4 sm:px-5 py-3.5 bg-slate-50 border-t border-black/[0.12] flex items-center justify-end gap-3 shrink-0">
+          <div className="px-4 sm:px-5 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:py-3.5 bg-slate-50 border-t border-black/[0.12] flex items-center justify-end gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}

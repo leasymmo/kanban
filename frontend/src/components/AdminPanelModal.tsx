@@ -632,7 +632,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-backdrop-in"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-6 animate-backdrop-in"
       onClick={() => !actionLoading && onClose()}
     >
       <div
@@ -642,11 +642,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         aria-labelledby="admin-panel-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-black/[0.12] overflow-hidden flex flex-col max-h-[92dvh] animate-modal-in focus:outline-none"
+        className="bg-white rounded-t-3xl sm:rounded-3xl max-w-5xl w-full shadow-2xl border border-black/[0.12] overflow-hidden flex flex-col max-h-[92dvh] animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
         
         {/* Header Modal */}
-        <div className="bg-slate-900 p-5 sm:p-6 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
+        <div className="bg-slate-900 p-4 sm:p-6 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-brand-600 flex items-center justify-center shadow-sm ring-1 ring-white/15">
               <Shield className="w-6 h-6 text-white" strokeWidth={2.25} />
@@ -675,7 +675,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="bg-slate-50 border-b border-black/[0.12] px-5 pt-2 flex items-center gap-1 overflow-x-auto shrink-0">
+        <div className="bg-slate-50 border-b border-black/[0.12] px-3 sm:px-5 pt-2 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
           <button
             onClick={() => {
               setActiveTab('sprints');

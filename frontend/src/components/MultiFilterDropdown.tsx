@@ -20,6 +20,7 @@ interface MultiFilterDropdownProps<T extends string | number> {
   onSelectNone: () => void;
   activeButtonClass?: string;
   activeCheckClass?: string;
+  align?: 'left' | 'right';
   title?: string;
 }
 
@@ -35,6 +36,7 @@ export function MultiFilterDropdown<T extends string | number>({
   onSelectNone,
   activeButtonClass = 'bg-brand-50 border-brand-300 text-brand-800',
   activeCheckClass = 'bg-brand-600 border-brand-600 text-white',
+  align = 'left',
   title
 }: MultiFilterDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
@@ -70,7 +72,7 @@ export function MultiFilterDropdown<T extends string | number>({
         onClick={() => setIsOpen(prev => !prev)}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
-        className={`flex items-center gap-1.5 text-xs border rounded-xl px-2.5 py-1.5 min-h-[36px] font-semibold transition-all active:scale-[0.98] cursor-pointer ${
+        className={`flex items-center gap-1.5 text-xs border rounded-xl px-2.5 py-1.5 min-h-[40px] sm:min-h-[36px] font-semibold transition-all active:scale-[0.98] cursor-pointer ${
           isFiltered
             ? activeButtonClass
             : 'bg-slate-50 border-black/[0.12] text-slate-700 hover:bg-slate-100'
@@ -78,15 +80,17 @@ export function MultiFilterDropdown<T extends string | number>({
         title={title}
       >
         {icon}
-        <span>{isFiltered ? filteredLabel(visibleCount, totalCount) : defaultLabel}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
+        <span className="truncate">{isFiltered ? filteredLabel(visibleCount, totalCount) : defaultLabel}</span>
+        <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
       </button>
 
       {isOpen && (
         <div
           role="listbox"
           aria-label={headerTitle}
-          className="absolute left-0 sm:left-auto sm:right-0 mt-1.5 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-black/[0.12] py-2 z-40 animate-fade-in"
+          className={`absolute ${
+            align === 'right' ? 'right-0' : 'left-0 sm:left-auto sm:right-0'
+          } mt-1.5 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-black/[0.12] py-2 z-40 animate-fade-in`}
         >
           <div className="px-3 pb-2 mb-1.5 border-b border-black/[0.12] flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
