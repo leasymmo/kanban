@@ -298,7 +298,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     const hasFinalAnswer = !!q.final_answer;
     const isEditingDecision = editingDecisionForId === q.id || (!hasFinalAnswer && decisionInputs[q.id] !== undefined);
     const currentInput = decisionInputs[q.id] !== undefined ? decisionInputs[q.id] : (q.final_answer || '');
-    const canArbitrate = !isReadOnly && (isAdmin || currentUser?.id === q.user_id || currentUser?.role === 'write');
+    const canArbitrate = !isReadOnly && currentUser?.role !== 'read' && (isAdmin || currentUser?.role === 'write');
+    const canCloseQuestion = !isReadOnly && (q.can_edit !== undefined ? !!q.can_edit : (isAdmin || (currentUser?.role === 'write' && currentUser?.id === q.user_id)));
 
     return (
       <div
@@ -321,7 +322,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               {isResolved ? 'Résolue' : 'À aborder'}
             </span>
 
-            {!isReadOnly && (isAdmin || currentUser?.id === q.user_id) && (
+            {canCloseQuestion && (
               <button
                 type="button"
                 onClick={() => onUpdateQuestionStatus(q.id, isResolved ? 'open' : 'resolved')}
@@ -663,11 +664,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             const userPending = userTasks.filter(t => t.status !== 'done');
             const userStarred = userTasks.filter(t => !!t.is_starred);
             const userUnstarred = userTasks.filter(t => !t.is_starred);
-            const canEditThis = !isReadOnly && (isAdmin || currentUser?.id === user.id);
+            const canEditThis = !isReadOnly && (isAdmin || (currentUser?.role === 'write' && currentUser?.id === user.id));
             const isAccordionOpen = !!expandedAccordions[user.id];
 
             const renderRetroTask = (t: Task, isHighlighted: boolean) => {
               const hierarchicalSubtasks = buildSubtaskTree(t.subtasks || []);
+              const canEditTask = !isReadOnly && (t.can_edit !== undefined ? !!t.can_edit : canEditThis);
+              const canStarTask = !isReadOnly && !!t.can_star;
 
               return (
                 <div
@@ -685,7 +688,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-2.5 flex-1 min-w-0">
                       {/* Toggle rapide statut en séance */}
-                      {canEditThis ? (
+                      {canEditTask ? (
                         <button
                           type="button"
                           onClick={() => onUpdateTaskStatus(t.id, t.status === 'done' ? 'in_progress' : 'done')}
@@ -707,24 +710,24 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           {/* Étoile interactive si autorisé */}
-                          {(t.can_star || !!t.is_starred) && (
+                          {(canStarTask || !!t.is_starred) && (
                             <button
                               type="button"
-                              disabled={!t.can_star}
+                              disabled={!canStarTask}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (t.can_star && onToggleStar) {
+                                if (canStarTask && onToggleStar) {
                                   onToggleStar(t.id);
                                 }
                               }}
                               className={`p-0.5 rounded transition-all shrink-0 ${
                                 t.is_starred
-                                  ? 'text-amber-500 hover:text-amber-600'
-                                  : t.can_star
+                                  ? `text-amber-500 ${canStarTask ? 'hover:text-amber-600 cursor-pointer' : 'cursor-default'}`
+                                  : canStarTask
                                   ? 'text-slate-300 hover:text-amber-400 cursor-pointer'
                                   : 'hidden'
                               }`}
-                              title={t.is_starred ? 'Mise en avant activée (cliquer pour retirer)' : 'Mettre en avant pour la réunion'}
+                              title={t.is_starred ? (canStarTask ? 'Mise en avant activée (cliquer pour retirer)' : 'Mise en avant pour la réunion') : 'Mettre en avant pour la réunion'}
                             >
                               <Star className={`w-3.5 h-3.5 ${t.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-300'}`} strokeWidth={1.75} />
                             </button>
@@ -754,14 +757,14 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                         {/* Sous-tâches hiérarchiques jusqu'à 4 niveaux */}
                         {t.subtasks && t.subtasks.length > 0 && (
                           <div className="mt-2.5 pt-2 border-t border-black/[0.12]">
-                            {renderRetroSubtasks(hierarchicalSubtasks, canEditThis)}
+                            {renderRetroSubtasks(hierarchicalSubtasks, canEditTask)}
                           </div>
                         )}
                       </div>
                     </div>
 
                     {/* Statut sélecteur rapide pour la réunion */}
-                    {canEditThis && (
+                    {canEditTask && (
                       <select
                         value={t.status}
                         onChange={(e) => onUpdateTaskStatus(t.id, e.target.value as TaskStatus)}

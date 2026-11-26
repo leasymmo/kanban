@@ -621,7 +621,7 @@ export const App: React.FC = () => {
       />
 
       <AdminPanelModal
-        isOpen={isAdminPanelOpen}
+        isOpen={isAdminPanelOpen && currentUser?.role === 'admin'}
         onClose={() => setIsAdminPanelOpen(false)}
         currentUser={currentUser}
         users={allUsers}

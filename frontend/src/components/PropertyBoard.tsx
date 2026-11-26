@@ -35,6 +35,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   onAddNewTask,
   isReadOnly
 }) => {
+  const isAdmin = currentUser?.role === 'admin';
   const sections = [
     ...properties.map(p => ({
       id: p.id,
@@ -143,7 +144,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   </div>
                 </div>
 
-                {!isReadOnly && currentUser?.role !== 'read' && (
+                {!isReadOnly && isAdmin && (
                   <button
                     onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
                     className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
@@ -194,13 +195,13 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   })
                 ) : (
                   <div className="h-24 border-2 border-dashed border-black/[0.12] rounded-xl flex items-center justify-center text-xs text-slate-500 font-medium select-none">
-                    Déposer une tâche ici
+                    {isReadOnly || currentUser?.role === 'read' ? 'Aucune tâche' : 'Déposer une tâche ici'}
                   </div>
                 )}
               </div>
 
-              {/* Bouton rapide d'ajout */}
-              {!isReadOnly && currentUser?.role !== 'read' && (
+              {/* Bouton rapide d'ajout (Admin uniquement) */}
+              {!isReadOnly && isAdmin && (
                 <button
                   onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
                   className="mt-3 w-full py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"

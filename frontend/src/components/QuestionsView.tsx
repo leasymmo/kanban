@@ -180,26 +180,28 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           </div>
 
           {/* Boutons modifier / supprimer si l'utilisateur a les droits */}
-          <div className="flex items-center gap-1">
-            {q.can_edit && (
-              <button
-                onClick={() => openEditModal(q)}
-                className="p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-slate-100 cursor-pointer"
-                title="Modifier la question"
-              >
-                <Edit3 className="w-4 h-4" strokeWidth={1.75} />
-              </button>
-            )}
-            {q.can_delete && (
-              <button
-                onClick={() => onDeleteQuestion(q.id)}
-                className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-slate-100 cursor-pointer"
-                title="Supprimer la question"
-              >
-                <Trash2 className="w-4 h-4" strokeWidth={1.75} />
-              </button>
-            )}
-          </div>
+          {!isReadOnly && (
+            <div className="flex items-center gap-1">
+              {q.can_edit && (
+                <button
+                  onClick={() => openEditModal(q)}
+                  className="p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  title="Modifier la question"
+                >
+                  <Edit3 className="w-4 h-4" strokeWidth={1.75} />
+                </button>
+              )}
+              {q.can_delete && (
+                <button
+                  onClick={() => onDeleteQuestion(q.id)}
+                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  title="Supprimer la question"
+                >
+                  <Trash2 className="w-4 h-4" strokeWidth={1.75} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Titre */}
@@ -534,7 +536,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   </div>
                 </div>
 
-                {!isReadOnly && (isAdmin || currentUser?.id === user.id) && (
+                {!isReadOnly && currentUser?.role !== 'read' && (isAdmin || currentUser?.id === user.id) && (
                   <button
                     onClick={() => openCreateModal(user.id)}
                     className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg cursor-pointer"
@@ -557,7 +559,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               </div>
 
               {/* Bouton rapide bas */}
-              {!isReadOnly && (isAdmin || currentUser?.id === user.id) && (
+              {!isReadOnly && currentUser?.role !== 'read' && (isAdmin || currentUser?.id === user.id) && (
                 <button
                   onClick={() => openCreateModal(user.id)}
                   className="mt-3 w-full py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"

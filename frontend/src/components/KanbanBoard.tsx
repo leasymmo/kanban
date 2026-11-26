@@ -72,6 +72,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onAddNewTask,
   isReadOnly
 }) => {
+  const isAdmin = currentUser?.role === 'admin';
   const [activeMobileColumn, setActiveMobileColumn] = useState<TaskStatus>('todo');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -191,7 +192,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   </span>
                 </div>
 
-                {!isReadOnly && currentUser?.role !== 'read' && (
+                {!isReadOnly && isAdmin && (
                   <button
                     onClick={() => onAddNewTask(col.id)}
                     className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
@@ -232,13 +233,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   })
                 ) : (
                   <div className="h-28 border-2 border-dashed border-black/[0.12] rounded-xl flex items-center justify-center text-xs text-slate-500 font-medium select-none">
-                    Déposer une tâche ici
+                    {isReadOnly || currentUser?.role === 'read' ? 'Aucune tâche' : 'Déposer une tâche ici'}
                   </div>
                 )}
               </div>
 
-              {/* Bouton rapide bas de colonne */}
-              {!isReadOnly && currentUser?.role !== 'read' && (
+              {/* Bouton rapide bas de colonne (Admin uniquement) */}
+              {!isReadOnly && isAdmin && (
                 <button
                   onClick={() => onAddNewTask(col.id)}
                   className="mt-2.5 w-full py-1.5 px-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors border border-transparent hover:border-black/[0.12] cursor-pointer"
