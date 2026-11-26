@@ -5,7 +5,7 @@ import { BlurredIconSwap } from './BlurredIconSwap';
 import {
   Users, CheckCircle2, UserPlus,
   Shield, CheckSquare, Square,
-  Sparkles, MessageSquare, Check, Edit3, Trash2, Star,
+  Sparkles, Check, Edit3, Trash2, Star,
   ChevronDown, Plus, AlertTriangle
 } from 'lucide-react';
 
@@ -291,12 +291,12 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     </section>
   );
 
-  // Carte de question simplifiée (utilisée à l'intérieur de la section de l'intervenant)
+  // Carte de question compacte & épurée (utilisée à l'intérieur de la section de l'intervenant)
   const renderQuestionCard = (q: Question) => {
     const isResolved = q.status === 'resolved';
     const answers = q.answers || [];
     const hasFinalAnswer = !!q.final_answer;
-    const isEditingDecision = editingDecisionForId === q.id || (!hasFinalAnswer && decisionInputs[q.id] !== undefined);
+    const isEditingDecision = editingDecisionForId === q.id;
     const currentInput = decisionInputs[q.id] !== undefined ? decisionInputs[q.id] : (q.final_answer || '');
     const canArbitrate = !isReadOnly && currentUser?.role !== 'read' && (isAdmin || currentUser?.role === 'write');
     const canCloseQuestion = !isReadOnly && (q.can_edit !== undefined ? !!q.can_edit : (isAdmin || (currentUser?.role === 'write' && currentUser?.id === q.user_id)));
@@ -304,16 +304,23 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     return (
       <div
         key={q.id}
-        className={`p-3.5 sm:p-4 rounded-xl border transition-all space-y-3 ${
-          isResolved ? 'bg-emerald-50/25 border-emerald-200' : 'bg-slate-50 border-black/[0.12]'
+        className={`p-3 sm:p-3.5 rounded-xl border transition-all space-y-2 ${
+          isResolved ? 'bg-emerald-50/25 border-emerald-200' : 'bg-slate-50/80 border-black/[0.12]'
         }`}
       >
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
-          <h4 className={`text-sm sm:text-base font-bold break-words leading-snug ${isResolved ? 'text-slate-600' : 'text-slate-800'}`}>
-            {q.title}
-          </h4>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h4 className={`text-sm font-bold break-words leading-snug ${isResolved ? 'text-slate-600' : 'text-slate-800'}`}>
+              {q.title}
+            </h4>
+            {q.details && (
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed whitespace-pre-line break-words">
+                {q.details}
+              </p>
+            )}
+          </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
             <span
               className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md ${
                 isResolved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
@@ -322,159 +329,150 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               {isResolved ? 'Résolue' : 'À aborder'}
             </span>
 
+            {!hasFinalAnswer && !isEditingDecision && canArbitrate && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingDecisionForId(q.id);
+                  setDecisionInputs(prev => ({ ...prev, [q.id]: q.final_answer || '' }));
+                }}
+                className="text-xs px-2 py-1 rounded-lg font-semibold bg-white hover:bg-indigo-50 text-indigo-700 border border-black/[0.12] hover:border-indigo-300 flex items-center gap-1 transition-colors cursor-pointer"
+                title="Saisir la décision finale en séance"
+              >
+                <Sparkles className="w-3 h-3 text-indigo-500" strokeWidth={2} />
+                <span>Décision</span>
+              </button>
+            )}
+
             {canCloseQuestion && (
               <button
                 type="button"
                 onClick={() => onUpdateQuestionStatus(q.id, isResolved ? 'open' : 'resolved')}
-                className={`text-xs px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                className={`text-xs px-2 py-1 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   isResolved
-                    ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                    ? 'bg-slate-200/80 text-slate-700 hover:bg-slate-300'
                     : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
                 }`}
               >
-                <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2.25} />
+                <CheckCircle2 className="w-3 h-3" strokeWidth={2.25} />
                 <span>{isResolved ? 'Réouvrir' : 'Clore'}</span>
               </button>
             )}
           </div>
         </div>
 
-        {q.details && (
-          <p className="text-xs sm:text-sm text-slate-600 bg-white p-3 rounded-lg border border-black/[0.12] leading-relaxed font-normal whitespace-pre-line break-words">
-            {q.details}
-          </p>
-        )}
-
         {answers.length > 0 && (
-          <div className="pt-2.5 border-t border-black/[0.12] space-y-2">
-            <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5 text-indigo-500" strokeWidth={2.25} />
-              Propositions ({answers.length})
-            </span>
-
-            <div className="space-y-1.5">
-              {answers.map((ans) => (
-                <div
-                  key={ans.id}
-                  className="p-2.5 bg-white rounded-lg border border-black/[0.12] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                >
-                  <div className="space-y-0.5 flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="w-4 h-4 rounded-full flex items-center justify-center font-bold text-[8px] text-white shrink-0"
-                        style={{ backgroundColor: ans.user_color || '#4F46E5' }}
-                      >
-                        {ans.user_initials}
-                      </span>
-                      <span className="font-bold text-slate-800 text-[11px]">{ans.user_name}</span>
-                    </div>
-                    <p className="text-slate-700 font-medium pl-5 break-words">{ans.content}</p>
-                  </div>
-
-                  {canArbitrate && (
-                    <button
-                      type="button"
-                      onClick={() => handleSelectPropositionAsDecision(q.id, ans.content)}
-                      className="px-2.5 py-1 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg flex items-center gap-1 transition-colors self-end sm:self-center shrink-0 cursor-pointer"
-                      title="Retenir cette proposition comme décision finale"
+          <div className="pt-2 border-t border-black/[0.08] space-y-1">
+            {answers.map((ans) => (
+              <div
+                key={ans.id}
+                className="px-2.5 py-1.5 bg-white rounded-lg border border-black/[0.10] text-xs flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0 flex-1 flex items-baseline gap-1.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1 font-semibold text-slate-800 shrink-0">
+                    <span
+                      className="w-4 h-4 rounded-full inline-flex items-center justify-center font-bold text-[8px] text-white shrink-0 translate-y-0.5"
+                      style={{ backgroundColor: ans.user_color || '#4F46E5' }}
                     >
-                      <Sparkles className="w-3 h-3 text-indigo-500" strokeWidth={2.25} />
-                      <span>Choisir comme décision</span>
-                    </button>
-                  )}
+                      {ans.user_initials}
+                    </span>
+                    <span>{ans.user_name} :</span>
+                  </span>
+                  <span className="text-slate-600 break-words">{ans.content}</span>
                 </div>
-              ))}
-            </div>
+
+                {canArbitrate && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPropositionAsDecision(q.id, ans.content)}
+                    className="px-2 py-0.5 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
+                    title="Retenir cette proposition comme décision finale"
+                  >
+                    <Sparkles className="w-3 h-3 text-indigo-500" strokeWidth={2} />
+                    <span>Retenir</span>
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
-        {(hasFinalAnswer || canArbitrate) && (
-          <div className="pt-2.5 border-t border-black/[0.12]">
-            {hasFinalAnswer && !isEditingDecision ? (
-              <div className="p-3 rounded-lg bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-300">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-emerald-900 uppercase tracking-wide">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={2.25} />
-                    <span>Décision finale</span>
-                  </div>
-                  {canArbitrate && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingDecisionForId(q.id);
-                        setDecisionInputs(prev => ({ ...prev, [q.id]: q.final_answer || '' }));
-                      }}
-                      className="text-[11px] font-semibold text-slate-500 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Edit3 className="w-3 h-3" strokeWidth={2} />
-                      Modifier
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs sm:text-sm text-slate-800 font-semibold pl-5 whitespace-pre-line break-words">
-                  {q.final_answer}
-                </p>
+        {hasFinalAnswer && !isEditingDecision && (
+          <div className="px-3 py-2 rounded-lg bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-300/90 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2.25} />
+                <span>Décision</span>
                 {q.answered_by_name && (
-                  <p className="mt-1 text-[11px] text-slate-500 pl-5">
-                    Acté par {q.answered_by_name} {q.answered_at ? `le ${new Date(q.answered_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}` : ''}
-                  </p>
+                  <span className="font-normal text-[11px] text-slate-500">
+                    • {q.answered_by_name}
+                    {q.answered_at ? ` (${new Date(q.answered_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })})` : ''}
+                  </span>
                 )}
               </div>
-            ) : (
-              canArbitrate && (
-                <div className="p-3 rounded-lg bg-white border border-indigo-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" strokeWidth={2.25} />
-                      Décision définitive en séance
-                    </label>
-                    {hasFinalAnswer && (
-                      <button
-                        type="button"
-                        onClick={() => setEditingDecisionForId(null)}
-                        className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        Annuler
-                      </button>
-                    )}
-                  </div>
+              {canArbitrate && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingDecisionForId(q.id);
+                    setDecisionInputs(prev => ({ ...prev, [q.id]: q.final_answer || '' }));
+                  }}
+                  className="text-[11px] font-semibold text-slate-500 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3 h-3" strokeWidth={2} />
+                  Modifier
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-slate-800 font-semibold whitespace-pre-line break-words pl-5">
+              {q.final_answer}
+            </p>
+          </div>
+        )}
 
-                  <textarea
-                    rows={2}
-                    placeholder="Saisissez la décision actée, ou cliquez sur 'Choisir comme décision'..."
-                    value={currentInput}
-                    onChange={(e) => setDecisionInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
-                    className="w-full p-2.5 border border-black/[0.12] rounded-lg text-xs sm:text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
+        {isEditingDecision && canArbitrate && (
+          <div className="p-2.5 rounded-lg bg-white border border-indigo-200 space-y-2">
+            <textarea
+              rows={2}
+              autoFocus
+              placeholder="Saisissez la décision finale actée en séance..."
+              value={currentInput}
+              onChange={(e) => setDecisionInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
+              className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
 
-                  <div className="flex items-center justify-end gap-2">
-                    {hasFinalAnswer && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (window.confirm('Supprimer la décision finale et réouvrir cette question ?')) {
-                            await onSetQuestionDecision?.(q.id, '', 'open');
-                            setEditingDecisionForId(null);
-                          }
-                        }}
-                        className="px-3 py-1.5 text-red-600 hover:bg-red-50 text-xs font-semibold rounded-lg cursor-pointer"
-                      >
-                        Supprimer la décision
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      disabled={!currentInput.trim() || isSubmittingDecision[q.id]}
-                      onClick={() => handleSaveDecision(q.id)}
-                      className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
-                    >
-                      <Check className="w-3.5 h-3.5" strokeWidth={2.25} />
-                      <span>{isSubmittingDecision[q.id] ? 'Enregistrement...' : 'Acter la décision'}</span>
-                    </button>
-                  </div>
-                </div>
-              )
-            )}
+            <div className="flex items-center justify-end gap-2">
+              {hasFinalAnswer && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (window.confirm('Supprimer la décision finale et réouvrir cette question ?')) {
+                      await onSetQuestionDecision?.(q.id, '', 'open');
+                      setEditingDecisionForId(null);
+                    }
+                  }}
+                  className="px-2.5 py-1 text-red-600 hover:bg-red-50 text-xs font-semibold rounded-lg cursor-pointer mr-auto"
+                >
+                  Supprimer
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setEditingDecisionForId(null)}
+                className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={!currentInput.trim() || isSubmittingDecision[q.id]}
+                onClick={() => handleSaveDecision(q.id)}
+                className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer transition-all"
+              >
+                <Check className="w-3.5 h-3.5" strokeWidth={2.25} />
+                <span>{isSubmittingDecision[q.id] ? 'Enregistrement...' : 'Acter'}</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -856,11 +854,11 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       {meetingStep === 'questions' && (
         <div className="space-y-4">
           {/* Barre d'en-tête synthétique */}
-          <div className="bg-white rounded-[28px] sm:rounded-[32px] px-5 py-4 border border-black/[0.12] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-white rounded-[28px] sm:rounded-[32px] px-4 py-3 sm:px-5 sm:py-3.5 border border-black/[0.12] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div>
               <h3 className="font-bold text-base text-slate-800">Revue des Questions & Décisions</h3>
               <p className="text-xs text-slate-500">
-                Regroupées par associé pour passer en revue chaque intervenant et acter la décision en séance.
+                Regroupées par associé pour acter les décisions en séance.
               </p>
             </div>
             <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
@@ -908,13 +906,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 )}
               </>,
               userQuestions.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {userQuestions.map(renderQuestionCard)}
                 </div>
               ) : (
-                <div className="py-3 px-4 border border-dashed border-black/[0.12] rounded-xl text-center text-xs text-slate-400 font-medium">
+                <p className="py-2 text-center text-xs text-slate-400 font-medium">
                   Aucune question à aborder pour {user.name}.
-                </div>
+                </p>
               ),
               `meeting-section-questions-${user.id}`,
               String(user.id)

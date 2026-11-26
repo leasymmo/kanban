@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Question, User, QuestionStatus } from '../types';
+import { Question, User } from '../types';
+import { QuestionModal } from './QuestionModal';
 import {
   HelpCircle, Plus, Edit3, Trash2, CheckCircle2, MessageSquare,
-  X, Send, UserCheck
+  Send, UserCheck
 } from 'lucide-react';
 
 interface QuestionsViewProps {
@@ -36,13 +37,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   const [selectedFilter, setSelectedFilter] = useState<'me' | 'all' | number>('me');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
-
-  // Form states pour la question
-  const [title, setTitle] = useState('');
-  const [details, setDetails] = useState('');
-  const [targetUserId, setTargetUserId] = useState<number>(currentUser?.id || 1);
-  const [status, setStatus] = useState<QuestionStatus>('open');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [presetUserId, setPresetUserId] = useState<number | undefined>(undefined);
 
   // State pour les réponses collaboratives (par question)
   const [newAnswerText, setNewAnswerText] = useState<{ [questionId: number]: string }>({});
@@ -52,49 +47,16 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
 
   const isAdmin = currentUser?.role === 'admin';
 
-  const openCreateModal = (presetUserId?: number) => {
+  const openCreateModal = (userId?: number) => {
     setEditingQuestion(null);
-    setTitle('');
-    setDetails('');
-    setTargetUserId(presetUserId || currentUser?.id || 1);
-    setStatus('open');
+    setPresetUserId(userId);
     setIsModalOpen(true);
   };
 
   const openEditModal = (q: Question) => {
     setEditingQuestion(q);
-    setTitle(q.title);
-    setDetails(q.details || '');
-    setTargetUserId(q.user_id);
-    setStatus(q.status);
+    setPresetUserId(undefined);
     setIsModalOpen(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-
-    setIsSubmitting(true);
-    try {
-      if (editingQuestion) {
-        await onUpdateQuestion(editingQuestion.id, {
-          title: title.trim(),
-          details: details.trim(),
-          status,
-          user_id: isAdmin ? targetUserId : editingQuestion.user_id
-        });
-      } else {
-        await onAddQuestion({
-          sprint_id: sprintId,
-          title: title.trim(),
-          details: details.trim(),
-          user_id: isAdmin ? targetUserId : currentUser?.id
-        });
-      }
-      setIsModalOpen(false);
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const handleSendAnswer = async (questionId: number) => {
@@ -574,103 +536,17 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
       )}
 
       {/* Modal Créer / Modifier Question */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-black/[0.12] overflow-hidden">
-            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-brand-400 uppercase tracking-wider">
-                  Sujet stratégique de réunion
-                </span>
-                <h3 className="text-lg font-bold">
-                  {editingQuestion ? 'Modifier la question' : 'Nouvelle question'}
-                </h3>
-              </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
-                <X className="w-5 h-5" strokeWidth={1.75} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {isAdmin && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Associé concerné
-                  </label>
-                  <select
-                    value={targetUserId}
-                    onChange={(e) => setTargetUserId(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white cursor-pointer"
-                  >
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Intitulé de la question *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Choix du prestataire serrurerie, point avec Asma..."
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Détails & arguments à aborder
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Précisions pour la discussion en séance..."
-                  value={details}
-                  onChange={(e) => setDetails(e.target.value)}
-                  className="w-full p-2.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Statut
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as QuestionStatus)}
-                  className="w-full px-3 py-2 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white cursor-pointer"
-                >
-                  <option value="open">À aborder</option>
-                  <option value="discussed">En discussion</option>
-                  <option value="resolved">Résolue / Actée</option>
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/[0.12]">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg font-medium cursor-pointer"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-bold shadow-md shadow-brand-600/30 cursor-pointer"
-                >
-                  {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <QuestionModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        sprintId={sprintId}
+        users={users}
+        currentUser={currentUser}
+        editingQuestion={editingQuestion}
+        initialUserId={presetUserId}
+        onAddQuestion={onAddQuestion}
+        onUpdateQuestion={onUpdateQuestion}
+      />
 
     </div>
   );

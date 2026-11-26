@@ -8,6 +8,7 @@ import { TasksTab } from './components/TasksTab';
 import { QuestionsView } from './components/QuestionsView';
 import { MeetingView } from './components/MeetingView';
 import { TaskModal } from './components/TaskModal';
+import { QuestionModal } from './components/QuestionModal';
 import { MeetingQuickTaskModal } from './components/MeetingQuickTaskModal';
 import { CloseSprintModal } from './components/CloseSprintModal';
 import { LoginPage } from './components/LoginPage';
@@ -40,6 +41,7 @@ export const App: React.FC = () => {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isMeetingQuickModalOpen, setIsMeetingQuickModalOpen] = useState(false);
   const [editingPendingTask, setEditingPendingTask] = useState<Task | null>(null);
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setActionToast(msg);
@@ -573,7 +575,7 @@ export const App: React.FC = () => {
                     setEditingPendingTask(pendingTaskToEdit || null);
                     setIsMeetingQuickModalOpen(true);
                   }}
-                  onAddNewQuestion={() => handleChangeTab('questions')}
+                  onAddNewQuestion={() => setIsQuestionModalOpen(true)}
                   isReadOnly={isReadOnly}
                 />
               ) : (
@@ -622,6 +624,15 @@ export const App: React.FC = () => {
         properties={sprintProperties}
         editingTask={editingPendingTask}
         onSave={saveTask}
+      />
+
+      <QuestionModal
+        isOpen={isQuestionModalOpen}
+        onClose={() => setIsQuestionModalOpen(false)}
+        sprintId={currentSprintId || 1}
+        users={allUsers}
+        currentUser={currentUser}
+        onAddQuestion={handleAddQuestion}
       />
 
       <AdminPanelModal
