@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { User, Sprint, Task, Question, Property, TaskStatus } from './types';
+import { User, Sprint, Task, Question, QuestionStatus, Property, TaskStatus } from './types';
 import { api } from './api/client';
 import { useSprintTasks } from './hooks/useSprintTasks';
 import { getUserPreferences, saveUserPreferences } from './utils/cookies';
@@ -269,21 +269,24 @@ export const App: React.FC = () => {
         title: data.title,
         details: data.details,
         status: 'open',
+        answers: [],
         can_edit: true,
-        can_delete: true
+        can_delete: true,
+        can_decide: true
       };
-      setQuestions([...questions, newQ]);
+      setQuestions(prev => [...prev, newQ]);
       showSuccessToast('Question ajoutée localement.');
     }
   };
 
   const handleUpdateQuestion = async (id: number, data: Partial<Question>) => {
-    const previousQuestions = questions;
+    let previousQuestions: Question[] = [];
     const reassignedUser = data.user_id !== undefined
       ? allUsers.find(u => u.id === data.user_id)
       : undefined;
-    setQuestions(
-      questions.map(q =>
+    setQuestions(prev => {
+      previousQuestions = prev;
+      return prev.map(q =>
         q.id === id
           ? {
               ...q,
@@ -297,8 +300,8 @@ export const App: React.FC = () => {
                 : {})
             }
           : q
-      )
-    );
+      );
+    });
     try {
       await api.updateQuestion(id, data);
       if (data.user_id !== undefined && currentSprintId) {
@@ -310,7 +313,7 @@ export const App: React.FC = () => {
             ? 'Question clôturée.'
             : data.status === 'open'
             ? 'Question réouverte.'
-            : 'Statut de la question mis à jour.'
+            : 'Question passée « En discussion ».'
         );
       } else {
         showSuccessToast('Question mise à jour.');
@@ -327,8 +330,11 @@ export const App: React.FC = () => {
 
   const handleDeleteQuestion = async (id: number) => {
     if (!window.confirm('Voulez-vous vraiment supprimer cette question ?')) return;
-    const previousQuestions = questions;
-    setQuestions(questions.filter(q => q.id !== id));
+    let previousQuestions: Question[] = [];
+    setQuestions(prev => {
+      previousQuestions = prev;
+      return prev.filter(q => q.id !== id);
+    });
     try {
       await api.deleteQuestion(id);
       showSuccessToast('Question supprimée.');
@@ -373,7 +379,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleSetQuestionDecision = async (questionId: number, finalAnswer: string, status: string = 'resolved') => {
+  const handleSetQuestionDecision = async (questionId: number, finalAnswer: string, status: QuestionStatus = 'resolved') => {
     try {
       await api.setQuestionDecision(questionId, finalAnswer, status);
       if (currentSprintId) await loadSprintDetails(currentSprintId);
@@ -624,19 +630,25 @@ export const App: React.FC = () => {
             )}
 
             {activeTab === 'questions' && (
-              <QuestionsView
-                questions={questions}
-                users={allUsers}
-                currentUser={currentUser}
-                sprintId={currentSprintId || 1}
-                onAddQuestion={handleAddQuestion}
-                onUpdateQuestion={handleUpdateQuestion}
-                onDeleteQuestion={handleDeleteQuestion}
-                onAddAnswer={handleAddAnswer}
-                onUpdateAnswer={handleUpdateAnswer}
-                onDeleteAnswer={handleDeleteAnswer}
-                isReadOnly={isReadOnly}
-              />
+              activeSprint ? (
+                <QuestionsView
+                  questions={questions}
+                  users={allUsers}
+                  currentUser={currentUser}
+                  sprintId={activeSprint.id}
+                  onAddQuestion={handleAddQuestion}
+                  onUpdateQuestion={handleUpdateQuestion}
+                  onDeleteQuestion={handleDeleteQuestion}
+                  onAddAnswer={handleAddAnswer}
+                  onUpdateAnswer={handleUpdateAnswer}
+                  onDeleteAnswer={handleDeleteAnswer}
+                  isReadOnly={isReadOnly}
+                />
+              ) : (
+                <div className="bg-white rounded-2xl border border-black/[0.12] p-10 text-center text-slate-500 text-sm">
+                  Aucun sprint configuré pour l'onglet Questions.
+                </div>
+              )
             )}
 
             {activeTab === 'meeting' && (
@@ -765,8 +777,11 @@ export const App: React.FC = () => {
           }
           showSuccessToast(`Associé « ${updatedUser.name} » mis à jour.`);
         }}
-        onUserDeleted={(deletedId) => {
-          setAllUsers(allUsers.filter(u => u.id !== deletedId));
+        onUserDeleted={async (deletedId) => {
+          setAllUsers(prev => prev.filter(u => u.id !== deletedId));
+          if (currentSprintId) {
+            await loadSprintDetails(currentSprintId);
+          }
           showSuccessToast('Associé supprimé.');
         }}
         onPropertyCreated={(newProp) => {

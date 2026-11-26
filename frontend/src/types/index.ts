@@ -113,4 +113,5 @@ export interface Question {
   answers?: QuestionAnswer[];
   can_edit?: boolean;
   can_delete?: boolean;
+  can_decide?: boolean;
 }

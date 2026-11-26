@@ -1,4 +1,4 @@
-import { Sprint, Task, Question, User, Property } from '../types';
+import { Sprint, Task, Question, QuestionAnswer, QuestionStatus, User, Property } from '../types';
 
 function getStoredToken(): string | null {
   return localStorage.getItem('kanban_token');
@@ -294,7 +294,7 @@ export const api = {
 
   // Questions
   async createQuestion(data: { sprint_id: number; title: string; details?: string; user_id?: number }) {
-    return request<{ success: boolean; question_id: number }>(`/questions`, {
+    return request<{ success: boolean; question_id: number; message?: string }>(`/questions`, {
       method: 'POST',
       body: JSON.stringify(data)
     });
@@ -315,7 +315,7 @@ export const api = {
 
   // Questions collaborative answers
   async addQuestionAnswer(questionId: number, content: string) {
-    return request<{ success: boolean; answer: any; message: string }>(`/questions/${questionId}/answers`, {
+    return request<{ success: boolean; answer: QuestionAnswer; message: string }>(`/questions/${questionId}/answers`, {
       method: 'POST',
       body: JSON.stringify({ content })
     });
@@ -335,8 +335,16 @@ export const api = {
   },
 
   // Questions definitive decision (in meeting)
-  async setQuestionDecision(questionId: number, finalAnswer: string, status: string = 'resolved') {
-    return request<{ success: boolean; message: string; final_answer: string; status: string; answered_by?: number; answered_by_name?: string; answered_at?: string }>(`/questions/${questionId}/decision`, {
+  async setQuestionDecision(questionId: number, finalAnswer: string, status: QuestionStatus = 'resolved') {
+    return request<{
+      success: boolean;
+      message: string;
+      final_answer: string | null;
+      status: QuestionStatus;
+      answered_by?: number | null;
+      answered_by_name?: string | null;
+      answered_at?: string | null;
+    }>(`/questions/${questionId}/decision`, {
       method: 'POST',
       body: JSON.stringify({ final_answer: finalAnswer, status })
     });

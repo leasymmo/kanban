@@ -93,8 +93,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             />
           </div>
 
-          {/* Navigation Tabs (Desktop sm+) */}
-          <nav className="hidden sm:flex items-center gap-1 bg-slate-800/60 p-1 rounded-xl border border-slate-700/60">
+          {/* Navigation Tabs (Desktop lg+) */}
+          <nav className="hidden lg:flex items-center gap-1 bg-slate-800/60 p-1 rounded-xl border border-slate-700/60 shrink-0">
             <button
               onClick={() => onChangeTab('tasks')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
@@ -224,8 +224,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         </div>
 
-        {/* Barre de navigation mobile (<sm) intégrée */}
-        <div className="sm:hidden flex items-center justify-around py-1.5 border-t border-slate-800/80 -mx-3 px-3 bg-slate-900/95">
+        {/* Barre de navigation mobile & tablette (<lg) intégrée */}
+        <div className="lg:hidden flex items-center justify-around py-1.5 border-t border-slate-800/80 -mx-3 sm:-mx-6 px-3 sm:px-6 bg-slate-900/95">
           <button
             onClick={() => onChangeTab('tasks')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${

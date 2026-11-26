@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sprint, Task, TaskStatus, Question, User, Property } from '../types';
+import { Sprint, Task, TaskStatus, Question, QuestionStatus, User, Property } from '../types';
 import { buildSubtaskTree, HierarchicalSubtask } from '../utils/subtasks';
+import { QUESTION_STATUS_META, formatQuestionDate } from '../utils/questions';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import {
   Users, CheckCircle2, UserPlus,
@@ -22,7 +23,7 @@ interface MeetingViewProps {
   onDeleteTask?: (taskId: number) => void;
   onToggleSubtask: (subtaskId: number) => void;
   onUpdateQuestionStatus: (questionId: number, status: Question['status']) => void;
-  onSetQuestionDecision?: (questionId: number, finalAnswer: string, status?: string) => Promise<void>;
+  onSetQuestionDecision?: (questionId: number, finalAnswer: string, status?: QuestionStatus) => Promise<void>;
   onEditTask: (task: Task) => void;
   onToggleStar?: (taskId: number) => void;
   onAddNewTask?: (editingPendingTask?: Task | null) => void;
@@ -439,11 +440,12 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   // Carte de question compacte & épurée (utilisée à l'intérieur de la section de l'intervenant)
   const renderQuestionCard = (q: Question) => {
     const isResolved = q.status === 'resolved';
+    const statusMeta = QUESTION_STATUS_META[q.status] || QUESTION_STATUS_META.open;
     const answers = q.answers || [];
     const hasFinalAnswer = !!q.final_answer;
     const isEditingDecision = editingDecisionForId === q.id;
     const currentInput = decisionInputs[q.id] !== undefined ? decisionInputs[q.id] : (q.final_answer || '');
-    const canArbitrate = !isReadOnly && currentUser?.role !== 'read' && (isAdmin || currentUser?.role === 'write');
+    const canArbitrate = !isReadOnly && (q.can_decide ?? (currentUser?.role !== 'read' && (isAdmin || currentUser?.role === 'write')));
     const canModifyQuestion = !isReadOnly && (q.can_edit !== undefined ? !!q.can_edit : (isAdmin || (currentUser?.role === 'write' && currentUser?.id === q.user_id)));
 
     return (
@@ -467,11 +469,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
             <span
-              className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md ${
-                isResolved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-              }`}
+              className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md ${statusMeta.badgeClass}`}
             >
-              {isResolved ? 'Résolue' : 'À aborder'}
+              {statusMeta.shortLabel}
             </span>
 
             {!hasFinalAnswer && !isEditingDecision && canArbitrate && (
@@ -563,7 +563,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 {q.answered_by_name && (
                   <span className="font-normal text-[11px] text-slate-500">
                     • {q.answered_by_name}
-                    {q.answered_at ? ` (${new Date(q.answered_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })})` : ''}
+                    {q.answered_at ? ` (${formatQuestionDate(q.answered_at)})` : ''}
                   </span>
                 )}
               </div>

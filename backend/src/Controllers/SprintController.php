@@ -133,12 +133,14 @@ class SprintController {
         // Récupération des questions du sprint
         $stmtQ = $db->prepare("
             SELECT q.*,
-                   u.name as user_name, u.initials as user_initials, u.avatar_color as user_color,
-                   uc.name as created_by_name,
+                   COALESCE(u.name, 'Ancien associé') as user_name,
+                   COALESCE(u.initials, '?') as user_initials,
+                   COALESCE(u.avatar_color, '#64748B') as user_color,
+                   COALESCE(uc.name, 'Ancien associé') as created_by_name,
                    ua.name as answered_by_name
             FROM questions q
-            JOIN users u ON u.id = q.user_id
-            JOIN users uc ON uc.id = q.created_by
+            LEFT JOIN users u ON u.id = q.user_id
+            LEFT JOIN users uc ON uc.id = q.created_by
             LEFT JOIN users ua ON ua.id = q.answered_by
             WHERE q.sprint_id = ?
             ORDER BY q.user_id ASC, q.id ASC
@@ -152,9 +154,12 @@ class SprintController {
         if (!empty($qIds)) {
             $inClause = implode(',', array_fill(0, count($qIds), '?'));
             $stmtAnswers = $db->prepare("
-                SELECT a.*, u.name as user_name, u.initials as user_initials, u.avatar_color as user_color
+                SELECT a.*,
+                       COALESCE(u.name, 'Ancien associé') as user_name,
+                       COALESCE(u.initials, '?') as user_initials,
+                       COALESCE(u.avatar_color, '#64748B') as user_color
                 FROM question_answers a
-                JOIN users u ON u.id = a.user_id
+                LEFT JOIN users u ON u.id = a.user_id
                 WHERE a.question_id IN ($inClause)
                 ORDER BY a.created_at ASC, a.id ASC
             ");
@@ -165,13 +170,24 @@ class SprintController {
         }
 
         foreach ($questions as &$q) {
+            $q['id'] = (int)$q['id'];
+            $q['sprint_id'] = (int)$q['sprint_id'];
+            $q['user_id'] = $q['user_id'] !== null ? (int)$q['user_id'] : null;
+            $q['created_by'] = $q['created_by'] !== null ? (int)$q['created_by'] : null;
+            $q['answered_by'] = $q['answered_by'] !== null ? (int)$q['answered_by'] : null;
+
             $q['can_edit'] = $isAdmin
-                || (!$isSprintClosed && $isWrite && $q['user_id'] == $currentUser['id']);
+                || (!$isSprintClosed && $isWrite && $q['user_id'] !== null && $q['user_id'] === (int)$currentUser['id']);
             $q['can_delete'] = $q['can_edit'];
+            $q['can_decide'] = $isAdmin || (!$isSprintClosed && $isWrite);
 
             $rawAnswers = $answersMap[$q['id']] ?? [];
             foreach ($rawAnswers as &$ans) {
-                $ans['can_edit'] = $isAdmin || (!$isSprintClosed && $ans['user_id'] == $currentUser['id']);
+                $ans['id'] = (int)$ans['id'];
+                $ans['question_id'] = (int)$ans['question_id'];
+                $ans['user_id'] = $ans['user_id'] !== null ? (int)$ans['user_id'] : null;
+                $ans['can_edit'] = $isAdmin
+                    || (!$isSprintClosed && $isWrite && $ans['user_id'] !== null && $ans['user_id'] === (int)$currentUser['id']);
                 $ans['can_delete'] = $ans['can_edit'];
             }
             $q['answers'] = $rawAnswers;

@@ -17,19 +17,31 @@ class QuestionController {
 
         $sprintId = isset($_GET['sprint_id']) ? (int)$_GET['sprint_id'] : 0;
         if ($sprintId <= 0) {
-            // Dernier sprint actif par défaut
-            $stmtSprint = $db->query("SELECT id FROM sprints ORDER BY number DESC LIMIT 1");
-            $sprintId = (int)($stmtSprint->fetch()['id'] ?? 0);
+            // Prioriser le sprint actif, sinon le plus récent
+            $stmtSprint = $db->query("SELECT id, status FROM sprints ORDER BY (status = 'active') DESC, number DESC LIMIT 1");
+            $sprintRow = $stmtSprint->fetch();
+            $sprintId = (int)($sprintRow['id'] ?? 0);
+            $sprintStatus = $sprintRow['status'] ?? 'active';
+        } else {
+            $stmtSprint = $db->prepare("SELECT id, status FROM sprints WHERE id = ? LIMIT 1");
+            $stmtSprint->execute([$sprintId]);
+            $sprintRow = $stmtSprint->fetch();
+            if (!$sprintRow) {
+                Response::error('Sprint introuvable', 404);
+            }
+            $sprintStatus = $sprintRow['status'] ?? 'active';
         }
 
         $stmt = $db->prepare("
             SELECT q.*,
-                   u.name as user_name, u.initials as user_initials, u.avatar_color as user_color,
-                   uc.name as created_by_name,
+                   COALESCE(u.name, 'Ancien associé') as user_name,
+                   COALESCE(u.initials, '?') as user_initials,
+                   COALESCE(u.avatar_color, '#64748B') as user_color,
+                   COALESCE(uc.name, 'Ancien associé') as created_by_name,
                    ua.name as answered_by_name
             FROM questions q
-            JOIN users u ON u.id = q.user_id
-            JOIN users uc ON uc.id = q.created_by
+            LEFT JOIN users u ON u.id = q.user_id
+            LEFT JOIN users uc ON uc.id = q.created_by
             LEFT JOIN users ua ON ua.id = q.answered_by
             WHERE q.sprint_id = ?
             ORDER BY q.user_id ASC, q.id ASC
@@ -43,9 +55,12 @@ class QuestionController {
         if (!empty($qIds)) {
             $inClause = implode(',', array_fill(0, count($qIds), '?'));
             $stmtAnswers = $db->prepare("
-                SELECT a.*, u.name as user_name, u.initials as user_initials, u.avatar_color as user_color
+                SELECT a.*,
+                       COALESCE(u.name, 'Ancien associé') as user_name,
+                       COALESCE(u.initials, '?') as user_initials,
+                       COALESCE(u.avatar_color, '#64748B') as user_color
                 FROM question_answers a
-                JOIN users u ON u.id = a.user_id
+                LEFT JOIN users u ON u.id = a.user_id
                 WHERE a.question_id IN ($inClause)
                 ORDER BY a.created_at ASC, a.id ASC
             ");
@@ -56,14 +71,29 @@ class QuestionController {
         }
 
         $currentUser = Auth::getCurrentUser();
+        $isAdmin = ($currentUser['role'] === 'admin');
+        $isWrite = ($currentUser['role'] === 'write');
+        $isSprintClosed = ($sprintStatus === 'closed');
+
         foreach ($questions as &$q) {
-            $q['can_edit'] = ($currentUser['role'] === 'admin')
-                || ($currentUser['role'] === 'write' && $q['user_id'] == $currentUser['id']);
+            $q['id'] = (int)$q['id'];
+            $q['sprint_id'] = (int)$q['sprint_id'];
+            $q['user_id'] = $q['user_id'] !== null ? (int)$q['user_id'] : null;
+            $q['created_by'] = $q['created_by'] !== null ? (int)$q['created_by'] : null;
+            $q['answered_by'] = $q['answered_by'] !== null ? (int)$q['answered_by'] : null;
+
+            $q['can_edit'] = $isAdmin
+                || (!$isSprintClosed && $isWrite && $q['user_id'] !== null && $q['user_id'] === (int)$currentUser['id']);
             $q['can_delete'] = $q['can_edit'];
+            $q['can_decide'] = $isAdmin || (!$isSprintClosed && $isWrite);
 
             $rawAnswers = $answersMap[$q['id']] ?? [];
             foreach ($rawAnswers as &$ans) {
-                $ans['can_edit'] = ($currentUser['role'] === 'admin') || ($ans['user_id'] == $currentUser['id']);
+                $ans['id'] = (int)$ans['id'];
+                $ans['question_id'] = (int)$ans['question_id'];
+                $ans['user_id'] = $ans['user_id'] !== null ? (int)$ans['user_id'] : null;
+                $ans['can_edit'] = $isAdmin
+                    || (!$isSprintClosed && $isWrite && $ans['user_id'] !== null && $ans['user_id'] === (int)$currentUser['id']);
                 $ans['can_delete'] = $ans['can_edit'];
             }
             $q['answers'] = $rawAnswers;
@@ -72,6 +102,7 @@ class QuestionController {
         Response::json([
             'success' => true,
             'sprint_id' => $sprintId,
+            'is_read_only' => ($isSprintClosed && !$isAdmin),
             'questions' => $questions
         ]);
     }
@@ -88,8 +119,11 @@ class QuestionController {
         $details = trim($body['details'] ?? '');
         $sprintId = (int)($body['sprint_id'] ?? 0);
 
-        if (empty($title) || $sprintId <= 0) {
+        if ($title === '' || $sprintId <= 0) {
             Response::error('Titre de la question et sprint requis', 400);
+        }
+        if (mb_strlen($title) > 255) {
+            Response::error('L’intitulé de la question ne doit pas dépasser 255 caractères', 400);
         }
 
         $stmtSprint = $db->prepare("SELECT id, status FROM sprints WHERE id = ? LIMIT 1");
@@ -116,13 +150,13 @@ class QuestionController {
             INSERT INTO questions (sprint_id, user_id, created_by, title, details, status)
             VALUES (?, ?, ?, ?, ?, 'open')
         ");
-        $stmt->execute([$sprintId, $targetUserId, $currentUser['id'], $title, $details]);
+        $stmt->execute([$sprintId, $targetUserId, $currentUser['id'], $title, $details !== '' ? $details : null]);
 
         Response::json([
             'success' => true,
-            'question_id' => $db->lastInsertId(),
+            'question_id' => (int)$db->lastInsertId(),
             'message' => 'Question ajoutée avec succès'
-        ]);
+        ], 201);
     }
 
     /**
@@ -157,9 +191,33 @@ class QuestionController {
         }
 
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $title = isset($body['title']) ? trim($body['title']) : $question['title'];
-        $details = isset($body['details']) ? trim($body['details']) : $question['details'];
-        $status = in_array($body['status'] ?? '', ['open', 'discussed', 'resolved']) ? $body['status'] : $question['status'];
+        if (array_key_exists('title', $body)) {
+            $title = trim((string)$body['title']);
+            if ($title === '') {
+                Response::error('Le titre de la question ne peut pas être vide', 400);
+            }
+            if (mb_strlen($title) > 255) {
+                Response::error('L’intitulé de la question ne doit pas dépasser 255 caractères', 400);
+            }
+        } else {
+            $title = $question['title'];
+        }
+
+        if (array_key_exists('details', $body)) {
+            $trimmedDetails = trim((string)$body['details']);
+            $details = $trimmedDetails !== '' ? $trimmedDetails : null;
+        } else {
+            $details = $question['details'];
+        }
+
+        if (array_key_exists('status', $body)) {
+            if (!in_array($body['status'], ['open', 'discussed', 'resolved'], true)) {
+                Response::error('Statut de question invalide', 400);
+            }
+            $status = $body['status'];
+        } else {
+            $status = $question['status'];
+        }
 
         $userId = $question['user_id'];
         if ($currentUser['role'] === 'admin' && !empty($body['user_id'])) {
@@ -380,14 +438,23 @@ class QuestionController {
         }
 
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $finalAnswer = isset($body['final_answer']) ? trim($body['final_answer']) : null;
+        $finalAnswer = isset($body['final_answer']) ? trim((string)$body['final_answer']) : null;
         if ($finalAnswer === '') {
             $finalAnswer = null;
         }
-        $status = in_array($body['status'] ?? '', ['open', 'discussed', 'resolved']) ? $body['status'] : 'resolved';
 
-        $answeredBy = !empty($finalAnswer) ? $currentUser['id'] : null;
-        $answeredAt = !empty($finalAnswer) ? date('Y-m-d H:i:s') : null;
+        if (array_key_exists('status', $body) && $body['status'] !== '') {
+            if (!in_array($body['status'], ['open', 'discussed', 'resolved'], true)) {
+                Response::error('Statut de question invalide', 400);
+            }
+            $status = $body['status'];
+        } else {
+            $status = ($finalAnswer !== null) ? 'resolved' : 'open';
+        }
+
+        $answeredBy = $finalAnswer !== null ? (int)$currentUser['id'] : null;
+        $answeredAt = $finalAnswer !== null ? date('Y-m-d H:i:s') : null;
+        $answeredByName = $finalAnswer !== null ? $currentUser['name'] : null;
 
         $stmtUpdate = $db->prepare("
             UPDATE questions
@@ -398,11 +465,11 @@ class QuestionController {
 
         Response::json([
             'success' => true,
-            'message' => 'Décision enregistrée avec succès',
+            'message' => $finalAnswer !== null ? 'Décision enregistrée avec succès' : 'Décision supprimée',
             'final_answer' => $finalAnswer,
             'status' => $status,
             'answered_by' => $answeredBy,
-            'answered_by_name' => $currentUser['name'],
+            'answered_by_name' => $answeredByName,
             'answered_at' => $answeredAt
         ]);
     }

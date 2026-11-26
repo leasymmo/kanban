@@ -30,7 +30,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
 
   const [title, setTitle] = useState('');
   const [details, setDetails] = useState('');
-  const [targetUserId, setTargetUserId] = useState<number>(currentUser?.id || users[0]?.id || 1);
+  const [targetUserId, setTargetUserId] = useState<number>(currentUser?.id || users[0]?.id || 0);
   const [status, setStatus] = useState<QuestionStatus>('open');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,24 +46,45 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
     } else {
       setTitle('');
       setDetails('');
-      setTargetUserId(initialUserId || currentUser?.id || users[0]?.id || 1);
+      setTargetUserId(initialUserId || currentUser?.id || users[0]?.id || 0);
       setStatus('open');
     }
     setError(null);
-  }, [isOpen, editingQuestion, initialUserId, currentUser?.id, users]);
+    // Intentionally omit `users` reference to avoid resetting draft fields mid-typing
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, editingQuestion?.id, initialUserId, currentUser?.id]);
 
   if (!isOpen) return null;
 
+  const hasOrphanAuthor =
+    isEdit && editingQuestion && !users.some(u => u.id === editingQuestion.user_id);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setError("L'intitulé de la question est obligatoire.");
+      return;
+    }
+    if (trimmedTitle.length > 255) {
+      setError("L'intitulé ne doit pas dépasser 255 caractères.");
+      return;
+    }
+    if (isAdmin && !targetUserId) {
+      setError('Veuillez sélectionner un associé concerné.');
+      return;
+    }
+    if (isEdit && (!editingQuestion || !onUpdateQuestion)) {
+      setError('Modification indisponible pour cette question.');
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
     try {
       if (isEdit && editingQuestion && onUpdateQuestion) {
         await onUpdateQuestion(editingQuestion.id, {
-          title: title.trim(),
+          title: trimmedTitle,
           details: details.trim(),
           status,
           user_id: isAdmin ? targetUserId : editingQuestion.user_id
@@ -71,7 +92,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
       } else {
         await onAddQuestion({
           sprint_id: sprintId,
-          title: title.trim(),
+          title: trimmedTitle,
           details: details.trim(),
           user_id: isAdmin ? targetUserId : currentUser?.id
         });
@@ -125,6 +146,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
                 type="text"
                 autoFocus
                 required
+                maxLength={255}
                 placeholder="Ex: Choix du prestataire serrurerie, point propriétaire..."
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -157,6 +179,11 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
                       onChange={(e) => setTargetUserId(Number(e.target.value))}
                       className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white cursor-pointer focus:ring-2 focus:ring-brand-500 focus:outline-none"
                     >
+                      {hasOrphanAuthor && editingQuestion && (
+                        <option value={editingQuestion.user_id}>
+                          {editingQuestion.user_name || 'Ancien associé'} (archivé)
+                        </option>
+                      )}
                       {users.map(u => (
                         <option key={u.id} value={u.id}>{u.name}</option>
                       ))}
