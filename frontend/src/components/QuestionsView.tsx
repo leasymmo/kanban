@@ -376,8 +376,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           Aucune question.
         </div>
       ) : (
-        <div className="space-y-2">
-          {groupQuestions.map(q => renderQuestionCard(q, false))}
+        <div className="space-y-2.5">
+          {groupQuestions.map(q => renderQuestionCard(q, true))}
         </div>
       )}
     </section>
@@ -495,7 +495,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           </div>
         )
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+        <div className="grid grid-cols-1 gap-4">
           {users.map((user) =>
             renderAssociateColumn(
               `user-${user.id}`,
