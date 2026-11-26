@@ -12,6 +12,7 @@ export interface ToastItem {
 interface ToastContainerProps {
   toasts: ToastItem[];
   onDismiss: (id: number) => void;
+  hasBottomDock?: boolean;
 }
 
 const TOAST_STYLES: Record<
@@ -41,13 +42,21 @@ const TOAST_STYLES: Record<
   }
 };
 
-export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss }) => {
+export const ToastContainer: React.FC<ToastContainerProps> = ({
+  toasts,
+  onDismiss,
+  hasBottomDock = false
+}) => {
   if (toasts.length === 0) return null;
 
   return (
     <div
       aria-live="polite"
-      className="fixed z-[60] top-[6.5rem] sm:top-20 left-3 right-3 sm:left-auto sm:right-5 sm:w-full sm:max-w-sm flex flex-col gap-2 pointer-events-none"
+      className={`fixed z-[60] ${
+        hasBottomDock
+          ? 'bottom-[max(5.25rem,calc(4.5rem+env(safe-area-inset-bottom)))] lg:bottom-5'
+          : 'bottom-[max(1rem,env(safe-area-inset-bottom))] sm:bottom-5'
+      } left-3 right-3 sm:left-auto sm:right-5 sm:w-full sm:max-w-sm flex flex-col gap-2 pointer-events-none`}
     >
       {toasts.map((toast) => {
         const style = TOAST_STYLES[toast.type];

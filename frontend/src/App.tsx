@@ -548,7 +548,11 @@ export const App: React.FC = () => {
   if (!currentUser) {
     return (
       <>
-        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+        <ToastContainer
+          toasts={toasts}
+          onDismiss={dismissToast}
+          hasBottomDock={activeTab === 'meeting' && !!activeSprint}
+        />
         <LoginPage
           users={allUsers}
           onLoginSuccess={handleLoginSuccess}
@@ -573,7 +577,11 @@ export const App: React.FC = () => {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
-        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+        <ToastContainer
+          toasts={toasts}
+          onDismiss={dismissToast}
+          hasBottomDock={activeTab === 'meeting' && !!activeSprint}
+        />
 
         {apiError && (
           <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-center justify-between shadow-xs">

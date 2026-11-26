@@ -3,6 +3,7 @@ import { Sprint, Task, TaskStatus, Question, User, Property } from '../types';
 import { buildSubtaskTree, HierarchicalSubtask } from '../utils/subtasks';
 import { hasFinalDecision } from '../utils/questions';
 import { BlurredIconSwap } from './BlurredIconSwap';
+import { MeetingControlDock } from './MeetingControlDock';
 import {
   Users, CheckCircle2, UserPlus,
   Shield, CheckSquare, Square,
@@ -711,8 +712,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   return (
     <div
       className={`space-y-6 ${
-        users.length > 0 ? 'lg:pl-16 min-[1440px]:pl-0 pb-[calc(6rem+env(safe-area-inset-bottom))]' : showFab ? 'pb-[calc(6rem+env(safe-area-inset-bottom))]' : ''
-      } ${showFab ? 'lg:pb-24' : 'lg:pb-6'}`}
+        users.length > 0 || showFab
+          ? 'lg:pl-16 min-[1440px]:pl-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6'
+          : 'lg:pb-6'
+      }`}
     >
       
       {/* Header spécial Réunion Hebdomadaire (Responsive) */}
@@ -1505,140 +1508,18 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         </div>
       )}
 
-      {/* Dock de navigation fixe par associé (gauche sur desktop, bas-gauche en pilule sur mobile/tablette) */}
-      {users.length > 0 && (
-        <nav
-          aria-label="Navigation rapide par associé"
-          className={`fixed z-40 bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 sm:left-6 ${
-            showFab ? 'max-w-[calc(100vw-6.5rem)]' : 'max-w-[calc(100vw-2rem)]'
-          } lg:bottom-auto lg:top-1/2 lg:-translate-y-1/2 lg:left-3 min-[1440px]:left-[max(1rem,calc(50%-43rem))] lg:max-w-none bg-white/90 backdrop-blur-md border border-black/[0.12] shadow-lg shadow-slate-900/10 rounded-full p-1.5 flex flex-row lg:flex-col items-center gap-1.5 overflow-x-auto lg:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
-        >
-          {meetingStep === 'unassigned' && (
-            <>
-              <button
-                type="button"
-                onClick={() => scrollToSection('meeting-section-unassigned-pool', 'pool')}
-                aria-label="Aller aux tâches non-attribuées"
-                aria-current={activeAnchor === 'pool' ? 'location' : undefined}
-                className={`group relative w-11 h-11 rounded-full shrink-0 flex items-center justify-center transition-all motion-reduce:transition-none cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 ${
-                  activeAnchor === 'pool'
-                    ? 'bg-amber-50 ring-2 ring-amber-500 text-amber-700 shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-amber-700'
-                }`}
-              >
-                <span className="w-8 h-8 rounded-full flex items-center justify-center bg-amber-100 text-amber-700 border border-amber-200">
-                  <UserPlus className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
-                </span>
-
-                {pendingUnassigned.length > 0 && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center shadow-xs ring-2 ring-white"
-                  >
-                    {pendingUnassigned.length}
-                  </span>
-                )}
-
-                <span
-                  role="tooltip"
-                  className="hidden lg:flex items-center gap-1.5 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-150 motion-reduce:transition-none absolute left-full ml-3 top-1/2 -translate-y-1/2 whitespace-nowrap px-2.5 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold shadow-lg border border-slate-700/80"
-                >
-                  <span>À attribuer</span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-amber-500/25 text-amber-200 text-[10px] font-bold">
-                    {pendingUnassigned.length}
-                  </span>
-                </span>
-              </button>
-
-              <span aria-hidden="true" className="w-px h-6 lg:w-6 lg:h-px bg-black/[0.12] shrink-0" />
-            </>
-          )}
-
-          {users.map((user) => {
-            const targetId = `meeting-section-${meetingStep}-${user.id}`;
-            const isActive = activeAnchor === user.id;
-
-            const badgeCount =
-              meetingStep === 'retro'
-                ? activeSprintTasks.filter((t) => t.assigned_to === user.id).length
-                : meetingStep === 'questions'
-                ? questions.filter((q) => q.user_id === user.id && !hasFinalDecision(q)).length
-                : pendingAssigned.filter((t) => t.assigned_to === user.id).length;
-
-            const badgeLabel =
-              meetingStep === 'retro'
-                ? 'tâches'
-                : meetingStep === 'questions'
-                ? 'à trancher'
-                : 'planifiées';
-
-            return (
-              <button
-                key={user.id}
-                type="button"
-                onClick={() => scrollToSection(targetId, user.id)}
-                aria-label={`Aller à la section de ${user.name}`}
-                aria-current={isActive ? 'location' : undefined}
-                className={`group relative w-11 h-11 rounded-full shrink-0 flex items-center justify-center transition-all motion-reduce:transition-none cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 ${
-                  isActive
-                    ? 'bg-indigo-50 ring-2 ring-indigo-600 shadow-xs'
-                    : 'hover:bg-slate-100 opacity-90 hover:opacity-100'
-                }`}
-              >
-                <span
-                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs border border-black/10 transition-transform motion-reduce:transition-none ${
-                    isActive ? 'scale-105' : 'group-hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: user.avatar_color || '#4B5563' }}
-                >
-                  {user.initials}
-                </span>
-
-                {isActive && (
-                  <span
-                    aria-hidden="true"
-                    className="hidden lg:block absolute -left-1.5 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-indigo-600"
-                  />
-                )}
-
-                <span
-                  role="tooltip"
-                  className="hidden lg:flex items-center gap-1.5 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-150 motion-reduce:transition-none absolute left-full ml-3 top-1/2 -translate-y-1/2 whitespace-nowrap px-2.5 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold shadow-lg border border-slate-700/80"
-                >
-                  <span>{user.name}</span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 text-[10px] font-bold">
-                    {badgeCount} {badgeLabel}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      )}
-
-      {/* Bouton d'action flottant circulaire pour ajouter une tâche en séance */}
-      {showFab && (
-        <button
-          type="button"
-          onClick={() => onAddNewTask?.(null)}
-          aria-label="Nouvelle tâche en séance"
-          aria-keyshortcuts="n + ="
-          title="Nouvelle tâche en séance (N, + ou =)"
-          className="group fixed z-40 bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] lg:bottom-7 lg:right-7 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-lg shadow-indigo-600/30 hover:shadow-xl hover:shadow-indigo-600/40 ring-1 ring-white/25 hover:scale-105 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:transform-none flex items-center justify-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100"
-        >
-          <Plus className="w-6 h-6" strokeWidth={2.5} aria-hidden="true" />
-          <span
-            role="tooltip"
-            className="hidden lg:flex items-center gap-2 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-150 motion-reduce:transition-none absolute right-full mr-3 top-1/2 -translate-y-1/2 whitespace-nowrap px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-lg border border-slate-700/80"
-          >
-            <span>Nouvelle tâche en séance</span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-[10px] font-mono text-slate-200">N</kbd>
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-[10px] font-mono text-slate-200">+</kbd>
-            </span>
-          </span>
-        </button>
-      )}
+      {/* Super-dock unifié : ancres par associé (+ À attribuer) + ajout rapide d'une tâche en attente */}
+      <MeetingControlDock
+        users={users}
+        tasks={tasks}
+        questions={questions}
+        meetingStep={meetingStep}
+        activeAnchor={activeAnchor}
+        pendingUnassignedCount={pendingUnassigned.length}
+        showAddPendingTask={showFab}
+        onScrollToSection={scrollToSection}
+        onAddPendingTask={() => onAddNewTask?.(null)}
+      />
 
       {/* Mémo compact des raccourcis clavier */}
       {isShortcutsModalOpen && (
