@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Task, User, Property, TaskPriority, TaskStatus } from '../types';
 import { buildSubtaskTree, HierarchicalSubtask, SUBTASK_DEPTH_THEME } from '../utils/subtasks';
 import { BlurredIconSwap } from './BlurredIconSwap';
+import { useModalDialog } from '../hooks/useModalDialog';
 import {
   X, Plus, Trash2, Home, CheckSquare, Square,
   AlertCircle, CornerDownRight, Check, Star,
@@ -90,6 +91,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useModalDialog({
+    isOpen,
+    onClose,
+    canClose: !isSubmitting
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -657,13 +663,24 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
+      onClick={() => !isSubmitting && onClose()}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-modal-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col animate-modal-in focus:outline-none"
+      >
 
         {/* Header compact & adaptatif */}
         <div className="bg-slate-900 border-slate-800 text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 border-b shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
-            <h2 className="text-sm sm:text-base font-bold truncate">
+            <h2 id="task-modal-title" className="text-sm sm:text-base font-bold truncate">
               {isEdit
                 ? task.title
                 : isMultiCreate

@@ -11,6 +11,36 @@ export default {
       screens: {
         'xs': '480px',
       },
+      keyframes: {
+        'fade-in': {
+          '0%': { opacity: '0', transform: 'translateY(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'backdrop-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'modal-in': {
+          '0%': { opacity: '0', transform: 'translateY(8px) scale(0.97)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        'toast-in': {
+          '0%': { opacity: '0', transform: 'translateY(10px) scale(0.97)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        'shake': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '20%, 60%': { transform: 'translateX(-4px)' },
+          '40%, 80%': { transform: 'translateX(4px)' },
+        },
+      },
+      animation: {
+        'fade-in': 'fade-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'backdrop-in': 'backdrop-in 150ms ease-out both',
+        'modal-in': 'modal-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'toast-in': 'toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'shake': 'shake 320ms ease-in-out both',
+      },
       backgroundImage: {
         'gradient-to-r': 'linear-gradient(to right in oklch, var(--tw-gradient-stops))',
         'gradient-to-br': 'linear-gradient(to bottom right in oklch, var(--tw-gradient-stops))',

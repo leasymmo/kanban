@@ -123,7 +123,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 setAddingChildToId(addingChildToId === node.id ? null : node.id);
                 setChildTitle('');
               }}
-              className="opacity-100 sm:opacity-0 group-hover/item:opacity-100 p-0.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded transition-opacity cursor-pointer shrink-0"
+              className="opacity-100 sm:opacity-0 group-hover/item:opacity-100 group-focus-within/item:opacity-100 focus-visible:opacity-100 p-1 sm:p-0.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded transition-opacity cursor-pointer shrink-0"
               title="Ajouter une sous-étape imbriquée"
             >
               <CornerDownRight className="w-3 h-3" strokeWidth={1.75} />
@@ -252,11 +252,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   onToggleStar(task.id);
                 }
               }}
-              className={`p-1 rounded transition-all ${
+              aria-label={
+                task.is_starred
+                  ? (canStar ? 'Retirer la mise en avant' : 'Mise en avant pour la réunion')
+                  : 'Mettre en avant pour la réunion'
+              }
+              className={`p-1.5 sm:p-1 rounded-md transition-all active:scale-95 ${
                 task.is_starred
                   ? `text-amber-500 bg-amber-50 shadow-2xs ${canStar ? 'hover:text-amber-600 cursor-pointer' : 'cursor-default'}`
                   : canStar
-                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 text-slate-300 hover:text-amber-400 hover:bg-slate-100 cursor-pointer'
+                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 text-slate-400 hover:text-amber-500 hover:bg-slate-100 cursor-pointer'
                   : 'text-slate-200 cursor-not-allowed hidden'
               }`}
               title={
@@ -267,7 +272,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             >
               <Star
                 className={`w-3.5 h-3.5 ${
-                  task.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-300'
+                  task.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'
                 }`}
                 strokeWidth={1.75}
               />
@@ -276,11 +281,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
           {/* Modifier & Supprimer */}
           {(canModify || canDelete) && (
-            <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 sm:transition-opacity">
+            <div className="flex items-center gap-0.5 sm:gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:transition-opacity">
               {canModify && (
                 <button
+                  type="button"
                   onClick={() => onEdit(task)}
-                  className="p-1 text-slate-400 hover:text-brand-600 rounded hover:bg-slate-100 cursor-pointer"
+                  aria-label="Modifier la tâche"
+                  className="p-1.5 sm:p-1 text-slate-400 hover:text-brand-600 rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
                   title="Modifier la tâche"
                 >
                   <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
@@ -289,8 +296,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
               {canDelete && (
                 <button
+                  type="button"
                   onClick={() => onDelete(task.id)}
-                  className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-slate-100 cursor-pointer"
+                  aria-label="Supprimer la tâche"
+                  className="p-1.5 sm:p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
                   title="Supprimer la tâche"
                 >
                   <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />

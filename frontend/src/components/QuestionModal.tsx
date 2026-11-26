@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Question, User } from '../types';
+import { useModalDialog } from '../hooks/useModalDialog';
 import { X, AlertCircle } from 'lucide-react';
 
 interface QuestionModalProps {
@@ -33,6 +34,11 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
   const [targetUserId, setTargetUserId] = useState<number>(currentUser?.id || users[0]?.id || 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useModalDialog({
+    isOpen,
+    onClose,
+    canClose: !isSubmitting
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -102,13 +108,24 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
+      onClick={() => !isSubmitting && onClose()}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="question-modal-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col animate-modal-in focus:outline-none"
+      >
 
         {/* Header compact */}
         <div className="bg-slate-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <h3 className="text-sm sm:text-base font-bold truncate">
+            <h3 id="question-modal-title" className="text-sm sm:text-base font-bold truncate">
               {isEdit ? 'Modifier la question' : 'Poser une question'}
             </h3>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 shrink-0">

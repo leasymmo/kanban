@@ -64,7 +64,8 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({
           <div
             key={toast.id}
             role={style.role}
-            className={`pointer-events-auto backdrop-blur-md border rounded-2xl p-3 flex items-start gap-2.5 animate-fade-in transition-all ${style.wrapper}`}
+            aria-atomic="true"
+            className={`pointer-events-auto backdrop-blur-md border rounded-2xl p-3 flex items-start gap-2.5 animate-toast-in transition-all ${style.wrapper}`}
           >
             <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${style.iconWrap}`}>
               {style.icon}
@@ -76,7 +77,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({
               type="button"
               onClick={() => onDismiss(toast.id)}
               aria-label="Fermer la notification"
-              className={`p-1 rounded-lg cursor-pointer shrink-0 transition-colors ${style.closeBtn}`}
+              className={`p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg cursor-pointer shrink-0 transition-colors active:scale-95 ${style.closeBtn}`}
             >
               <X className="w-3.5 h-3.5" strokeWidth={2} />
             </button>

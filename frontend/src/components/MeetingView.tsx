@@ -1554,14 +1554,14 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       {/* Mémo compact des raccourcis clavier */}
       {isShortcutsModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
           onClick={() => setIsShortcutsModalOpen(false)}
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="meeting-shortcuts-title"
-            className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-black/[0.12] overflow-hidden"
+            className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-black/[0.12] overflow-hidden animate-modal-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800">

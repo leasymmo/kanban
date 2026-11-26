@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { User, Sprint, Property } from '../types';
 import { api } from '../api/client';
+import { useModalDialog } from '../hooks/useModalDialog';
 import {
   X, Shield, RotateCcw, Edit2, Trash2, Plus, Check,
   AlertCircle, Calendar, Users, CheckCircle2, Clock, Lock,
@@ -53,6 +54,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'sprints' | 'users' | 'properties' | 'system'>('sprints');
   const [actionLoading, setActionLoading] = useState(false);
+  const dialogRef = useModalDialog({
+    isOpen,
+    onClose,
+    canClose: !actionLoading
+  });
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Sprint Edit State
@@ -625,8 +631,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-black/[0.12] overflow-hidden flex flex-col max-h-[92dvh]">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-backdrop-in"
+      onClick={() => !actionLoading && onClose()}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-panel-modal-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-black/[0.12] overflow-hidden flex flex-col max-h-[92dvh] animate-modal-in focus:outline-none"
+      >
         
         {/* Header Modal */}
         <div className="bg-slate-900 p-5 sm:p-6 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
@@ -636,7 +653,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-black tracking-tight">Panneau d'Administration</h2>
+                <h2 id="admin-panel-modal-title" className="text-lg sm:text-xl font-black tracking-tight">Panneau d'Administration</h2>
                 <span className="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30">
                   Carré d'Hôtes
                 </span>

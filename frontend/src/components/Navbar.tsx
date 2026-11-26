@@ -241,13 +241,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Barre de navigation mobile (<md) intégrée */}
         <nav
           aria-label="Navigation mobile"
-          className="md:hidden flex items-center gap-1 py-1.5 border-t border-white/[0.08] -mx-3 sm:-mx-6 px-3 sm:px-6 bg-slate-900/95"
+          className="md:hidden flex items-center gap-1 py-1.5 border-t border-white/[0.08] -mx-3 sm:-mx-5 px-3 sm:px-5 bg-slate-900/95"
         >
           <button
             type="button"
             onClick={() => onChangeTab('tasks')}
             aria-current={activeTab === 'tasks' ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[42px] rounded-lg text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
               activeTab === 'tasks'
                 ? 'bg-brand-600 text-white shadow-xs'
                 : 'text-slate-400 hover:text-white'
@@ -261,7 +261,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => onChangeTab('questions')}
             aria-current={activeTab === 'questions' ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[42px] rounded-lg text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
               activeTab === 'questions'
                 ? 'bg-brand-600 text-white shadow-xs'
                 : 'text-slate-400 hover:text-white'
@@ -275,7 +275,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => onChangeTab('meeting')}
             aria-current={activeTab === 'meeting' ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[42px] rounded-lg text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
               activeTab === 'meeting'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-slate-400 hover:text-white'

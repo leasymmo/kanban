@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Question, Sprint, Task } from '../types';
+import { useModalDialog } from '../hooks/useModalDialog';
 import { CheckCircle2, AlertTriangle, AlertCircle, ArrowRight, X, Calendar, RefreshCw, Sparkles, UserPlus } from 'lucide-react';
 
 interface CloseSprintModalProps {
@@ -26,6 +27,11 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
   const [notes, setNotes] = useState('Clôture validée en fin de réunion des associés.');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useModalDialog({
+    isOpen: isOpen && !!currentSprint,
+    onClose,
+    canClose: !isSubmitting
+  });
 
   React.useEffect(() => {
     if (isOpen && currentSprint) {
@@ -63,24 +69,36 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
+      onClick={() => !isSubmitting && onClose()}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="close-sprint-modal-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden animate-modal-in focus:outline-none"
+      >
         
         {/* Header */}
         <div className="bg-slate-900 text-white p-6 relative border-b border-slate-800">
           <button
+            type="button"
             onClick={onClose}
             aria-label="Fermer la fenêtre"
-            className="absolute top-4 right-4 text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+            className="absolute top-4 right-4 text-slate-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
           >
             <X className="w-5 h-5" strokeWidth={1.75} />
           </button>
           
           <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase tracking-wider mb-1">
-            <RefreshCw className="w-4 h-4 animate-spin-slow" strokeWidth={2.25} />
+            <RefreshCw className="w-4 h-4" strokeWidth={2.25} />
             Fin de réunion hebdomadaire
           </div>
-          <h2 className="text-xl font-bold">Valider & Clôturer {currentSprint.name}</h2>
+          <h2 id="close-sprint-modal-title" className="text-xl font-bold">Valider & Clôturer {currentSprint.name}</h2>
           <p className="text-xs text-slate-300 mt-1">
             Cette action fige le compte rendu actuel et ouvre immédiatement le sprint suivant.
           </p>

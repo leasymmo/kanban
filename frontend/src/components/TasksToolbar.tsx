@@ -85,8 +85,10 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
 
           {currentUser && (
             <button
+              type="button"
+              aria-pressed={taskFilter === 'me'}
               onClick={() => onChangeTaskFilter('me')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer tabular-nums ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
                 taskFilter === 'me'
                   ? 'bg-brand-600 text-white shadow-xs'
                   : 'bg-brand-50 text-brand-800 hover:bg-brand-100'
@@ -98,8 +100,10 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
           )}
 
           <button
+            type="button"
+            aria-pressed={taskFilter === 'all'}
             onClick={() => onChangeTaskFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer tabular-nums ${
+            className={`px-3 py-1.5 min-h-[36px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
               taskFilter === 'all'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -118,8 +122,10 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
               return (
                 <button
                   key={u.id}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => onChangeTaskFilter(u.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer tabular-nums ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl text-xs font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
                     isSelected
                       ? 'text-white shadow-xs'
                       : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -207,12 +213,14 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
           />
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto sm:ml-auto justify-between sm:justify-end">
           {/* Switch vue Kanban / Logement */}
           <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-black/[0.12]">
             <button
+              type="button"
+              aria-pressed={taskViewMode === 'kanban'}
               onClick={() => onChangeViewMode('kanban')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 taskViewMode === 'kanban'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -224,8 +232,10 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
             </button>
 
             <button
+              type="button"
+              aria-pressed={taskViewMode === 'property'}
               onClick={() => onChangeViewMode('property')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 taskViewMode === 'property'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -239,8 +249,9 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
 
           {!isReadOnly && currentUser?.role !== 'read' && (
             <button
+              type="button"
               onClick={onAddNewTask}
-              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 min-h-[38px] bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" strokeWidth={2.25} />
               <span>Nouvelle tâche</span>

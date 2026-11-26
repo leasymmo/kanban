@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Task, User, Property, TaskPriority } from '../types';
 import { ensureWhiteTextContrast } from '../utils/color';
+import { useModalDialog } from '../hooks/useModalDialog';
 import {
   X, Sparkles, Plus, Trash2, Home, Check, AlertCircle, UserPlus
 } from 'lucide-react';
@@ -52,6 +53,11 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useModalDialog({
+    isOpen,
+    onClose,
+    canClose: !isSubmitting
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -167,8 +173,19 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
   const multiCount = !isEdit ? selectedPropertyIds.length : 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-indigo-200 overflow-hidden max-h-[92dvh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-backdrop-in"
+      onClick={() => !isSubmitting && onClose()}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="meeting-quick-task-modal-title"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-indigo-200 overflow-hidden max-h-[92dvh] flex flex-col animate-modal-in focus:outline-none"
+      >
 
         {/* Header spécifique Réunion */}
         <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-start justify-between gap-3 shrink-0 border-b border-slate-800">
@@ -181,7 +198,7 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
                   : `En attente pour le Point ${nextSprintNumber} • Tag « Nouveau »`}
               </span>
             </div>
-            <h2 className="text-base sm:text-lg font-bold leading-tight">
+            <h2 id="meeting-quick-task-modal-title" className="text-base sm:text-lg font-bold leading-tight">
               {isEdit ? 'Modifier la tâche en attente' : 'Ajout rapide — Nouvelle tâche en séance'}
             </h2>
             <p className="text-xs text-slate-300 mt-1">
