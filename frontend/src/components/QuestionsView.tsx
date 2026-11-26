@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Question, User } from '../types';
 import { QuestionModal } from './QuestionModal';
 import { formatQuestionDate, hasFinalDecision } from '../utils/questions';
 import {
-  HelpCircle, Plus, Edit3, Trash2, CheckCircle2, MessageSquare,
-  Send, UserCheck, ChevronDown, Search, X, ChevronsDownUp, ChevronsUpDown, Sparkles
+  HelpCircle, Plus, Edit3, Trash2, CheckCircle2, Send, UserCheck
 } from 'lucide-react';
 
 interface QuestionsViewProps {
@@ -21,8 +20,6 @@ interface QuestionsViewProps {
   isReadOnly: boolean;
 }
 
-type ProgressFilter = 'to_decide' | 'to_prepare' | 'decided' | 'all';
-
 export const QuestionsView: React.FC<QuestionsViewProps> = ({
   questions,
   users,
@@ -37,45 +34,26 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   isReadOnly
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<'me' | 'all' | number>('me');
-  const [progressFilter, setProgressFilter] = useState<ProgressFilter>('to_decide');
-  const [searchQuery, setSearchQuery] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [presetUserId, setPresetUserId] = useState<number | undefined>(undefined);
 
-  // Tiroirs de détails & réponses ouverts à la demande
-  const [expandedQuestionIds, setExpandedQuestionIds] = useState<{ [questionId: number]: boolean }>({});
-  const [showDecidedSection, setShowDecidedSection] = useState(false);
-  const [showDecidedInColumns, setShowDecidedInColumns] = useState<{ [key: string]: boolean }>({});
-
-  // Brouillons de proposition indicative (1 max par associé et par question)
+  // Brouillons de réponse (1 réponse max par associé et par question, facultative)
   const [newAnswerText, setNewAnswerText] = useState<{ [questionId: number]: string }>({});
   const [editingAnswerId, setEditingAnswerId] = useState<number | null>(null);
   const [editingAnswerText, setEditingAnswerText] = useState('');
   const [isSubmittingAnswer, setIsSubmittingAnswer] = useState<{ [questionId: number]: boolean }>({});
-  const answerInputRefs = useRef<{ [questionId: number]: HTMLInputElement | null }>({});
 
   const isAdmin = currentUser?.role === 'admin';
   const canWrite = !isReadOnly && currentUser?.role !== 'read';
 
-  // Réinitialiser les brouillons et tiroirs lors d'un changement de sprint
+  // Réinitialiser les brouillons lors d'un changement de sprint
   useEffect(() => {
-    setExpandedQuestionIds({});
     setNewAnswerText({});
     setEditingAnswerId(null);
     setEditingAnswerText('');
-    setSearchQuery('');
-    setShowDecidedSection(false);
-    setShowDecidedInColumns({});
   }, [sprintId]);
-
-  // Si l'utilisateur passe en lecture seule alors que le filtre "À préparer" est actif, revenir sur "À trancher"
-  useEffect(() => {
-    if (!canWrite && progressFilter === 'to_prepare') {
-      setProgressFilter('to_decide');
-    }
-  }, [canWrite, progressFilter]);
 
   // Revenir sur "Mes questions" si l'associé filtré a été supprimé
   useEffect(() => {
@@ -96,18 +74,6 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const toggleQuestionDrawer = (questionId: number, focusReplyInput: boolean = false) => {
-    setExpandedQuestionIds(prev => {
-      const nextOpen = !prev[questionId];
-      if (nextOpen && focusReplyInput) {
-        window.setTimeout(() => {
-          answerInputRefs.current[questionId]?.focus();
-        }, 40);
-      }
-      return { ...prev, [questionId]: nextOpen };
-    });
-  };
-
   const handleSendAnswer = async (questionId: number) => {
     const content = newAnswerText[questionId]?.trim();
     if (!content || !onAddAnswer) return;
@@ -116,7 +82,6 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     try {
       await onAddAnswer(questionId, content);
       setNewAnswerText(prev => ({ ...prev, [questionId]: '' }));
-      setExpandedQuestionIds(prev => ({ ...prev, [questionId]: true }));
     } catch {
       // Erreur gérée par la notification globale ; le brouillon est conservé
     } finally {
@@ -135,282 +100,98 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     }
   };
 
-  const needsMyPreparation = (q: Question) => {
-    if (hasFinalDecision(q) || !currentUser) return false;
-    return !(q.answers || []).some(a => a.user_id === currentUser.id);
-  };
+  const isSinglePersonFilter = selectedFilter === 'me' || typeof selectedFilter === 'number';
 
-  const matchesSearch = (q: Question, query: string) => {
-    if (!query) return true;
-    const needle = query.toLowerCase();
-    return (
-      q.title.toLowerCase().includes(needle) ||
-      (q.details || '').toLowerCase().includes(needle) ||
-      (q.final_answer || '').toLowerCase().includes(needle) ||
-      (q.answers || []).some(a => a.content.toLowerCase().includes(needle))
-    );
-  };
-
-  const matchesProgressFilter = (q: Question, filter: ProgressFilter) => {
-    switch (filter) {
-      case 'to_decide':
-        return !hasFinalDecision(q);
-      case 'to_prepare':
-        return needsMyPreparation(q);
-      case 'decided':
-        return hasFinalDecision(q);
-      default:
-        return true;
-    }
-  };
-
-  const cleanSearch = searchQuery.trim();
-
-  // Questions filtrées par personne + recherche (avant filtre binaire de décision, pour calculer des compteurs cohérents)
-  const personAndSearchQuestions = questions.filter(q => {
-    const matchesAuthor =
-      selectedFilter === 'all'
-        ? true
-        : selectedFilter === 'me'
-        ? q.user_id === currentUser?.id
-        : q.user_id === selectedFilter;
-    return matchesAuthor && matchesSearch(q, cleanSearch);
+  const visibleListQuestions = questions.filter(q => {
+    if (selectedFilter === 'me') return q.user_id === currentUser?.id;
+    if (typeof selectedFilter === 'number') return q.user_id === selectedFilter;
+    return true;
   });
 
-  const progressCounts = {
-    to_decide: personAndSearchQuestions.filter(q => !hasFinalDecision(q)).length,
-    to_prepare: personAndSearchQuestions.filter(needsMyPreparation).length,
-    decided: personAndSearchQuestions.filter(hasFinalDecision).length,
-    all: personAndSearchQuestions.length
-  };
-
-  const filteredQuestions = personAndSearchQuestions.filter(q => matchesProgressFilter(q, progressFilter));
-  const pendingListQuestions = filteredQuestions.filter(q => !hasFinalDecision(q));
-  const decidedListQuestions = filteredQuestions.filter(hasFinalDecision);
-
-  const isSinglePersonFilter = selectedFilter === 'me' || typeof selectedFilter === 'number';
-  const areAllExpanded =
-    filteredQuestions.length > 0 && filteredQuestions.every(q => !!expandedQuestionIds[q.id]);
-
-  const toggleExpandAll = () => {
-    if (areAllExpanded) {
-      setExpandedQuestionIds({});
-    } else {
-      const next: { [id: number]: boolean } = {};
-      filteredQuestions.forEach(q => {
-        next[q.id] = true;
-      });
-      setExpandedQuestionIds(next);
-    }
-  };
-
-  // Groupes pour la vue « Toutes » (avec prise en charge d'éventuels anciens participants orphelins)
   const knownUserIds = new Set(users.map(u => u.id));
   const orphanAllQuestions = questions.filter(q => !knownUserIds.has(q.user_id));
 
-  // Ligne/carte question ultra-compacte (sans statut) + tiroir dépliable à la demande
-  const renderQuestionRow = (q: Question, isFullWidth: boolean) => {
+  const renderQuestionCard = (q: Question, isFullWidth: boolean) => {
     const hasDecision = hasFinalDecision(q);
     const answers = q.answers || [];
     const myAnswer = currentUser ? answers.find(a => a.user_id === currentUser.id) : undefined;
     const otherAnswers = myAnswer ? answers.filter(a => a.id !== myAnswer.id) : answers;
     const orderedAnswers = myAnswer ? [myAnswer, ...otherAnswers] : answers;
 
-    const isExpanded = !!expandedQuestionIds[q.id];
     const canModifyQuestion = !isReadOnly && !!q.can_edit && currentUser?.role !== 'read';
     const canDeleteQuestion = !isReadOnly && !!q.can_delete && currentUser?.role !== 'read';
     const canReply = canWrite && !!onAddAnswer && !myAnswer;
-
-    // Avatars uniques des répondants pour aperçu rapide lorsque le tiroir est fermé
-    const uniqueRespondents = Array.from(
-      new Map(
-        answers.map(a => [
-          a.user_id ?? a.user_name ?? a.id,
-          {
-            initials: a.user_initials || '?',
-            color: a.user_color || '#4F46E5',
-            name: a.user_name || 'Associé'
-          }
-        ])
-      ).values()
-    ).slice(0, 3);
+    const hasAnswersSection = orderedAnswers.length > 0 || canReply;
 
     return (
       <article
         key={q.id}
-        className={`transition-colors ${
+        className={`bg-white border border-black/[0.12] shadow-xs transition-colors space-y-2.5 ${
           isFullWidth
-            ? hasDecision
-              ? 'bg-emerald-50/20'
-              : 'bg-white hover:bg-slate-50/50'
-            : `rounded-[14px] border border-black/[0.12] ${
-                hasDecision ? 'bg-emerald-50/35' : 'bg-white'
-              }`
-        }`}
+            ? 'rounded-[18px] sm:rounded-[20px] p-3.5 sm:p-4'
+            : 'rounded-[14px] p-3'
+        } ${hasDecision ? 'border-emerald-300/80 bg-emerald-50/20' : ''}`}
       >
-        {/* Ligne compacte principale */}
-        <div className="px-3 py-2.5 sm:px-3.5 sm:py-2.5 flex items-start gap-2.5">
-          {/* Indicateur binaire passif (sans statut) */}
-          <span className="shrink-0 mt-1.5" aria-hidden="true">
-            {hasDecision ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 -mt-1" strokeWidth={2.25} />
-            ) : (
-              <span className="block w-2 h-2 rounded-full bg-amber-500 ring-4 ring-amber-500/15" />
-            )}
-          </span>
+        {/* Question + Détail de la question */}
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <h4 className="text-sm sm:text-[15px] font-bold leading-snug text-slate-900 break-words">
+              {q.title}
+            </h4>
 
-          {/* Contenu texte + actions */}
-          <div className="flex-1 min-w-0">
-            <div
-              className={`flex ${
-                isFullWidth
-                  ? 'flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3'
-                  : 'flex-col gap-2'
-              }`}
-            >
-              {/* Titre + aperçu ultra-compact lorsque fermé */}
-              <div className="min-w-0 flex-1">
-                <button
-                  type="button"
-                  onClick={() => toggleQuestionDrawer(q.id, !myAnswer && canWrite && !!onAddAnswer)}
-                  aria-expanded={isExpanded}
-                  aria-controls={`question-drawer-${q.id}`}
-                  className="text-left w-full group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-md"
-                >
-                  <h4 className="text-sm font-semibold leading-snug break-words text-slate-900 group-hover:text-brand-700">
-                    {q.title}
-                  </h4>
-                </button>
-
-                {!isExpanded && q.details && (
-                  <p className="mt-0.5 text-xs text-slate-600 line-clamp-1 break-words">
-                    {q.details}
-                  </p>
-                )}
-
-                {!isExpanded && hasDecision && (
-                  <p className="mt-1 inline-flex items-center gap-1.5 max-w-full px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/90 text-xs text-emerald-950 font-medium">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2.25} />
-                    <span className="truncate">{q.final_answer}</span>
-                  </p>
-                )}
-              </div>
-
-              {/* Cluster droit compact : Pilule Proposition / Ma prop. + Modifier / Supprimer */}
-              <div className="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 flex-wrap">
-                <button
-                  type="button"
-                  aria-expanded={isExpanded}
-                  aria-controls={`question-drawer-${q.id}`}
-                  aria-label={`${isExpanded ? 'Masquer' : 'Afficher'} les détails et propositions (${answers.length}) pour : ${q.title}`}
-                  onClick={() => toggleQuestionDrawer(q.id, !myAnswer && canWrite && !!onAddAnswer)}
-                  className={`inline-flex items-center gap-1.5 min-h-[34px] sm:min-h-[28px] px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                    isExpanded
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : myAnswer
-                      ? 'bg-indigo-50 text-indigo-900 border-indigo-200/90 hover:bg-indigo-100'
-                      : canReply
-                      ? 'bg-slate-50 text-slate-700 border-black/[0.12] hover:bg-indigo-50 hover:text-indigo-800 hover:border-indigo-200'
-                      : 'bg-slate-50 text-slate-600 border-black/[0.12] hover:bg-slate-100 hover:text-slate-800'
-                  }`}
-                >
-                  {uniqueRespondents.length > 0 && !isExpanded && (
-                    <span className="hidden sm:inline-flex items-center -space-x-1 mr-0.5" aria-hidden="true">
-                      {uniqueRespondents.map((r, i) => (
-                        <span
-                          key={`${r.name}-${i}`}
-                          className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white ring-1 ring-white"
-                          style={{ backgroundColor: r.color }}
-                        >
-                          {r.initials}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                  <MessageSquare className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-                  <span>
-                    {myAnswer ? (
-                      <>
-                        <span className="sm:hidden">Ma prop. ✓</span>
-                        <span className="hidden sm:inline">{isFullWidth ? 'Ma proposition ✓' : 'Ma prop. ✓'}</span>
-                        {answers.length > 1 ? ` · ${answers.length}` : ''}
-                      </>
-                    ) : canReply ? (
-                      answers.length > 0 ? `Proposer · ${answers.length}` : 'Proposer'
-                    ) : answers.length > 0 ? (
-                      `${answers.length} prop.`
-                    ) : (
-                      'Détails'
-                    )}
-                  </span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-150 ${isExpanded ? 'rotate-180' : ''}`}
-                    strokeWidth={2}
-                  />
-                </button>
-
-                {(canModifyQuestion || canDeleteQuestion) && (
-                  <div className="flex items-center gap-0.5">
-                    {canModifyQuestion && (
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(q)}
-                        aria-label={`Modifier la question : ${q.title}`}
-                        title="Modifier la question"
-                        className="min-w-[34px] min-h-[34px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center text-slate-500 hover:text-brand-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
-                      </button>
-                    )}
-                    {canDeleteQuestion && (
-                      <button
-                        type="button"
-                        onClick={() => onDeleteQuestion(q.id)}
-                        aria-label={`Supprimer la question : ${q.title}`}
-                        title="Supprimer la question"
-                        className="min-w-[34px] min-h-[34px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center text-slate-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tiroir dépliable à la demande (Détails, Décision définitive, Propositions indicatives & Saisie unique) */}
-        {isExpanded && (
-          <div
-            id={`question-drawer-${q.id}`}
-            className="mx-2.5 mb-2.5 sm:mx-3.5 sm:mb-3 p-2.5 sm:p-3 rounded-[10px] bg-slate-50/90 border border-black/[0.10] space-y-2.5"
-          >
             {q.details && (
-              <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed whitespace-pre-line break-words">
+              <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed whitespace-pre-line break-words pl-2.5 border-l-2 border-slate-200">
                 {q.details}
               </p>
             )}
+          </div>
 
-            {hasDecision && (
-              <div className="p-2.5 rounded-lg bg-emerald-50/90 border border-emerald-200 border-l-4 border-l-emerald-600 text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-emerald-950">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2.25} />
-                  <span>Réponse définitive</span>
-                </div>
-                <p className="mt-1 text-slate-900 font-medium pl-5 whitespace-pre-line break-words">
-                  {q.final_answer}
-                </p>
-              </div>
-            )}
+          {(canModifyQuestion || canDeleteQuestion) && (
+            <div className="flex items-center gap-0.5 shrink-0">
+              {canModifyQuestion && (
+                <button
+                  type="button"
+                  onClick={() => openEditModal(q)}
+                  aria-label={`Modifier la question : ${q.title}`}
+                  title="Modifier la question"
+                  className="min-w-[34px] min-h-[34px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center text-slate-500 hover:text-brand-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                >
+                  <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                </button>
+              )}
+              {canDeleteQuestion && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteQuestion(q.id)}
+                  aria-label={`Supprimer la question : ${q.title}`}
+                  title="Supprimer la question"
+                  className="min-w-[34px] min-h-[34px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center text-slate-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                >
+                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
-            {/* Propositions indicatives (1 max par associé, non conservées après clôture du sprint) */}
+        {/* Réponse définitive actée en réunion (si présente) */}
+        {hasDecision && (
+          <div className="px-3 py-2 rounded-[10px] bg-emerald-50/90 border border-emerald-200 border-l-4 border-l-emerald-600 text-xs">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-950">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2.25} />
+              <span>Réponse définitive</span>
+            </div>
+            <p className="mt-0.5 text-slate-900 font-medium pl-5 whitespace-pre-line break-words leading-relaxed">
+              {q.final_answer}
+            </p>
+          </div>
+        )}
+
+        {/* Réponses éventuelles + saisie facultative (toujours visible) */}
+        {hasAnswersSection && (
+          <div className="pt-2.5 border-t border-black/[0.08] space-y-2">
             {orderedAnswers.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-[11px] font-semibold text-slate-600">
-                  Propositions indicatives ({orderedAnswers.length}) · temporaires pour la réunion
-                </p>
-
                 {orderedAnswers.map((ans) => {
                   const isMine = !!currentUser && ans.user_id === currentUser.id;
                   const isEditingThis = editingAnswerId === ans.id;
@@ -421,10 +202,10 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   return (
                     <div
                       key={ans.id}
-                      className={`px-2.5 py-2 rounded-lg border text-xs ${
+                      className={`px-2.5 py-2 rounded-[10px] border text-xs ${
                         isMine
                           ? 'bg-indigo-50/50 border-indigo-200/90 text-slate-800'
-                          : 'bg-white border-black/[0.10] text-slate-700'
+                          : 'bg-slate-50/80 border-black/[0.08] text-slate-700'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -437,11 +218,6 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                               {ans.user_initials || '?'}
                             </span>
                             <span className="font-bold text-slate-800">{ans.user_name || 'Ancien associé'}</span>
-                            {isMine && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-900">
-                                Ma proposition
-                              </span>
-                            )}
                             {ansDate && <span className="text-[10px] text-slate-500">{ansDate}</span>}
                           </div>
 
@@ -496,8 +272,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                                   setEditingAnswerId(ans.id);
                                   setEditingAnswerText(ans.content);
                                 }}
-                                aria-label="Modifier cette proposition"
-                                title="Modifier cette proposition"
+                                aria-label="Modifier la réponse"
+                                title="Modifier la réponse"
                                 className="min-w-[32px] min-h-[32px] sm:min-w-[26px] sm:min-h-[26px] flex items-center justify-center text-slate-500 hover:text-brand-700 hover:bg-white rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                               >
                                 <Edit3 className="w-3 h-3" strokeWidth={1.75} />
@@ -507,8 +283,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onDeleteAnswer(ans.id)}
-                                aria-label="Supprimer cette proposition"
-                                title="Supprimer cette proposition"
+                                aria-label="Supprimer la réponse"
+                                title="Supprimer la réponse"
                                 className="min-w-[32px] min-h-[32px] sm:min-w-[26px] sm:min-h-[26px] flex items-center justify-center text-slate-500 hover:text-red-700 hover:bg-red-50 rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                               >
                                 <Trash2 className="w-3 h-3" strokeWidth={1.75} />
@@ -523,16 +299,12 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               </div>
             )}
 
-            {/* Formulaire d'ajout de proposition indicative (affiché uniquement si l'associé n'a pas encore répondu) */}
             {canReply && (
-              <div className="flex items-center gap-1.5 pt-0.5">
+              <div className="flex items-center gap-1.5">
                 <input
-                  ref={(el) => {
-                    answerInputRefs.current[q.id] = el;
-                  }}
                   type="text"
-                  aria-label={`Proposer une réponse indicative à : ${q.title}`}
-                  placeholder="Proposer ma réponse indicative (1 max par question)..."
+                  aria-label={`Répondre à : ${q.title}`}
+                  placeholder="Ajouter une réponse (facultatif)..."
                   value={newAnswerText[q.id] || ''}
                   onChange={(e) => setNewAnswerText(prev => ({ ...prev, [q.id]: e.target.value }))}
                   onKeyDown={(e) => {
@@ -541,25 +313,19 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                       handleSendAnswer(q.id);
                     }
                   }}
-                  className="flex-1 min-w-0 min-h-[38px] sm:min-h-[34px] px-3 py-1.5 border border-black/[0.12] rounded-lg text-xs text-slate-800 placeholder:text-slate-500 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                  className="flex-1 min-w-0 min-h-[38px] sm:min-h-[34px] px-3 py-1.5 border border-black/[0.12] rounded-lg text-xs text-slate-800 placeholder:text-slate-500 bg-slate-50/70 focus:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 />
                 <button
                   type="button"
                   disabled={!newAnswerText[q.id]?.trim() || isSubmittingAnswer[q.id]}
                   onClick={() => handleSendAnswer(q.id)}
-                  aria-label="Envoyer ma proposition"
+                  aria-label="Envoyer la réponse"
                   className="min-h-[38px] min-w-[38px] sm:min-h-[34px] px-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-xs inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                   <Send className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
-                  {isFullWidth && <span className="hidden sm:inline">Proposer</span>}
+                  {isFullWidth && <span className="hidden sm:inline">Répondre</span>}
                 </button>
               </div>
-            )}
-
-            {isReadOnly && answers.length === 0 && (
-              <p className="text-[11px] text-slate-600 italic">
-                Sprint clôturé : les réponses indicatives préparatoires ne sont pas conservées après la clôture.
-              </p>
             )}
           </div>
         )}
@@ -567,384 +333,167 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     );
   };
 
-  // Helper pour le rendu d'un groupe associé dans la vue « Toutes »
   const renderAssociateColumn = (
     groupKey: string,
     person: { id: number | string; name: string; initials: string; color: string; canQuickCreate: boolean; presetId?: number },
-    rawGroupQuestions: Question[]
-  ) => {
-    const visibleGroupQuestions = rawGroupQuestions.filter(
-      q => matchesSearch(q, cleanSearch) && matchesProgressFilter(q, progressFilter)
-    );
-    const groupPending = visibleGroupQuestions.filter(q => !hasFinalDecision(q));
-    const groupDecided = visibleGroupQuestions.filter(hasFinalDecision);
-    const showGroupDecided = !!showDecidedInColumns[groupKey] || groupPending.length === 0;
-
-    return (
-      <section
-        key={groupKey}
-        className="bg-slate-200/70 rounded-[24px] p-2.5 sm:p-3 border border-black/[0.12] flex flex-col gap-2.5"
-      >
-        {/* Header de groupe associé */}
-        <div className="flex items-center justify-between gap-2 pb-2 px-1 border-b border-black/[0.12]">
-          <div className="flex items-center gap-2 min-w-0">
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0"
-              style={{ backgroundColor: person.color }}
-            >
-              {person.initials}
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-bold text-sm text-slate-800 leading-tight truncate">{person.name}</h3>
-              <p className="text-[11px] text-slate-600 font-medium">
-                {groupPending.length} à trancher
-                {groupDecided.length > 0 ? ` · ${groupDecided.length} décidée${groupDecided.length > 1 ? 's' : ''}` : ''}
-              </p>
-            </div>
+    groupQuestions: Question[]
+  ) => (
+    <section
+      key={groupKey}
+      className="bg-slate-200/70 rounded-[24px] p-2.5 sm:p-3 border border-black/[0.12] flex flex-col gap-2.5"
+    >
+      <div className="flex items-center justify-between gap-2 pb-2 px-1 border-b border-black/[0.12]">
+        <div className="flex items-center gap-2 min-w-0">
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0"
+            style={{ backgroundColor: person.color }}
+          >
+            {person.initials}
           </div>
-
-          {person.canQuickCreate && (
-            <button
-              type="button"
-              onClick={() => openCreateModal(person.presetId)}
-              aria-label={`Ajouter une question pour ${person.name}`}
-              title={`Ajouter une question pour ${person.name}`}
-              className="min-w-[36px] min-h-[36px] sm:min-w-[30px] sm:min-h-[30px] flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            >
-              <Plus className="w-4 h-4" strokeWidth={2} />
-            </button>
-          )}
+          <div className="min-w-0">
+            <h3 className="font-bold text-sm text-slate-800 leading-tight truncate">{person.name}</h3>
+            <p className="text-[11px] text-slate-600 font-medium">
+              {groupQuestions.length} question{groupQuestions.length > 1 ? 's' : ''}
+            </p>
+          </div>
         </div>
 
-        {/* Liste des questions à trancher (ou décidées si filtre Décidées actif) */}
-        {visibleGroupQuestions.length === 0 ? (
-          <div className="py-2.5 px-3 border border-dashed border-black/[0.12] rounded-[14px] text-center text-xs text-slate-500 font-medium bg-white/40">
-            {cleanSearch || progressFilter !== 'to_decide'
-              ? 'Aucune question pour ce filtre.'
-              : 'Aucune question à trancher.'}
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {(progressFilter === 'decided' ? groupDecided : groupPending).map(q =>
-              renderQuestionRow(q, false)
-            )}
-
-            {progressFilter !== 'decided' && groupDecided.length > 0 && (
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowDecidedInColumns(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))
-                  }
-                  aria-expanded={showGroupDecided}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[12px] bg-white/70 hover:bg-white border border-black/[0.10] text-xs font-semibold text-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
-                    <span>Décidées ({groupDecided.length})</span>
-                  </span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-150 ${showGroupDecided ? 'rotate-180' : ''}`}
-                    strokeWidth={2}
-                  />
-                </button>
-
-                {showGroupDecided && (
-                  <div className="mt-1.5 space-y-1.5">
-                    {groupDecided.map(q => renderQuestionRow(q, false))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+        {person.canQuickCreate && (
+          <button
+            type="button"
+            onClick={() => openCreateModal(person.presetId)}
+            aria-label={`Ajouter une question pour ${person.name}`}
+            title={`Ajouter une question pour ${person.name}`}
+            className="min-w-[36px] min-h-[36px] sm:min-w-[30px] sm:min-h-[30px] flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            <Plus className="w-4 h-4" strokeWidth={2} />
+          </button>
         )}
-      </section>
-    );
-  };
+      </div>
+
+      {groupQuestions.length === 0 ? (
+        <div className="py-2.5 px-3 border border-dashed border-black/[0.12] rounded-[14px] text-center text-xs text-slate-500 font-medium bg-white/40">
+          Aucune question.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {groupQuestions.map(q => renderQuestionCard(q, false))}
+        </div>
+      )}
+    </section>
+  );
 
   const singleFilterPersonName =
     selectedFilter === 'me'
       ? currentUser?.name
       : users.find(u => u.id === selectedFilter)?.name;
 
-  const progressPills: { id: ProgressFilter; label: string; count: number; badge?: boolean }[] = [
-    { id: 'to_decide', label: 'À trancher', count: progressCounts.to_decide },
-    ...(canWrite
-      ? [{ id: 'to_prepare' as const, label: 'À préparer', count: progressCounts.to_prepare }]
-      : []),
-    { id: 'decided', label: 'Décidées', count: progressCounts.decided },
-    { id: 'all', label: 'Toutes', count: progressCounts.all }
-  ];
-
   return (
     <div className="space-y-4">
-      {/* Barre d'outils & Filtres (compacte, tactile & responsive) */}
-      <div className="bg-white p-2.5 sm:p-3.5 rounded-[22px] sm:rounded-[26px] border border-black/[0.12] shadow-xs space-y-2.5">
-        {/* Ligne 1 : Filtres par personne + Bouton Poser une question */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div
-            role="group"
-            aria-label="Filtrer les questions par associé"
-            className="flex items-center gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap pb-0.5 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            <span className="hidden md:inline text-[11px] font-bold text-slate-600 uppercase tracking-wider mr-1 shrink-0">
-              Filtres :
-            </span>
-
-            {currentUser && (
-              <button
-                type="button"
-                aria-pressed={selectedFilter === 'me'}
-                onClick={() => setSelectedFilter('me')}
-                className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                  selectedFilter === 'me'
-                    ? 'bg-brand-600 text-white shadow-xs'
-                    : 'bg-brand-50 text-brand-800 hover:bg-brand-100'
-                }`}
-              >
-                <UserCheck className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
-                <span>Mes questions ({questions.filter(q => q.user_id === currentUser.id).length})</span>
-              </button>
-            )}
-
+      {/* Barre supérieure épurée : Filtres par associé + Ajout de question */}
+      <div className="bg-white p-2.5 sm:p-3.5 rounded-[22px] sm:rounded-[26px] border border-black/[0.12] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div
+          role="group"
+          aria-label="Filtrer les questions par associé"
+          className="flex items-center gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap pb-0.5 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {currentUser && (
             <button
               type="button"
-              aria-pressed={selectedFilter === 'all'}
-              onClick={() => setSelectedFilter('all')}
-              className={`shrink-0 inline-flex items-center min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                selectedFilter === 'all'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              aria-pressed={selectedFilter === 'me'}
+              onClick={() => setSelectedFilter('me')}
+              className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                selectedFilter === 'me'
+                  ? 'bg-brand-600 text-white shadow-xs'
+                  : 'bg-brand-50 text-brand-800 hover:bg-brand-100'
               }`}
             >
-              Toutes ({questions.length})
-            </button>
-
-            {users
-              .filter(u => u.id !== currentUser?.id)
-              .map(u => {
-                const count = questions.filter(q => q.user_id === u.id).length;
-                const isSelected = selectedFilter === u.id;
-
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => setSelectedFilter(u.id)}
-                    className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                      isSelected
-                        ? 'text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                    style={isSelected ? { backgroundColor: u.avatar_color } : undefined}
-                  >
-                    <span
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-                      style={{ backgroundColor: u.avatar_color }}
-                    >
-                      {u.initials}
-                    </span>
-                    <span>{u.name} ({count})</span>
-                  </button>
-                );
-              })}
-          </div>
-
-          {canWrite && (
-            <button
-              type="button"
-              onClick={() =>
-                openCreateModal(typeof selectedFilter === 'number' && isAdmin ? selectedFilter : undefined)
-              }
-              className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 min-h-[40px] sm:min-h-[34px] px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
-            >
-              <Plus className="w-4 h-4 shrink-0" strokeWidth={2.25} />
-              <span>Poser une question</span>
+              <UserCheck className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
+              <span>Mes questions ({questions.filter(q => q.user_id === currentUser.id).length})</span>
             </button>
           )}
-        </div>
 
-        {/* Ligne 2 : Filtres binaires (À trancher / À préparer / Décidées / Toutes) + Recherche + Tout déplier */}
-        <div className="pt-2.5 border-t border-black/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-2">
-          <div
-            role="group"
-            aria-label="Filtrer selon la décision finale"
-            className="flex items-center gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap pb-0.5 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          <button
+            type="button"
+            aria-pressed={selectedFilter === 'all'}
+            onClick={() => setSelectedFilter('all')}
+            className={`shrink-0 inline-flex items-center min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+              selectedFilter === 'all'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
           >
-            {progressPills.map((pill) => {
-              const isSelected = progressFilter === pill.id;
+            Toutes ({questions.length})
+          </button>
+
+          {users
+            .filter(u => u.id !== currentUser?.id)
+            .map(u => {
+              const count = questions.filter(q => q.user_id === u.id).length;
+              const isSelected = selectedFilter === u.id;
+
               return (
                 <button
-                  key={pill.id}
+                  key={u.id}
                   type="button"
                   aria-pressed={isSelected}
-                  onClick={() => setProgressFilter(pill.id)}
-                  className={`shrink-0 inline-flex items-center gap-1.5 min-h-[34px] sm:min-h-[28px] px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                  onClick={() => setSelectedFilter(u.id)}
+                  className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                     isSelected
-                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      ? 'text-white shadow-xs'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
+                  style={isSelected ? { backgroundColor: u.avatar_color } : undefined}
                 >
-                  <span>{pill.label}</span>
                   <span
-                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-600'
-                    }`}
+                    className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                    style={{ backgroundColor: u.avatar_color }}
                   >
-                    {pill.count}
+                    {u.initials}
                   </span>
+                  <span>{u.name} ({count})</span>
                 </button>
               );
             })}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="relative flex-1 sm:w-52">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" strokeWidth={1.75} />
-              <input
-                type="text"
-                aria-label="Rechercher une question ou proposition"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher..."
-                className="w-full min-h-[36px] sm:min-h-[30px] pl-8 pr-7 py-1 text-xs bg-slate-50 border border-black/[0.12] rounded-lg text-slate-800 placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  aria-label="Effacer la recherche"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-slate-700 cursor-pointer"
-                >
-                  <X className="w-3 h-3" strokeWidth={2} />
-                </button>
-              )}
-            </div>
-
-            {filteredQuestions.length > 1 && (
-              <button
-                type="button"
-                onClick={toggleExpandAll}
-                className="inline-flex items-center gap-1 min-h-[36px] sm:min-h-[30px] px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-                title={areAllExpanded ? 'Tout replier' : 'Tout déplier'}
-              >
-                {areAllExpanded ? (
-                  <ChevronsDownUp className="w-3.5 h-3.5" strokeWidth={2} />
-                ) : (
-                  <ChevronsUpDown className="w-3.5 h-3.5" strokeWidth={2} />
-                )}
-                <span className="hidden sm:inline">{areAllExpanded ? 'Replier' : 'Déplier'}</span>
-              </button>
-            )}
-          </div>
         </div>
 
-        {/* Rappel concis de la règle métier */}
         {canWrite && (
-          <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
-            <Sparkles className="w-3 h-3 text-indigo-500 shrink-0" strokeWidth={2} />
-            <span>
-              Préparez la réunion avec <strong>1 réponse indicative max par question</strong> (non conservée après clôture du sprint).
-            </span>
-          </p>
+          <button
+            type="button"
+            onClick={() =>
+              openCreateModal(typeof selectedFilter === 'number' && isAdmin ? selectedFilter : undefined)
+            }
+            className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 min-h-[40px] sm:min-h-[34px] px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+          >
+            <Plus className="w-4 h-4 shrink-0" strokeWidth={2.25} />
+            <span>Poser une question</span>
+          </button>
         )}
       </div>
 
-      {/* Contenu principal : Vue liste dense (1 personne) ou Grille 2 colonnes (« Toutes ») */}
+      {/* Liste des questions (toujours dépliées) ou grille 2 colonnes (« Toutes ») */}
       {isSinglePersonFilter ? (
-        <div className="space-y-3">
-          {filteredQuestions.length > 0 ? (
-            <>
-              {pendingListQuestions.length > 0 && (
-                <section aria-label="Questions à trancher" className="space-y-1.5">
-                  <div className="flex items-center justify-between px-1">
-                    <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                      {selectedFilter === 'me'
-                        ? `Mes questions à trancher (${pendingListQuestions.length})`
-                        : `Questions de ${singleFilterPersonName || 'l’associé'} (${pendingListQuestions.length})`}
-                    </h3>
-                  </div>
-
-                  <div className="bg-white rounded-[22px] sm:rounded-[24px] border border-black/[0.12] shadow-xs overflow-hidden divide-y divide-black/[0.08]">
-                    {pendingListQuestions.map(q => renderQuestionRow(q, true))}
-                  </div>
-                </section>
-              )}
-
-              {decidedListQuestions.length > 0 && (
-                progressFilter === 'decided' ? (
-                  <section aria-label="Questions avec réponse définitive" className="space-y-1.5">
-                    <h3 className="px-1 text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                      Réponses définitives ({decidedListQuestions.length})
-                    </h3>
-                    <div className="bg-white rounded-[22px] sm:rounded-[24px] border border-emerald-200 shadow-xs overflow-hidden divide-y divide-black/[0.08]">
-                      {decidedListQuestions.map(q => renderQuestionRow(q, true))}
-                    </div>
-                  </section>
-                ) : (
-                  <section aria-label="Questions avec réponse définitive" className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowDecidedSection(prev => !prev)}
-                      aria-expanded={showDecidedSection || pendingListQuestions.length === 0}
-                      className="w-full flex items-center justify-between px-4 py-2.5 rounded-[18px] bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-200/90 text-xs font-bold text-emerald-900 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                    >
-                      <span className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={2.25} />
-                        <span>Réponses définitives ({decidedListQuestions.length})</span>
-                      </span>
-                      <ChevronDown
-                        className={`w-4 h-4 text-emerald-700 transition-transform duration-150 ${
-                          showDecidedSection || pendingListQuestions.length === 0 ? 'rotate-180' : ''
-                        }`}
-                        strokeWidth={2}
-                      />
-                    </button>
-
-                    {(showDecidedSection || pendingListQuestions.length === 0) && (
-                      <div className="bg-white rounded-[22px] sm:rounded-[24px] border border-black/[0.12] shadow-xs overflow-hidden divide-y divide-black/[0.08]">
-                        {decidedListQuestions.map(q => renderQuestionRow(q, true))}
-                      </div>
-                    )}
-                  </section>
-                )
-              )}
-            </>
-          ) : (
-            <div className="bg-white rounded-2xl p-8 sm:p-10 text-center border border-black/[0.12] shadow-xs space-y-2.5">
-              <div className="w-10 h-10 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center mx-auto">
-                <HelpCircle className="w-5 h-5" strokeWidth={1.75} />
-              </div>
-              <h4 className="font-bold text-slate-800 text-sm sm:text-base">
-                {cleanSearch || progressFilter !== 'to_decide'
-                  ? 'Aucune question correspondante'
-                  : selectedFilter === 'me'
-                  ? 'Aucune question à trancher'
-                  : `Aucune question en attente de décision pour ${singleFilterPersonName || 'cet associé'}`}
-              </h4>
-              <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                {cleanSearch || progressFilter !== 'to_decide'
-                  ? 'Modifiez les filtres ou la recherche pour afficher d’autres questions.'
-                  : canWrite && (selectedFilter === 'me' || isAdmin)
-                  ? 'Cliquez sur « Poser une question » pour ajouter un sujet pour la prochaine réunion.'
-                  : 'Aucune question enregistrée sur ce sprint.'}
-              </p>
-              {(cleanSearch || progressFilter !== 'to_decide') && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setProgressFilter('all');
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl cursor-pointer"
-                >
-                  Afficher toutes les questions
-                </button>
-              )}
+        visibleListQuestions.length > 0 ? (
+          <div className="space-y-3">
+            {visibleListQuestions.map(q => renderQuestionCard(q, true))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl p-8 sm:p-10 text-center border border-black/[0.12] shadow-xs space-y-2.5">
+            <div className="w-10 h-10 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center mx-auto">
+              <HelpCircle className="w-5 h-5" strokeWidth={1.75} />
             </div>
-          )}
-        </div>
+            <h4 className="font-bold text-slate-800 text-sm sm:text-base">
+              {selectedFilter === 'me'
+                ? 'Aucune question posée pour le moment'
+                : `Aucune question pour ${singleFilterPersonName || 'cet associé'}`}
+            </h4>
+            {canWrite && (selectedFilter === 'me' || isAdmin) && (
+              <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                Cliquez sur « Poser une question » pour ajouter un sujet à aborder lors de la prochaine réunion.
+              </p>
+            )}
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           {users.map((user) =>
