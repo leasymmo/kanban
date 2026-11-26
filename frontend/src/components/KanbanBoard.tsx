@@ -31,31 +31,31 @@ interface ColumnConfig {
 const COLUMNS: ColumnConfig[] = [
   {
     id: 'todo',
-    title: '⏳ À faire',
-    icon: <ListTodo className="w-4 h-4 text-slate-500" strokeWidth={2.25} />,
-    headerColor: 'text-slate-700',
-    badgeBg: 'bg-slate-200 text-slate-700'
+    title: 'À faire',
+    icon: <ListTodo className="w-4 h-4 text-slate-600" strokeWidth={2.25} />,
+    headerColor: 'text-slate-800',
+    badgeBg: 'bg-slate-300/70 text-slate-800'
   },
   {
     id: 'in_progress',
-    title: '🚧 En cours',
-    icon: <PlayCircle className="w-4 h-4 text-amber-500" strokeWidth={2.25} />,
-    headerColor: 'text-amber-800',
-    badgeBg: 'bg-amber-100 text-amber-800'
+    title: 'En cours',
+    icon: <PlayCircle className="w-4 h-4 text-amber-600" strokeWidth={2.25} />,
+    headerColor: 'text-amber-900',
+    badgeBg: 'bg-amber-100 text-amber-900'
   },
   {
     id: 'blocked',
-    title: '❌ Bloqué / Litige',
-    icon: <AlertOctagon className="w-4 h-4 text-red-500" strokeWidth={2.25} />,
-    headerColor: 'text-red-800',
-    badgeBg: 'bg-red-100 text-red-800'
+    title: 'Bloqué / Litige',
+    icon: <AlertOctagon className="w-4 h-4 text-red-600" strokeWidth={2.25} />,
+    headerColor: 'text-red-900',
+    badgeBg: 'bg-red-100 text-red-900'
   },
   {
     id: 'done',
-    title: '✅ Fait (Terminé)',
-    icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" strokeWidth={2.25} />,
-    headerColor: 'text-emerald-800',
-    badgeBg: 'bg-emerald-100 text-emerald-800'
+    title: 'Terminé',
+    icon: <CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={2.25} />,
+    headerColor: 'text-emerald-900',
+    badgeBg: 'bg-emerald-100 text-emerald-900'
   }
 ];
 
@@ -146,14 +146,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             <button
               key={col.id}
               onClick={() => scrollToColumn(col.id)}
-              className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all shrink-0 cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer tabular-nums ${
                 isActive
                   ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-white text-slate-600 border border-black/[0.12]'
+                  : 'bg-white text-slate-700 border border-black/[0.12]'
               }`}
             >
-              <span>{col.title.split(' ')[0]}</span>
-              <span className={`text-[10px] px-1 rounded-full ${isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+              {col.icon}
+              <span className="truncate">{col.title}</span>
+              <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-700'}`}>
                 {count}
               </span>
             </button>
@@ -185,20 +186,21 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             >
               {/* Header Colonne */}
               <div className="flex items-center justify-between pb-3 px-1 border-b border-black/[0.12] mb-3">
-                <div className="flex items-center gap-2">
+                <h3 className="flex items-center gap-2">
                   {col.icon}
                   <span className={`font-bold text-xs sm:text-sm ${col.headerColor}`}>
                     {col.title}
                   </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${col.badgeBg}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold tabular-nums ${col.badgeBg}`}>
                     {colTasks.length}
                   </span>
-                </div>
+                </h3>
 
                 {showQuickAddButtons && (
                   <button
                     onClick={() => onAddNewTask(col.id)}
-                    className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
+                    aria-label={`Ajouter dans ${col.title}`}
+                    className="p-1 text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
                     title={`Ajouter dans "${col.title}"`}
                   >
                     <Plus className="w-4 h-4" strokeWidth={1.75} />
@@ -235,9 +237,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     );
                   })
                 ) : (
-                  <div className="h-28 border-2 border-dashed border-black/[0.12] rounded-xl flex items-center justify-center text-xs text-slate-500 font-medium select-none">
+                  <p className={`py-10 px-3 text-center text-xs text-slate-700 font-medium select-none transition-colors ${
+                    isHovered ? 'border-2 border-dashed border-brand-500 rounded-xl bg-brand-50/40' : ''
+                  }`}>
                     {isReadOnly || currentUser?.role === 'read' ? 'Aucune tâche' : 'Déposer une tâche ici'}
-                  </div>
+                  </p>
                 )}
               </div>
 
@@ -245,7 +249,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               {showQuickAddButtons && (
                 <button
                   onClick={() => onAddNewTask(col.id)}
-                  className="mt-2.5 w-full py-1.5 px-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors border border-transparent hover:border-black/[0.12] cursor-pointer"
+                  className="mt-2.5 w-full py-2 px-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" strokeWidth={2} />
                   Ajouter une tâche

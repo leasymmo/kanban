@@ -2,6 +2,7 @@ import React from 'react';
 import { User, Property, Task, TaskStatus } from '../types';
 import { AssigneeFilter, TASK_STATUS_OPTIONS } from '../hooks/useTaskFilters';
 import { MultiFilterDropdown, MultiFilterOption } from './MultiFilterDropdown';
+import { ensureWhiteTextContrast } from '../utils/color';
 import {
   Plus, LayoutGrid, Home, UserCheck,
   Search, X, SlidersHorizontal, RotateCcw
@@ -78,17 +79,17 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
       {/* Ligne 1 : Filtres par associé / pool */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
+          <span className="text-xs font-bold text-slate-600 uppercase tracking-wider mr-1">
             Filtres :
           </span>
 
           {currentUser && (
             <button
               onClick={() => onChangeTaskFilter('me')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer tabular-nums ${
                 taskFilter === 'me'
                   ? 'bg-brand-600 text-white shadow-xs'
-                  : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+                  : 'bg-brand-50 text-brand-800 hover:bg-brand-100'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" strokeWidth={2.25} />
@@ -98,10 +99,10 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
 
           <button
             onClick={() => onChangeTaskFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer tabular-nums ${
               taskFilter === 'all'
                 ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             Toutes ({facetFilteredTasks.length})
@@ -112,24 +113,25 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
             .map(u => {
               const count = facetFilteredTasks.filter(t => t.assigned_to === u.id).length;
               const isSelected = taskFilter === u.id;
+              const avatarBg = ensureWhiteTextContrast(u.avatar_color);
 
               return (
                 <button
                   key={u.id}
                   onClick={() => onChangeTaskFilter(u.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer tabular-nums ${
                     isSelected
                       ? 'text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
                   }`}
-                  style={isSelected ? { backgroundColor: u.avatar_color } : {}}
+                  style={isSelected ? { backgroundColor: avatarBg } : {}}
                 >
-                  <div
-                    className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
-                    style={{ backgroundColor: u.avatar_color }}
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 leading-none"
+                    style={{ backgroundColor: avatarBg }}
                   >
                     {u.initials}
-                  </div>
+                  </span>
                   {u.name} ({count})
                 </button>
               );
@@ -154,19 +156,20 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
         <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[220px]">
           {/* Recherche instantanée */}
           <div className="relative flex-1 sm:flex-none sm:w-56">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" strokeWidth={1.5} />
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" strokeWidth={1.75} />
             <input
               type="text"
               value={taskSearchQuery}
               onChange={(e) => onChangeSearchQuery(e.target.value)}
               placeholder="Rechercher une tâche..."
-              className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-black/[0.12] rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="w-full pl-8 pr-7 py-1.5 text-xs bg-white text-slate-900 placeholder:text-slate-500 border border-black/[0.15] rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
             />
             {taskSearchQuery && (
               <button
                 type="button"
+                aria-label="Effacer la recherche"
                 onClick={() => onChangeSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 cursor-pointer"
               >
                 <X className="w-3 h-3" strokeWidth={1.75} />
               </button>
@@ -212,7 +215,7 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 taskViewMode === 'kanban'
                   ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Vue Kanban par statut"
             >
@@ -225,7 +228,7 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 taskViewMode === 'property'
                   ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Vue groupée par logement"
             >

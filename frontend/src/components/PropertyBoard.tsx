@@ -2,6 +2,7 @@ import React from 'react';
 import { Task, Property, User, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
+import { ensureWhiteTextContrast } from '../utils/color';
 import { Home, Plus, EyeOff } from 'lucide-react';
 
 interface PropertyBoardProps {
@@ -125,23 +126,23 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-black/[0.12] mb-3">
                 <div className="flex items-center gap-2">
                   <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-xs"
-                    style={{ backgroundColor: section.color }}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-xs shrink-0"
+                    style={{ backgroundColor: ensureWhiteTextContrast(section.color) }}
                   >
                     <Home className="w-4 h-4" strokeWidth={2} />
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="font-bold text-sm text-slate-800 leading-tight">
+                      <h3 className="font-bold text-sm text-slate-900 leading-tight">
                         {section.name}
                       </h3>
                       {section.isDeactivated && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-300/80 text-slate-700">
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-300/80 text-slate-800">
                           Désactivé
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500 font-medium">
+                    <p className="text-xs text-slate-700 font-medium tabular-nums">
                       {doneCount}/{total} terminées ({percent}%)
                     </p>
                   </div>
@@ -150,7 +151,8 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                 {showQuickAddButtons && (
                   <button
                     onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
-                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
+                    aria-label={`Ajouter une tâche pour ${section.name}`}
+                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
                     title={`Ajouter une tâche pour ${section.name}`}
                   >
                     <Plus className="w-4 h-4" strokeWidth={1.75} />
@@ -197,9 +199,11 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                     );
                   })
                 ) : (
-                  <div className="h-24 border-2 border-dashed border-black/[0.12] rounded-xl flex items-center justify-center text-xs text-slate-500 font-medium select-none">
+                  <p className={`py-8 px-3 text-center text-xs text-slate-700 font-medium select-none transition-colors ${
+                    isHovered ? 'border-2 border-dashed border-brand-500 rounded-xl bg-brand-50/40' : ''
+                  }`}>
                     {isReadOnly || currentUser?.role === 'read' ? 'Aucune tâche' : 'Déposer une tâche ici'}
-                  </div>
+                  </p>
                 )}
               </div>
 
@@ -207,7 +211,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
               {showQuickAddButtons && (
                 <button
                   onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
-                  className="mt-3 w-full py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="mt-3 w-full py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" strokeWidth={2} />
                   Ajouter une tâche pour {section.name}

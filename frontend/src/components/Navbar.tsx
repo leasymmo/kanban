@@ -54,14 +54,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   const getSecondaryRoleBadge = (role?: string) => {
     if (role === 'write') {
       return (
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-blue-500/20 text-blue-200 border border-blue-500/30">
           <UserCheck className="w-2.5 h-2.5" strokeWidth={2} /> Écriture
         </span>
       );
     }
     if (role === 'read') {
       return (
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-500/20 text-slate-300 border border-slate-500/30">
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-slate-500/20 text-slate-200 border border-slate-500/30">
           <Eye className="w-2.5 h-2.5" strokeWidth={2} /> Lecture
         </span>
       );
@@ -79,7 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo & Sélecteur de Sprint */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="flex items-center gap-2.5 shrink-0">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-brand-500/25 font-black text-white text-base sm:text-lg ring-1 ring-white/15">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-600 flex items-center justify-center shadow-sm shadow-brand-900/30 font-black text-white text-base sm:text-lg ring-1 ring-white/15">
                 C
               </div>
               <div className="hidden lg:block leading-tight">
@@ -214,7 +214,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Shield className="w-4 h-4 text-purple-400 shrink-0" />
                       <div className="min-w-0">
                         <p className="leading-tight">Panneau d'Administration</p>
-                        <p className="text-[10px] font-normal text-slate-400">Sprints, associés & logements</p>
+                        <p className="text-[11px] font-normal text-slate-300">Sprints, associés & logements</p>
                       </div>
                     </button>
                   )}

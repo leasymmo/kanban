@@ -67,15 +67,16 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
       <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white p-6 relative">
+        <div className="bg-slate-900 text-white p-6 relative border-b border-slate-800">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg"
+            aria-label="Fermer la fenêtre"
+            className="absolute top-4 right-4 text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
           >
             <X className="w-5 h-5" strokeWidth={1.75} />
           </button>
           
-          <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-1">
+          <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase tracking-wider mb-1">
             <RefreshCw className="w-4 h-4 animate-spin-slow" strokeWidth={2.25} />
             Fin de réunion hebdomadaire
           </div>
@@ -193,7 +194,7 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold shadow-md shadow-indigo-600/30 transition-all"
+              className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-bold shadow-sm shadow-brand-600/25 transition-all cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" strokeWidth={2.25} />
               {isSubmitting ? 'Bascule en cours...' : `Clôturer et ouvrir le Point ${nextNumber}`}

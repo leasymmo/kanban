@@ -99,6 +99,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-5">
+      <h2 className="sr-only">Gestion des tâches du sprint</h2>
       <TasksToolbar
         currentUser={currentUser}
         allUsers={allUsers}

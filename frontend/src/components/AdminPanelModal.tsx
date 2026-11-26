@@ -629,15 +629,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       <div className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-black/[0.12] overflow-hidden flex flex-col max-h-[92dvh]">
         
         {/* Header Modal */}
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 sm:p-6 text-white flex items-center justify-between shrink-0 border-b border-indigo-900/50">
+        <div className="bg-slate-900 p-5 sm:p-6 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+            <div className="w-11 h-11 rounded-2xl bg-brand-600 flex items-center justify-center shadow-sm ring-1 ring-white/15">
               <Shield className="w-6 h-6 text-white" strokeWidth={2.25} />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg sm:text-xl font-black tracking-tight">Panneau d'Administration</h2>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                <span className="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30">
                   Carré d'Hôtes
                 </span>
               </div>
@@ -649,7 +649,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            aria-label="Fermer le panneau d'administration"
+            className="p-2 text-slate-300 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
             title="Fermer"
           >
             <X className="w-5 h-5" strokeWidth={1.75} />
@@ -657,19 +658,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="bg-slate-50 border-b border-black/[0.12] px-5 pt-3 flex items-center gap-2 overflow-x-auto shrink-0">
+        <div className="bg-slate-50 border-b border-black/[0.12] px-5 pt-2 flex items-center gap-1 overflow-x-auto shrink-0">
           <button
             onClick={() => {
               setActiveTab('sprints');
               setEditingSprint(null);
             }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'sprints'
-                ? 'bg-white text-indigo-700 border-indigo-600 shadow-2xs'
-                : 'text-slate-500 border-transparent hover:text-slate-800'
+                ? 'bg-white text-slate-900 border-brand-600'
+                : 'text-slate-600 border-transparent hover:text-slate-900'
             }`}
           >
-            <RotateCcw className="w-4 h-4 text-indigo-600" strokeWidth={2.25} />
+            <RotateCcw className="w-4 h-4 text-brand-600" strokeWidth={2.25} />
             Gestion des Sprints ({sprints.length})
           </button>
 
@@ -679,13 +680,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               setIsCreatingUser(false);
               setEditingUser(null);
             }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'users'
-                ? 'bg-white text-purple-700 border-purple-600 shadow-2xs'
-                : 'text-slate-500 border-transparent hover:text-slate-800'
+                ? 'bg-white text-slate-900 border-brand-600'
+                : 'text-slate-600 border-transparent hover:text-slate-900'
             }`}
           >
-            <Users className="w-4 h-4 text-purple-600" strokeWidth={2.25} />
+            <Users className="w-4 h-4 text-brand-600" strokeWidth={2.25} />
             Associés & Droits ({users.length})
           </button>
 
@@ -696,10 +697,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               setEditingProperty(null);
               setDeactivatingProperty(null);
             }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'properties'
-                ? 'bg-white text-brand-700 border-brand-600 shadow-2xs'
-                : 'text-slate-500 border-transparent hover:text-slate-800'
+                ? 'bg-white text-slate-900 border-brand-600'
+                : 'text-slate-600 border-transparent hover:text-slate-900'
             }`}
           >
             <Home className="w-4 h-4 text-brand-600" strokeWidth={2.25} />
@@ -708,10 +709,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
           <button
             onClick={() => setActiveTab('system')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'system'
-                ? 'bg-white text-slate-900 border-slate-800 shadow-2xs'
-                : 'text-slate-500 border-transparent hover:text-slate-800'
+                ? 'bg-white text-slate-900 border-slate-800'
+                : 'text-slate-600 border-transparent hover:text-slate-900'
             }`}
           >
             <Info className="w-4 h-4 text-slate-700" strokeWidth={2.25} />
@@ -968,19 +969,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               <h4 className="font-bold text-sm text-slate-900">{s.name}</h4>
                               
                               {isActive ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                  <Unlock className="w-3 h-3 text-emerald-600" strokeWidth={2.25} />
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                  <Unlock className="w-3 h-3 text-emerald-700" strokeWidth={2.25} />
                                   Sprint Actif (En cours)
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-black/[0.12]">
-                                  <Lock className="w-3 h-3 text-slate-400" strokeWidth={2.25} />
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-black/[0.12]">
+                                  <Lock className="w-3 h-3 text-slate-500" strokeWidth={2.25} />
                                   Clôturé (Lecture seule)
                                 </span>
                               )}
 
                               {isSelected && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-200">
+                                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-brand-50 text-brand-800 border border-brand-200">
                                   Affiché à l'écran
                                 </span>
                               )}
@@ -1274,15 +1275,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-bold text-sm text-slate-900 truncate">{u.name}</h4>
                             {isCurrent && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-200">
+                              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-brand-50 text-brand-800 border border-brand-200">
                                 C'est vous
                               </span>
                             )}
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                               u.role === 'admin'
-                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                ? 'bg-blue-100 text-blue-900 border border-blue-200'
                                 : u.role === 'write'
-                                ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
                                 : 'bg-slate-100 text-slate-700 border border-black/[0.12]'
                             }`}>
                               {u.role === 'admin' ? <Shield className="w-2.5 h-2.5" strokeWidth={2.25} /> : u.role === 'write' ? <UserCheck className="w-2.5 h-2.5" strokeWidth={2.25} /> : <Eye className="w-2.5 h-2.5" strokeWidth={2.25} />}
@@ -1518,22 +1519,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 {p.name}
                               </h4>
                               {p.code && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-black/[0.12]">
+                                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-black/[0.12]">
                                   {p.code}
                                 </span>
                               )}
                               {isActive ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
                                   Actif
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 border border-black/[0.12]">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 border border-black/[0.12]">
                                   Désactivé
                                 </span>
                               )}
                             </div>
                             {!isActive && p.deleted_at && (
-                              <p className="text-[11px] text-slate-400 mt-0.5">
+                              <p className="text-[11px] text-slate-600 mt-0.5">
                                 Désactivé le {new Date(p.deleted_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                               </p>
                             )}

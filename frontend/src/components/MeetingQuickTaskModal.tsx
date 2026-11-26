@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Task, User, Property, TaskPriority } from '../types';
+import { ensureWhiteTextContrast } from '../utils/color';
 import {
   X, Sparkles, Plus, Trash2, Home, Check, AlertCircle, UserPlus
 } from 'lucide-react';
@@ -170,10 +171,10 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
       <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-indigo-200 overflow-hidden max-h-[92dvh] flex flex-col">
 
         {/* Header spécifique Réunion */}
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-violet-950 text-white p-4 sm:p-5 flex items-start justify-between gap-3 shrink-0 border-b border-indigo-800/60">
+        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-start justify-between gap-3 shrink-0 border-b border-slate-800">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-200 border border-violet-400/30 text-[10px] font-bold uppercase tracking-wider mb-1.5">
-              <Sparkles className="w-3 h-3 text-violet-300" strokeWidth={2.25} />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-[11px] font-bold uppercase tracking-wider mb-1.5">
+              <Sparkles className="w-3 h-3 text-blue-200" strokeWidth={2.25} />
               <span>
                 {assignedTo === ''
                   ? `En attente (pending) • Sans responsable`
@@ -183,7 +184,7 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
             <h2 className="text-base sm:text-lg font-bold leading-tight">
               {isEdit ? 'Modifier la tâche en attente' : 'Ajout rapide — Nouvelle tâche en séance'}
             </h2>
-            <p className="text-[11px] text-slate-300 mt-1">
+            <p className="text-xs text-slate-300 mt-1">
               {assignedTo === ''
                 ? `Cette tâche reste au statut pending et suivra sur le Point ${nextSprintNumber} tant qu'elle n'est pas attribuée.`
                 : `À la validation de la réunion, cette tâche attribuée passera sur le Point ${nextSprintNumber} avec le tag « Nouveau ».`}
@@ -259,13 +260,13 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                             isSelected
                               ? 'text-white border-transparent shadow-xs'
-                              : 'bg-white text-slate-700 border-black/[0.12] hover:bg-slate-50'
+                              : 'bg-white text-slate-800 border-black/[0.12] hover:bg-slate-50'
                           }`}
-                          style={isSelected ? { backgroundColor: u.avatar_color || '#2563EB' } : undefined}
+                          style={isSelected ? { backgroundColor: ensureWhiteTextContrast(u.avatar_color) } : undefined}
                         >
                           <span
-                            className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
-                            style={{ backgroundColor: u.avatar_color || '#2563EB' }}
+                            className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] leading-none font-bold text-white"
+                            style={{ backgroundColor: ensureWhiteTextContrast(u.avatar_color) }}
                           >
                             {u.initials}
                           </span>
@@ -461,7 +462,7 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/25 flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              className="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-bold shadow-sm shadow-brand-600/25 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 transition-colors"
             >
               <Sparkles className="w-4 h-4" strokeWidth={2.25} />
               <span>

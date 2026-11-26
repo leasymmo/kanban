@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Question, User } from '../types';
 import { QuestionModal } from './QuestionModal';
 import { formatQuestionDate } from '../utils/questions';
+import { ensureWhiteTextContrast } from '../utils/color';
 import {
   HelpCircle, Plus, Edit3, Trash2, Send, UserCheck
 } from 'lucide-react';
@@ -188,23 +189,23 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   return (
                     <div
                       key={ans.id}
-                      className={`px-2.5 py-2 rounded-[10px] border text-xs ${
+                      className={`px-3 py-2 rounded-lg text-xs ${
                         isMine
-                          ? 'bg-indigo-50/50 border-indigo-200/90 text-slate-800'
-                          : 'bg-slate-50/80 border-black/[0.08] text-slate-700'
+                          ? 'bg-brand-50/70 text-slate-900'
+                          : 'bg-slate-50 text-slate-800'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span
-                              className="w-4 h-4 rounded-full inline-flex items-center justify-center font-bold text-[8px] text-white shrink-0"
-                              style={{ backgroundColor: ans.user_color || '#4F46E5' }}
+                              className="w-5 h-5 rounded-full inline-flex items-center justify-center font-bold text-[11px] leading-none text-white shrink-0"
+                              style={{ backgroundColor: ensureWhiteTextContrast(ans.user_color, '#4F46E5') }}
                             >
                               {ans.user_initials || '?'}
                             </span>
-                            <span className="font-bold text-slate-800">{ans.user_name || 'Ancien associé'}</span>
-                            {ansDate && <span className="text-[10px] text-slate-500">{ansDate}</span>}
+                            <span className="font-bold text-slate-900">{ans.user_name || 'Ancien associé'}</span>
+                            {ansDate && <span className="text-[11px] text-slate-600 tabular-nums">{ansDate}</span>}
                           </div>
 
                           {isEditingThis ? (
@@ -331,14 +332,14 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
       <div className="flex items-center justify-between gap-2 pb-2 px-1 border-b border-black/[0.12]">
         <div className="flex items-center gap-2 min-w-0">
           <div
-            className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0"
-            style={{ backgroundColor: person.color }}
+            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0"
+            style={{ backgroundColor: ensureWhiteTextContrast(person.color) }}
           >
             {person.initials}
           </div>
           <div className="min-w-0">
-            <h3 className="font-bold text-sm text-slate-800 leading-tight truncate">{person.name}</h3>
-            <p className="text-[11px] text-slate-600 font-medium">
+            <h3 className="font-bold text-sm text-slate-900 leading-tight truncate">{person.name}</h3>
+            <p className="text-xs text-slate-700 font-medium tabular-nums">
               {groupQuestions.length} question{groupQuestions.length > 1 ? 's' : ''}
             </p>
           </div>
@@ -358,9 +359,9 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
       </div>
 
       {groupQuestions.length === 0 ? (
-        <div className="py-2.5 px-3 border border-dashed border-black/[0.12] rounded-[14px] text-center text-xs text-slate-500 font-medium bg-white/40">
+        <p className="py-4 px-3 text-center text-xs text-slate-700 font-medium">
           Aucune question.
-        </div>
+        </p>
       ) : (
         <div className="space-y-2.5">
           {groupQuestions.map(q => renderQuestionCard(q, true))}
@@ -376,6 +377,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
 
   return (
     <div className="space-y-4">
+      <h2 className="sr-only">Questions pour la réunion</h2>
       {/* Barre supérieure épurée : Filtres par associé + Ajout de question */}
       <div className="bg-white p-2.5 sm:p-3.5 rounded-[22px] sm:rounded-[26px] border border-black/[0.12] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div
@@ -424,16 +426,16 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   type="button"
                   aria-pressed={isSelected}
                   onClick={() => setSelectedFilter(u.id)}
-                  className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                  className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-semibold transition-colors cursor-pointer tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                     isSelected
                       ? 'text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
                   }`}
-                  style={isSelected ? { backgroundColor: u.avatar_color } : undefined}
+                  style={isSelected ? { backgroundColor: ensureWhiteTextContrast(u.avatar_color) } : undefined}
                 >
                   <span
-                    className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-                    style={{ backgroundColor: u.avatar_color }}
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] leading-none font-bold text-white shrink-0"
+                    style={{ backgroundColor: ensureWhiteTextContrast(u.avatar_color) }}
                   >
                     {u.initials}
                   </span>
@@ -461,6 +463,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
       {isSinglePersonFilter ? (
         visibleListQuestions.length > 0 ? (
           <div className="space-y-3">
+            <h3 className="sr-only">{singleFilterPersonName || 'Questions'}</h3>
             {visibleListQuestions.map(q => renderQuestionCard(q, true))}
           </div>
         ) : (
@@ -468,11 +471,11 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
             <div className="w-10 h-10 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center mx-auto">
               <HelpCircle className="w-5 h-5" strokeWidth={1.75} />
             </div>
-            <h4 className="font-bold text-slate-800 text-sm sm:text-base">
+            <h3 className="font-bold text-slate-800 text-sm sm:text-base">
               {selectedFilter === 'me'
                 ? 'Aucune question posée pour le moment'
                 : `Aucune question pour ${singleFilterPersonName || 'cet associé'}`}
-            </h4>
+            </h3>
             {canWrite && (selectedFilter === 'me' || isAdmin) && (
               <p className="text-xs text-slate-600 max-w-sm mx-auto">
                 Cliquez sur « Poser une question » pour ajouter un sujet à aborder lors de la prochaine réunion.

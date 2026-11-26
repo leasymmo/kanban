@@ -111,7 +111,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
             <h3 className="text-sm sm:text-base font-bold truncate">
               {isEdit ? 'Modifier la question' : 'Poser une question'}
             </h3>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 shrink-0">
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 shrink-0">
               Réunion
             </span>
           </div>

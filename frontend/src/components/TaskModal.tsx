@@ -579,7 +579,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
                 <div className="flex items-center gap-1 shrink-0">
                   {sub.children.length > 0 && (
-                    <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                    <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full tabular-nums">
                       {sub.children.length}
                     </span>
                   )}
@@ -661,13 +661,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col">
 
         {/* Header compact & adaptatif */}
-        <div
-          className={`text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 border-b shrink-0 transition-colors ${
-            isMultiCreate
-              ? 'bg-gradient-to-r from-indigo-950 via-slate-900 to-brand-950 border-indigo-800/70'
-              : 'bg-slate-900 border-slate-800'
-          }`}
-        >
+        <div className="bg-slate-900 border-slate-800 text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 border-b shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
             <h2 className="text-sm sm:text-base font-bold truncate">
               {isEdit
@@ -678,12 +672,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </h2>
 
             <span
-              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+              className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                 showUnplannedBadge
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
                   : isEdit && task?.is_new
                   ? 'bg-violet-500/20 text-violet-200 border border-violet-400/30'
-                  : 'bg-indigo-500/20 text-indigo-200 border border-indigo-500/30'
+                  : 'bg-blue-500/20 text-blue-200 border border-blue-400/30'
               }`}
             >
               {showUnplannedBadge ? (

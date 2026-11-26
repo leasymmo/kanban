@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sprint, Task, TaskStatus, Question, User, Property } from '../types';
 import { buildSubtaskTree, HierarchicalSubtask } from '../utils/subtasks';
 import { hasFinalDecision } from '../utils/questions';
+import { ensureWhiteTextContrast, hexToSoftTint } from '../utils/color';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import { MeetingControlDock } from './MeetingControlDock';
 import {
@@ -412,16 +413,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           <div key={node.id} className={node.depth > 0 ? depthBorders[node.depth] || 'ml-2 pl-2 border-l' : ''}>
             <div
               onClick={() => canEditThis && onToggleSubtask(node.id)}
-              className={`flex items-center gap-1.5 text-[11px] text-slate-600 ${
+              className={`flex items-center gap-1.5 text-xs text-slate-700 ${
                 canEditThis ? 'cursor-pointer hover:text-slate-900' : 'cursor-default'
               }`}
             >
               <BlurredIconSwap
                 active={!!node.is_done}
                 activeIcon={<CheckSquare className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />}
-                inactiveIcon={<Square className="w-3.5 h-3.5 text-slate-300" strokeWidth={1.75} />}
+                inactiveIcon={<Square className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />}
               />
-              <span className={node.is_done ? 'line-through text-slate-400' : 'font-medium'}>
+              <span className={node.is_done ? 'line-through text-slate-500' : 'font-medium'}>
                 {node.title}
               </span>
             </div>
@@ -455,13 +456,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         <div className="flex items-center gap-3 min-w-0">
           <div
             className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-xs shrink-0"
-            style={{ backgroundColor: person.avatar_color || '#4B5563' }}
+            style={{ backgroundColor: ensureWhiteTextContrast(person.avatar_color, '#4B5563') }}
           >
             {person.initials}
           </div>
           <div className="min-w-0">
-            <h3 className="font-bold text-base text-slate-800 leading-tight truncate">{person.name}</h3>
-            <p className="text-xs text-slate-500 font-medium">{subtitle}</p>
+            <h3 className="font-bold text-base text-slate-900 leading-tight truncate">{person.name}</h3>
+            <p className="text-xs text-slate-600 font-medium tabular-nums">{subtitle}</p>
           </div>
         </div>
 
@@ -489,15 +490,15 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     return (
       <div
         key={q.id}
-        className={`p-3 sm:p-4 rounded-xl border transition-all space-y-2.5 ${
-          hasFinalAnswer ? 'bg-emerald-50/35 border-emerald-300/80' : 'bg-slate-50/75 border-black/[0.12]'
+        className={`p-3 sm:p-4 rounded-xl transition-all space-y-2.5 ${
+          hasFinalAnswer ? 'bg-emerald-50/60' : 'bg-slate-50/90'
         }`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-start gap-2 flex-wrap">
               <span
-                className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md shrink-0 mt-0.5 ${
+                className={`text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md shrink-0 mt-0.5 ${
                   hasFinalAnswer
                     ? 'bg-emerald-100 text-emerald-900'
                     : 'bg-amber-100 text-amber-900'
@@ -542,13 +543,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   strokeWidth={2.25}
                 />
                 <span>Réponse définitive</span>
-                <span className="hidden sm:inline font-normal text-[10px] text-slate-400">
+                <span className="hidden sm:inline font-normal text-[11px] text-slate-600">
                   (Entrée ↵ pour valider & passer à la suivante)
                 </span>
               </label>
               <div className="flex items-center gap-2">
                 {hasFinalAnswer && !isDirty && (
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                  <span className="text-[11px] font-bold text-emerald-900 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
                     Enregistrée ✓
                   </span>
                 )}
@@ -632,7 +633,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             </div>
           </div>
         ) : hasFinalAnswer ? (
-          <div className="px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 border-l-4 border-l-emerald-600 text-xs">
+          <div className="px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs">
             <div className="flex items-center gap-1.5 font-bold text-emerald-950">
               <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" strokeWidth={2.25} />
               <span>Réponse définitive</span>
@@ -642,7 +643,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             </p>
           </div>
         ) : (
-          <p className="text-xs italic text-slate-500">Aucune réponse définitive saisie.</p>
+          <p className="text-xs italic text-slate-600">Aucune réponse définitive saisie.</p>
         )}
 
         {/* Propositions indicatives (repliées par défaut si la question est déjà tranchée) */}
@@ -653,7 +654,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 type="button"
                 aria-expanded={showProposals}
                 onClick={() => setOpenProposalDrawers(prev => ({ ...prev, [q.id]: !prev[q.id] }))}
-                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 cursor-pointer"
               >
                 <ChevronDown
                   className={`w-3.5 h-3.5 transition-transform duration-150 ${showProposals ? 'rotate-180' : ''}`}
@@ -662,7 +663,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 <span>Propositions indicatives ({answers.length})</span>
               </button>
             ) : (
-              <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+              <p className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
                 Propositions indicatives ({answers.length})
               </p>
             )}
@@ -672,19 +673,19 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 {answers.map((ans) => (
                   <div
                     key={ans.id}
-                    className="px-2.5 py-2 bg-white rounded-lg border border-black/[0.10] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                    className="px-2.5 py-2 bg-white rounded-lg text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                   >
                     <div className="min-w-0 flex-1 flex items-baseline gap-1.5 flex-wrap">
-                      <span className="inline-flex items-center gap-1 font-semibold text-slate-800 shrink-0">
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-slate-900 shrink-0">
                         <span
-                          className="w-4 h-4 rounded-full inline-flex items-center justify-center font-bold text-[8px] text-white shrink-0 translate-y-0.5"
-                          style={{ backgroundColor: ans.user_color || '#4F46E5' }}
+                          className="w-5 h-5 rounded-full inline-flex items-center justify-center font-bold text-[11px] leading-none text-white shrink-0 translate-y-0.5"
+                          style={{ backgroundColor: ensureWhiteTextContrast(ans.user_color, '#4F46E5') }}
                         >
                           {ans.user_initials}
                         </span>
                         <span>{ans.user_name} :</span>
                       </span>
-                      <span className="text-slate-700 break-words">{ans.content}</span>
+                      <span className="text-slate-800 break-words">{ans.content}</span>
                     </div>
 
                     {canArbitrate && (
@@ -692,10 +693,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                         type="button"
                         onClick={() => handleSelectPropositionAsDecision(q.id, ans.content)}
                         aria-label={`Retenir la proposition de ${ans.user_name} comme décision finale pour : ${q.title}`}
-                        className="self-end sm:self-auto px-2.5 py-1 text-xs sm:text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80 rounded-lg flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
+                        className="self-end sm:self-auto px-2.5 py-1 text-xs sm:text-[11px] font-bold bg-brand-50 hover:bg-brand-100 text-brand-800 border border-brand-200 rounded-lg flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
                         title="Retenir cette proposition comme réponse définitive"
                       >
-                        <Sparkles className="w-3 h-3 text-indigo-500" strokeWidth={2} />
+                        <Sparkles className="w-3 h-3 text-brand-600" strokeWidth={2} />
                         <span>Retenir</span>
                       </button>
                     )}
@@ -719,24 +720,22 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     >
       
       {/* Header spécial Réunion Hebdomadaire (Responsive) */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-[32px] sm:rounded-[36px] p-5 sm:p-6 text-white shadow-xl border border-indigo-900/40 relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
+      <div className="bg-slate-900 rounded-3xl sm:rounded-[32px] p-4 sm:p-6 text-white shadow-lg border border-slate-800">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold uppercase tracking-wider mb-2">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-[11px] font-bold uppercase tracking-wider mb-1.5">
               <Users className="w-3.5 h-3.5" strokeWidth={2.25} />
               Réunion hebdomadaire de l'équipe
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-3 flex-wrap">
+            <h2 className="text-lg sm:text-2xl font-black tracking-tight flex items-center gap-3 flex-wrap">
               {sprint.name}
               {isReadOnly && (
-                <span className="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-md font-bold border border-amber-500/30">
+                <span className="text-xs bg-amber-500/20 text-amber-200 px-2.5 py-1 rounded-md font-bold border border-amber-400/30">
                   Sprint clôturé (Archive)
                 </span>
               )}
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
               Support interactif pour animer la réunion, apporter les décisions définitives aux questions, et acter la bascule du sprint.
             </p>
           </div>
@@ -744,56 +743,57 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           {/* Bouton de Clôture / Bascule */}
           <div className="flex items-center gap-3 shrink-0">
             {sprint.status === 'closed' ? (
-              <div className="text-xs text-slate-300 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700">
-                🔒 Sprint validé et archivé
+              <div className="text-xs text-slate-200 bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-700">
+                Sprint validé et archivé
               </div>
             ) : isAdmin ? (
               <button
                 onClick={onOpenCloseSprintModal}
                 aria-keyshortcuts="Shift+c"
-                className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-brand-600 hover:from-indigo-600 hover:to-brand-700 text-white font-bold text-xs sm:text-sm shadow-xl shadow-brand-500/25 transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs sm:text-sm shadow-sm transition-colors cursor-pointer"
               >
-                <CheckCircle2 className="w-5 h-5 text-indigo-200" strokeWidth={2.25} />
+                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-100" strokeWidth={2.25} />
                 Valider la réunion & Clôturer le sprint
               </button>
             ) : (
-              <div className="text-xs text-slate-300 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-purple-400" strokeWidth={1.75} />
+              <div className="text-xs text-slate-200 bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-700 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-blue-300" strokeWidth={1.75} />
                 Seul un administrateur peut clôturer le sprint
               </div>
             )}
           </div>
         </div>
 
-        {/* Chiffres clés du sprint (Responsive grid) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-6 pt-6 border-t border-slate-800/80 text-xs">
-          <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
-            <span className="text-slate-400 font-medium">Tâches totales</span>
-            <div className="text-lg font-bold text-white mt-0.5">{activeSprintTasks.length}</div>
+        {/* Chiffres clés du sprint (Bandeau unifié sans cartes imbriquées) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-800 bg-slate-950/60 rounded-2xl border border-slate-800 mt-4 sm:mt-5 overflow-hidden text-xs">
+          <div className="p-2.5 sm:p-3.5">
+            <span className="text-slate-300 font-medium">Tâches totales</span>
+            <div className="text-base sm:text-lg font-bold text-white mt-0.5 tabular-nums">{activeSprintTasks.length}</div>
           </div>
-          <div className="bg-emerald-950/40 p-3 rounded-xl border border-emerald-800/40">
-            <span className="text-emerald-400 font-medium">Tâches terminées ✅</span>
-            <div className="text-lg font-bold text-emerald-300 mt-0.5">{doneTasks.length}</div>
+          <div className="p-2.5 sm:p-3.5">
+            <span className="text-emerald-300 font-medium">Terminées</span>
+            <div className="text-base sm:text-lg font-bold text-emerald-200 mt-0.5 tabular-nums">{doneTasks.length}</div>
           </div>
-          <div className="bg-amber-950/40 p-3 rounded-xl border border-amber-800/40">
-            <span className="text-amber-400 font-medium">En cours / À reporter 🚧</span>
-            <div className="text-lg font-bold text-amber-300 mt-0.5">{unfinishedSprintTasks.length}</div>
+          <div className="p-2.5 sm:p-3.5">
+            <span className="text-amber-300 font-medium">À reporter</span>
+            <div className="text-base sm:text-lg font-bold text-amber-200 mt-0.5 tabular-nums">{unfinishedSprintTasks.length}</div>
           </div>
-          <div className="bg-purple-950/40 p-3 rounded-xl border border-purple-800/40">
-            <span className="text-purple-400 font-medium">À attribuer en réunion</span>
-            <div className="text-lg font-bold text-purple-300 mt-0.5">{pendingUnassigned.length}</div>
+          <div className="p-2.5 sm:p-3.5">
+            <span className="text-blue-300 font-medium">À attribuer</span>
+            <div className="text-base sm:text-lg font-bold text-blue-200 mt-0.5 tabular-nums">{pendingUnassigned.length}</div>
           </div>
         </div>
 
-        {/* Rôles de la réunion hebdomadaire (Fidélité au rituel du document de réunion) */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-800/80 text-xs">
-          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+        {/* Rôles de la réunion hebdomadaire */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3.5 mt-3.5 border-t border-slate-800 text-xs">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* Animateur */}
-            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/70 rounded-xl px-3 py-1.5 shadow-2xs">
-              <span className="text-[11px] text-indigo-300 font-bold uppercase tracking-wider flex items-center gap-1">
-                🎤 Animateur :
+            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
+              <span className="text-[11px] text-blue-200 font-bold uppercase tracking-wider">
+                Animateur :
               </span>
               <select
+                aria-label="Animateur de la réunion"
                 value={animatorId}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -808,15 +808,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   </option>
                 ))}
               </select>
-              <span className="text-[10px] text-slate-400 hidden sm:inline">(Garant du temps & parole)</span>
+              <span className="text-xs text-slate-300 hidden sm:inline">(Garant du temps & parole)</span>
             </div>
 
             {/* Rédacteur */}
-            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/70 rounded-xl px-3 py-1.5 shadow-2xs">
-              <span className="text-[11px] text-purple-300 font-bold uppercase tracking-wider flex items-center gap-1">
-                ✍️ Rédacteur :
+            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
+              <span className="text-[11px] text-blue-200 font-bold uppercase tracking-wider">
+                Rédacteur :
               </span>
               <select
+                aria-label="Rédacteur du compte rendu"
                 value={scribeId}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -831,7 +832,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   </option>
                 ))}
               </select>
-              <span className="text-[10px] text-slate-400 hidden sm:inline">(Note décisions & actions)</span>
+              <span className="text-xs text-slate-300 hidden sm:inline">(Note décisions & actions)</span>
             </div>
           </div>
 
@@ -842,9 +843,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             title="Afficher les raccourcis clavier (?)"
             className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/70 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
           >
-            <Keyboard className="w-3.5 h-3.5 text-indigo-300" strokeWidth={1.75} />
+            <Keyboard className="w-3.5 h-3.5 text-blue-300" strokeWidth={1.75} />
             <span>Raccourcis</span>
-            <kbd className="px-1.5 py-0.5 rounded bg-slate-900/90 border border-slate-600/80 text-[10px] font-mono text-slate-300">?</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-600 text-[11px] font-mono text-slate-200">?</kbd>
           </button>
         </div>
 
@@ -855,45 +856,57 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         <button
           onClick={() => setMeetingStep('retro')}
           aria-keyshortcuts="1"
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-colors shrink-0 cursor-pointer ${
             meetingStep === 'retro'
               ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
+              : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
-          <span className="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px]">1</span>
+          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] tabular-nums ${
+            meetingStep === 'retro' ? 'bg-white/20 text-white' : 'bg-slate-800 text-white'
+          }`}>1</span>
           <span>Rétrospective par Associé</span>
-          <span className="text-[10px] opacity-75 font-normal px-1.5 py-0.5 rounded bg-black/20">15 min</span>
+          <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded tabular-nums ${
+            meetingStep === 'retro' ? 'bg-white/15 text-slate-100' : 'bg-slate-200/80 text-slate-700'
+          }`}>15 min</span>
         </button>
 
         <button
           onClick={() => setMeetingStep('questions')}
           aria-keyshortcuts="2"
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-colors shrink-0 cursor-pointer ${
             meetingStep === 'questions'
               ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
+              : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
-          <span className="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px]">2</span>
+          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] tabular-nums ${
+            meetingStep === 'questions' ? 'bg-white/20 text-white' : 'bg-slate-800 text-white'
+          }`}>2</span>
           <span>Revue des Questions & Décisions</span>
-          <span className="text-[10px] opacity-75 font-normal px-1.5 py-0.5 rounded bg-black/20">30 min</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-indigo-500 text-white text-[10px]">{undecidedQuestions.length}</span>
+          <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded tabular-nums ${
+            meetingStep === 'questions' ? 'bg-white/15 text-slate-100' : 'bg-slate-200/80 text-slate-700'
+          }`}>30 min</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-brand-700 text-white text-[11px] leading-none tabular-nums">{undecidedQuestions.length}</span>
         </button>
 
         <button
           onClick={() => setMeetingStep('unassigned')}
           aria-keyshortcuts="3"
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-colors shrink-0 cursor-pointer ${
             meetingStep === 'unassigned'
               ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
+              : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
-          <span className="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px]">3</span>
+          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] tabular-nums ${
+            meetingStep === 'unassigned' ? 'bg-white/20 text-white' : 'bg-slate-800 text-white'
+          }`}>3</span>
           <span>Plan d'Action & Tâches orphelines</span>
-          <span className="text-[10px] opacity-75 font-normal px-1.5 py-0.5 rounded bg-black/20">10 min</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px]">
+          <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded tabular-nums ${
+            meetingStep === 'unassigned' ? 'bg-white/15 text-slate-100' : 'bg-slate-200/80 text-slate-700'
+          }`}>10 min</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-amber-700 text-white text-[11px] leading-none tabular-nums">
             {pendingUnassigned.length + pendingAssigned.length}
           </span>
         </button>
@@ -929,14 +942,14 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               return (
                 <div
                   key={t.id}
-                  className={`p-3.5 sm:p-4 rounded-xl border text-xs transition-all ${
+                  className={`p-3.5 sm:p-4 rounded-xl text-xs transition-all ${
                     isHighlighted
-                      ? 'bg-amber-50/40 border-amber-300 ring-1 ring-amber-300/60 shadow-2xs'
+                      ? 'bg-amber-50/75 ring-1 ring-amber-300/80'
                       : t.status === 'done'
-                      ? 'bg-emerald-50/40 border-emerald-200'
+                      ? 'bg-emerald-50/55'
                       : t.status === 'blocked'
-                      ? 'bg-red-50/40 border-red-200'
-                      : 'bg-slate-50 border-black/[0.12]'
+                      ? 'bg-red-50/55'
+                      : 'bg-slate-50'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -993,15 +1006,23 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                             </button>
                           )}
 
-                          <span className={`text-sm font-semibold text-slate-800 break-words leading-snug ${t.status === 'done' ? 'line-through text-slate-400' : ''}`}>
+                          <span className={`text-sm font-semibold break-words leading-snug ${t.status === 'done' ? 'line-through text-slate-600' : 'text-slate-900'}`}>
                             {t.title}
                           </span>
 
                           {t.property_name && (
                             <span
-                              className="text-[10px] font-bold px-2 py-0.5 rounded text-white shrink-0"
-                              style={{ backgroundColor: t.property_color || '#3B82F6' }}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md text-slate-900 border shrink-0"
+                              style={{
+                                backgroundColor: hexToSoftTint(t.property_color, 0.12),
+                                borderColor: hexToSoftTint(t.property_color, 0.30)
+                              }}
                             >
+                              <span
+                                aria-hidden="true"
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: t.property_color || '#2563EB' }}
+                              />
                               {t.property_name}
                             </span>
                           )}
@@ -1066,7 +1087,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                       <Star className="w-3.5 h-3.5 text-amber-500" strokeWidth={2} />
                       <span>Aucune tâche mise en avant avec l'étoile</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-600 mt-1 [text-wrap:pretty]">
                       {userUnstarred.length > 0
                         ? `Dépliez ci-dessous pour afficher les ${userUnstarred.length} autre${userUnstarred.length > 1 ? 's' : ''} tâche${userUnstarred.length > 1 ? 's' : ''} de ${user.name}.`
                         : 'Aucune tâche assignée sur ce sprint.'}
@@ -1080,13 +1101,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                     <button
                       type="button"
                       onClick={() => toggleAccordion(user.id)}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-colors border border-black/[0.12] cursor-pointer group"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-800 transition-colors border border-black/[0.12] cursor-pointer group"
                     >
                       <span className="flex items-center gap-2">
-                        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isAccordionOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
+                        <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${isAccordionOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
                         <span>Autres tâches ({userUnstarred.length})</span>
                       </span>
-                      <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-700 uppercase tracking-wider">
+                      <span className="text-[11px] font-bold text-slate-600 group-hover:text-slate-900 uppercase tracking-wider">
                         {isAccordionOpen ? 'Masquer' : 'Afficher'}
                       </span>
                     </button>
@@ -1263,15 +1284,23 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
                         {t.property_name && (
                           <span
-                            className="text-[11px] font-bold px-2 py-0.5 rounded text-white"
-                            style={{ backgroundColor: t.property_color || '#3B82F6' }}
+                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md text-slate-900 border"
+                            style={{
+                              backgroundColor: hexToSoftTint(t.property_color, 0.12),
+                              borderColor: hexToSoftTint(t.property_color, 0.30)
+                            }}
                           >
+                            <span
+                              aria-hidden="true"
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: t.property_color || '#2563EB' }}
+                            />
                             {t.property_name}
                           </span>
                         )}
 
                         {t.priority === 'high' && (
-                          <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                          <span className="text-[11px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
                             Urgent
                           </span>
                         )}
@@ -1308,8 +1337,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                               title={`Attribuer à ${u.name}`}
                             >
                               <span
-                                className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-                                style={{ backgroundColor: u.avatar_color }}
+                                className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] leading-none font-bold text-white shrink-0"
+                                style={{ backgroundColor: ensureWhiteTextContrast(u.avatar_color) }}
                               >
                                 {u.initials}
                               </span>
@@ -1392,22 +1421,30 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-violet-100 text-violet-800 border border-violet-200 flex items-center gap-1">
-                            <Sparkles className="w-2.5 h-2.5 text-violet-600" strokeWidth={2.25} />
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-violet-100 text-violet-900 border border-violet-200 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-violet-700" strokeWidth={2.25} />
                             Nouveau
                           </span>
 
                           {t.property_name && (
                             <span
-                              className="text-[10px] font-bold px-2 py-0.5 rounded text-white"
-                              style={{ backgroundColor: t.property_color || '#3B82F6' }}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md text-slate-900 border"
+                              style={{
+                                backgroundColor: hexToSoftTint(t.property_color, 0.12),
+                                borderColor: hexToSoftTint(t.property_color, 0.30)
+                              }}
                             >
+                              <span
+                                aria-hidden="true"
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: t.property_color || '#2563EB' }}
+                              />
                               {t.property_name}
                             </span>
                           )}
 
                           {t.priority === 'high' && (
-                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                            <span className="text-[11px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
                               Urgent
                             </span>
                           )}
