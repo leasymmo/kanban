@@ -905,8 +905,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             const userTasks = activeSprintTasks.filter(t => t.assigned_to === user.id);
             const userDone = userTasks.filter(t => t.status === 'done');
             const userPending = userTasks.filter(t => t.status !== 'done');
+            const retroStatusOrder: Partial<Record<Task['status'], number>> = {
+              done: 0,
+              in_progress: 1,
+              blocked: 2,
+              todo: 3
+            };
             const userStarred = userTasks.filter(t => !!t.is_starred);
-            const userUnstarred = userTasks.filter(t => !t.is_starred);
+            const userUnstarred = userTasks
+              .filter(t => !t.is_starred)
+              .sort((a, b) => (retroStatusOrder[a.status] ?? 4) - (retroStatusOrder[b.status] ?? 4));
             const canEditThis = !isReadOnly && (isAdmin || (currentUser?.role === 'write' && currentUser?.id === user.id));
             const isAccordionOpen = !!expandedAccordions[user.id];
 
