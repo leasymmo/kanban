@@ -83,6 +83,13 @@ export const TasksTab: React.FC<TasksTabProps> = ({
     filteredTasks
   } = useTaskFilters(tasks, properties, currentUser);
 
+  const isViewingOwnTasks =
+    !!currentUser && (taskFilter === 'me' || taskFilter === currentUser.id);
+
+  const canUseBoardQuickAdd =
+    !isReadOnly &&
+    (currentUser?.role === 'admin' || (currentUser?.role === 'write' && isViewingOwnTasks));
+
   const contextualAssignedTo: number | null =
     taskFilter === 'me'
       ? (currentUser?.id ?? null)
@@ -143,6 +150,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               source: 'tasks'
             })
           }
+          canAddTasks={canUseBoardQuickAdd}
           isReadOnly={isReadOnly}
         />
       ) : (
@@ -166,6 +174,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               source: 'tasks'
             })
           }
+          canAddTasks={canUseBoardQuickAdd}
           isReadOnly={isReadOnly}
         />
       )}

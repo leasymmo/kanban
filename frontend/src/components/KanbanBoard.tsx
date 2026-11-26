@@ -16,6 +16,7 @@ interface KanbanBoardProps {
   onReorderTask?: (taskId: number, targetStatus: TaskStatus, orderedColumnTaskIds: number[]) => void;
   onToggleStar?: (taskId: number) => void;
   onAddNewTask: (initialStatus?: TaskStatus) => void;
+  canAddTasks?: boolean;
   isReadOnly: boolean;
 }
 
@@ -70,9 +71,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onReorderTask,
   onToggleStar,
   onAddNewTask,
+  canAddTasks,
   isReadOnly
 }) => {
-  const isAdmin = currentUser?.role === 'admin';
+  const showQuickAddButtons =
+    canAddTasks !== undefined ? canAddTasks : (!isReadOnly && currentUser?.role === 'admin');
   const [activeMobileColumn, setActiveMobileColumn] = useState<TaskStatus>('todo');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -192,7 +195,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   </span>
                 </div>
 
-                {!isReadOnly && isAdmin && (
+                {showQuickAddButtons && (
                   <button
                     onClick={() => onAddNewTask(col.id)}
                     className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
@@ -238,8 +241,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 )}
               </div>
 
-              {/* Bouton rapide bas de colonne (Admin uniquement) */}
-              {!isReadOnly && isAdmin && (
+              {/* Bouton rapide bas de colonne (Admin ou écriture sur Mes tâches) */}
+              {showQuickAddButtons && (
                 <button
                   onClick={() => onAddNewTask(col.id)}
                   className="mt-2.5 w-full py-1.5 px-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors border border-transparent hover:border-black/[0.12] cursor-pointer"

@@ -17,6 +17,7 @@ interface PropertyBoardProps {
   onMoveTaskProperty?: (taskId: number, targetPropertyId: number | null, orderedSectionTaskIds: number[]) => void;
   onToggleStar?: (taskId: number) => void;
   onAddNewTask: (propertyId?: number) => void;
+  canAddTasks?: boolean;
   isReadOnly: boolean;
 }
 
@@ -33,9 +34,11 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   onMoveTaskProperty,
   onToggleStar,
   onAddNewTask,
+  canAddTasks,
   isReadOnly
 }) => {
-  const isAdmin = currentUser?.role === 'admin';
+  const showQuickAddButtons =
+    canAddTasks !== undefined ? canAddTasks : (!isReadOnly && currentUser?.role === 'admin');
   const sections = [
     ...properties.map(p => ({
       id: p.id,
@@ -144,7 +147,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   </div>
                 </div>
 
-                {!isReadOnly && isAdmin && (
+                {showQuickAddButtons && (
                   <button
                     onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
                     className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
@@ -200,8 +203,8 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                 )}
               </div>
 
-              {/* Bouton rapide d'ajout (Admin uniquement) */}
-              {!isReadOnly && isAdmin && (
+              {/* Bouton rapide d'ajout (Admin ou écriture sur Mes tâches) */}
+              {showQuickAddButtons && (
                 <button
                   onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
                   className="mt-3 w-full py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
