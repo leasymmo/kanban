@@ -576,6 +576,13 @@ export const App: React.FC = () => {
                     setIsMeetingQuickModalOpen(true);
                   }}
                   onAddNewQuestion={() => setIsQuestionModalOpen(true)}
+                  hasOpenModal={
+                    isTaskModalOpen ||
+                    isCloseSprintModalOpen ||
+                    isMeetingQuickModalOpen ||
+                    (isAdminPanelOpen && currentUser?.role === 'admin') ||
+                    isQuestionModalOpen
+                  }
                   isReadOnly={isReadOnly}
                 />
               ) : (

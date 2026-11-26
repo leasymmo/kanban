@@ -6,7 +6,7 @@ import {
   Users, CheckCircle2, UserPlus,
   Shield, CheckSquare, Square,
   Sparkles, Check, Edit3, Trash2, Star,
-  ChevronDown, Plus, AlertTriangle
+  ChevronDown, Plus, AlertTriangle, Keyboard, X
 } from 'lucide-react';
 
 interface MeetingViewProps {
@@ -27,6 +27,7 @@ interface MeetingViewProps {
   onToggleStar?: (taskId: number) => void;
   onAddNewTask?: (editingPendingTask?: Task | null) => void;
   onAddNewQuestion?: () => void;
+  hasOpenModal?: boolean;
   isReadOnly: boolean;
 }
 
@@ -48,6 +49,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   onToggleStar,
   onAddNewTask,
   onAddNewQuestion,
+  hasOpenModal = false,
   isReadOnly
 }) => {
   const isAdmin = currentUser?.role === 'admin';
@@ -96,6 +98,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
   // Navigation flottante par associé (scroll-spy + ancre directe)
   const [activeAnchor, setActiveAnchor] = useState<number | 'pool' | null>(null);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const lockSpyRef = useRef(false);
   const scrollLockTimerRef = useRef<number | null>(null);
 
@@ -192,6 +195,144 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   }
 
   const showFab = !isReadOnly && currentUser?.role !== 'read' && !!onAddNewTask && sprint.status !== 'closed';
+  const canCreateQuestion = !isReadOnly && currentUser?.role !== 'read' && !!onAddNewQuestion;
+  const canCloseSprint = isAdmin && sprint.status !== 'closed';
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (hasOpenModal) return;
+
+      if (e.key === 'Escape') {
+        if (isShortcutsModalOpen) {
+          e.preventDefault();
+          setIsShortcutsModalOpen(false);
+          return;
+        }
+        if (editingDecisionForId !== null) {
+          e.preventDefault();
+          setEditingDecisionForId(null);
+          return;
+        }
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const targetEl = e.target as HTMLElement | null;
+      if (targetEl && targetEl.closest('input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+
+      const keyLower = e.key.toLowerCase();
+
+      if (e.key === '?' || keyLower === 'h') {
+        e.preventDefault();
+        setIsShortcutsModalOpen(prev => !prev);
+        return;
+      }
+
+      if (isShortcutsModalOpen) return;
+
+      // Étapes de la réunion (compatible AZERTY / QWERTY / pavé numérique)
+      if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
+        e.preventDefault();
+        setMeetingStep('retro');
+        return;
+      }
+      if (e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2') {
+        e.preventDefault();
+        setMeetingStep('questions');
+        return;
+      }
+      if (e.key === '3' || e.code === 'Digit3' || e.code === 'Numpad3') {
+        e.preventDefault();
+        setMeetingStep('unassigned');
+        return;
+      }
+
+      // Retour au bloc « À attribuer » (onglet 3)
+      if (meetingStep === 'unassigned' && (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
+        e.preventDefault();
+        scrollToSection('meeting-section-unassigned-pool', 'pool');
+        return;
+      }
+
+      // Navigation intervenant suivant / précédent (J / K)
+      if (keyLower === 'j' || keyLower === 'k') {
+        const anchors: { elementId: string; key: number | 'pool' }[] = [
+          ...(meetingStep === 'unassigned'
+            ? [{ elementId: 'meeting-section-unassigned-pool', key: 'pool' as const }]
+            : []),
+          ...users.map((u) => ({
+            elementId: `meeting-section-${meetingStep}-${u.id}`,
+            key: u.id
+          }))
+        ];
+        if (anchors.length === 0) return;
+
+        e.preventDefault();
+        const currentIdx = anchors.findIndex((a) => a.key === activeAnchor);
+        const targetAnchor =
+          keyLower === 'j'
+            ? anchors[currentIdx === -1 ? 0 : Math.min(currentIdx + 1, anchors.length - 1)]
+            : anchors[currentIdx === -1 ? 0 : Math.max(currentIdx - 1, 0)];
+
+        if (targetAnchor) {
+          scrollToSection(targetAnchor.elementId, targetAnchor.key);
+        }
+        return;
+      }
+
+      // Déplier / replier l'accordéon « Autres tâches » de l'associé actif (onglet 1)
+      if (keyLower === 'e' && meetingStep === 'retro') {
+        const targetUserId = typeof activeAnchor === 'number' ? activeAnchor : users[0]?.id;
+        if (targetUserId) {
+          e.preventDefault();
+          toggleAccordion(targetUserId);
+        }
+        return;
+      }
+
+      // Nouvelle tâche en séance : N, + ou = (partageant la même touche clavier)
+      if (
+        showFab &&
+        (keyLower === 'n' || e.key === '+' || e.key === '=' || e.code === 'NumpadAdd')
+      ) {
+        e.preventDefault();
+        onAddNewTask?.(null);
+        return;
+      }
+
+      // Poser une question : Q
+      if (canCreateQuestion && keyLower === 'q') {
+        e.preventDefault();
+        onAddNewQuestion?.();
+        return;
+      }
+
+      // Valider la réunion & Clôturer le sprint : Shift + C (Admin uniquement)
+      if (canCloseSprint && e.shiftKey && keyLower === 'c') {
+        e.preventDefault();
+        onOpenCloseSprintModal();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    hasOpenModal,
+    isShortcutsModalOpen,
+    editingDecisionForId,
+    meetingStep,
+    users,
+    activeAnchor,
+    showFab,
+    canCreateQuestion,
+    canCloseSprint,
+    onAddNewTask,
+    onAddNewQuestion,
+    onOpenCloseSprintModal
+  ]);
 
   const handleSelectPropositionAsDecision = (questionId: number, propositionContent: string) => {
     setDecisionInputs(prev => ({ ...prev, [questionId]: propositionContent }));
@@ -518,6 +659,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             ) : isAdmin ? (
               <button
                 onClick={onOpenCloseSprintModal}
+                aria-keyshortcuts="Shift+c"
                 className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-brand-600 hover:from-indigo-600 hover:to-brand-700 text-white font-bold text-xs sm:text-sm shadow-xl shadow-brand-500/25 transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
               >
                 <CheckCircle2 className="w-5 h-5 text-indigo-200" strokeWidth={2.25} />
@@ -601,6 +743,18 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               <span className="text-[10px] text-slate-400 hidden sm:inline">(Note décisions & actions)</span>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsShortcutsModalOpen(true)}
+            aria-keyshortcuts="? h"
+            title="Afficher les raccourcis clavier (?)"
+            className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/70 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+          >
+            <Keyboard className="w-3.5 h-3.5 text-indigo-300" strokeWidth={1.75} />
+            <span>Raccourcis</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-900/90 border border-slate-600/80 text-[10px] font-mono text-slate-300">?</kbd>
+          </button>
         </div>
 
       </div>
@@ -609,6 +763,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-black/[0.12] shadow-xs overflow-x-auto">
         <button
           onClick={() => setMeetingStep('retro')}
+          aria-keyshortcuts="1"
           className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
             meetingStep === 'retro'
               ? 'bg-slate-900 text-white shadow-xs'
@@ -622,6 +777,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
         <button
           onClick={() => setMeetingStep('questions')}
+          aria-keyshortcuts="2"
           className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
             meetingStep === 'questions'
               ? 'bg-slate-900 text-white shadow-xs'
@@ -636,6 +792,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
         <button
           onClick={() => setMeetingStep('unassigned')}
+          aria-keyshortcuts="3"
           className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
             meetingStep === 'unassigned'
               ? 'bg-slate-900 text-white shadow-xs'
@@ -865,14 +1022,18 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">
                 {openQuestions.length} à traiter
               </span>
-              {!isReadOnly && currentUser?.role !== 'read' && onAddNewQuestion && (
+              {canCreateQuestion && (
                 <button
                   type="button"
                   onClick={onAddNewQuestion}
+                  aria-keyshortcuts="q"
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" strokeWidth={2.25} />
                   <span>Poser une question</span>
+                  <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 rounded bg-indigo-700/80 border border-indigo-400/40 text-[10px] font-mono text-indigo-100">
+                    Q
+                  </kbd>
                 </button>
               )}
             </div>
@@ -1341,17 +1502,129 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           type="button"
           onClick={() => onAddNewTask?.(null)}
           aria-label="Nouvelle tâche en séance"
-          title="Nouvelle tâche en séance"
+          aria-keyshortcuts="n + ="
+          title="Nouvelle tâche en séance (N, + ou =)"
           className="group fixed z-40 bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] lg:bottom-7 lg:right-7 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-lg shadow-indigo-600/30 hover:shadow-xl hover:shadow-indigo-600/40 ring-1 ring-white/25 hover:scale-105 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:transform-none flex items-center justify-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100"
         >
           <Plus className="w-6 h-6" strokeWidth={2.5} aria-hidden="true" />
           <span
             role="tooltip"
-            className="hidden lg:block pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-150 motion-reduce:transition-none absolute right-full mr-3 top-1/2 -translate-y-1/2 whitespace-nowrap px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-lg border border-slate-700/80"
+            className="hidden lg:flex items-center gap-2 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-150 motion-reduce:transition-none absolute right-full mr-3 top-1/2 -translate-y-1/2 whitespace-nowrap px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-lg border border-slate-700/80"
           >
-            Nouvelle tâche en séance
+            <span>Nouvelle tâche en séance</span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-[10px] font-mono text-slate-200">N</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-[10px] font-mono text-slate-200">+</kbd>
+            </span>
           </span>
         </button>
+      )}
+
+      {/* Mémo compact des raccourcis clavier */}
+      {isShortcutsModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => setIsShortcutsModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="meeting-shortcuts-title"
+            className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-black/[0.12] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Keyboard className="w-4 h-4 text-indigo-300" strokeWidth={2} />
+                <h3 id="meeting-shortcuts-title" className="text-sm font-bold">
+                  Raccourcis clavier — Vue Réunion
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsShortcutsModalOpen(false)}
+                aria-label="Fermer le mémo"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" strokeWidth={1.75} />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4 text-xs">
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Navigation
+                </p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-3 py-1">
+                    <span className="text-slate-700 font-medium">Changer d'étape (1, 2, 3)</span>
+                    <span className="flex items-center gap-1 shrink-0">
+                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">1</kbd>
+                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">2</kbd>
+                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">3</kbd>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 py-1">
+                    <span className="text-slate-700 font-medium">Intervenant suivant / précédent</span>
+                    <span className="flex items-center gap-1 shrink-0">
+                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">J</kbd>
+                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">K</kbd>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 py-1">
+                    <span className="text-slate-700 font-medium">Aller à « À attribuer » (étape 3)</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">0</kbd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 py-1">
+                    <span className="text-slate-700 font-medium">Déplier/replier « Autres tâches » (étape 1)</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">E</kbd>
+                  </div>
+                </div>
+              </div>
+
+              {(showFab || canCreateQuestion || canCloseSprint) && (
+                <div className="pt-3 border-t border-black/[0.12] space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Actions en séance
+                  </p>
+                  <div className="space-y-1.5">
+                    {showFab && (
+                      <div className="flex items-center justify-between gap-3 py-1">
+                        <span className="text-slate-700 font-medium">Nouvelle tâche en séance</span>
+                        <span className="flex items-center gap-1 shrink-0">
+                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">N</kbd>
+                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">+</kbd>
+                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">=</kbd>
+                        </span>
+                      </div>
+                    )}
+                    {canCreateQuestion && (
+                      <div className="flex items-center justify-between gap-3 py-1">
+                        <span className="text-slate-700 font-medium">Poser une question</span>
+                        <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">Q</kbd>
+                      </div>
+                    )}
+                    {canCloseSprint && (
+                      <div className="flex items-center justify-between gap-3 py-1">
+                        <span className="text-slate-700 font-medium">Valider & Clôturer le sprint</span>
+                        <span className="flex items-center gap-1 shrink-0">
+                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">Shift</kbd>
+                          <span className="text-slate-400">+</span>
+                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">C</kbd>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-black/[0.12] flex items-center justify-between text-[11px] text-slate-500">
+                <span>Annuler une édition / Fermer</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono font-bold text-slate-700">Échap</kbd>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
