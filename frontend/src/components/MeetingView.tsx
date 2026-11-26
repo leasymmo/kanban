@@ -92,10 +92,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     }));
   };
 
-  // Gestion des décisions de réunion (par question — champs toujours visibles en séance)
+  // Gestion des décisions de réunion (par question — champs texte directs validés via Entrée)
   const [decisionInputs, setDecisionInputs] = useState<{ [questionId: number]: string }>({});
   const [isSubmittingDecision, setIsSubmittingDecision] = useState<{ [questionId: number]: boolean }>({});
-  const decisionTextareaRefs = useRef<{ [questionId: number]: HTMLTextAreaElement | null }>({});
+  const decisionInputRefs = useRef<{ [questionId: number]: HTMLInputElement | null }>({});
 
   // Navigation flottante par associé (scroll-spy + ancre directe)
   const [activeAnchor, setActiveAnchor] = useState<number | 'pool' | null>(null);
@@ -330,19 +330,53 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     onOpenCloseSprintModal
   ]);
 
+  // Ordre naturel stable pour éviter que les questions ne sautent sous le curseur lors de la saisie au fil de la réunion
+  const userIdsSet = new Set(users.map(u => u.id));
+  const orderedMeetingQuestions: Question[] = [
+    ...users.flatMap((u) => questions.filter(q => q.user_id === u.id)),
+    ...questions.filter(q => !userIdsSet.has(q.user_id))
+  ];
+
+  const focusNextDecisionInput = (currentQuestionId: number) => {
+    const currentIndex = orderedMeetingQuestions.findIndex(q => q.id === currentQuestionId);
+    if (currentIndex === -1) return;
+    const nextQuestion = orderedMeetingQuestions[currentIndex + 1];
+    if (!nextQuestion) return;
+
+    window.setTimeout(() => {
+      const nextEl = decisionInputRefs.current[nextQuestion.id];
+      if (nextEl) {
+        nextEl.focus();
+        nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 50);
+  };
+
   const handleSelectPropositionAsDecision = (questionId: number, propositionContent: string) => {
     setDecisionInputs(prev => ({ ...prev, [questionId]: propositionContent }));
     window.setTimeout(() => {
-      decisionTextareaRefs.current[questionId]?.focus();
+      decisionInputRefs.current[questionId]?.focus();
     }, 30);
   };
 
-  const handleSaveDecision = async (questionId: number) => {
+  const handleSaveDecision = async (questionId: number, advanceToNext: boolean = false) => {
+    const existingQuestion = questions.find(q => q.id === questionId);
+    const savedAnswer = (existingQuestion?.final_answer || '').trim();
     const text = decisionInputs[questionId] !== undefined
       ? decisionInputs[questionId].trim()
-      : (questions.find(q => q.id === questionId)?.final_answer || '');
+      : savedAnswer;
 
-    if (!text || !onSetQuestionDecision) return;
+    if (!text) return;
+
+    // Si déjà enregistrée sans modification, passer directement à la question suivante
+    if (text === savedAnswer) {
+      if (advanceToNext) {
+        focusNextDecisionInput(questionId);
+      }
+      return;
+    }
+
+    if (!onSetQuestionDecision) return;
 
     setIsSubmittingDecision(prev => ({ ...prev, [questionId]: true }));
     try {
@@ -352,6 +386,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         delete next[questionId];
         return next;
       });
+      if (advanceToNext) {
+        focusNextDecisionInput(questionId);
+      }
     } catch {
       // Erreur gérée par la notification globale ; le brouillon reste en place
     } finally {
@@ -491,10 +528,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           )}
         </div>
 
-        {/* Zone directe de réponse définitive : textarea toujours affichée si éditable, sinon lecture seule */}
+        {/* Zone directe de réponse définitive : champ texte classique + validation Entrée */}
         {canArbitrate ? (
-          <div className="p-2.5 rounded-lg bg-white border border-black/[0.12] focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20 space-y-2 transition-all">
-            <div className="flex items-center justify-between gap-2">
+          <div className="p-2.5 rounded-lg bg-white border border-black/[0.12] focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20 space-y-1.5 transition-all">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <label
                 htmlFor={`meeting-decision-${q.id}`}
                 className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5"
@@ -504,87 +541,90 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   strokeWidth={2.25}
                 />
                 <span>Réponse définitive</span>
-              </label>
-              {hasFinalAnswer && !isDirty && (
-                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                  Enregistrée ✓
+                <span className="hidden sm:inline font-normal text-[10px] text-slate-400">
+                  (Entrée ↵ pour valider & passer à la suivante)
                 </span>
-              )}
+              </label>
+              <div className="flex items-center gap-2">
+                {hasFinalAnswer && !isDirty && (
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                    Enregistrée ✓
+                  </span>
+                )}
+                {isDirty && hasFinalAnswer && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDecisionInputs(prev => {
+                        const next = { ...prev };
+                        delete next[q.id];
+                        return next;
+                      })
+                    }
+                    className="text-[11px] font-medium text-slate-600 hover:text-slate-800 cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                )}
+                {hasFinalAnswer && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (window.confirm('Effacer la réponse définitive pour remettre cette question à trancher ?')) {
+                        try {
+                          await onSetQuestionDecision?.(q.id, '');
+                          setDecisionInputs(prev => {
+                            const next = { ...prev };
+                            delete next[q.id];
+                            return next;
+                          });
+                        } catch {
+                          // Erreur gérée par la notification globale
+                        }
+                      }
+                    }}
+                    className="text-[11px] text-red-700 hover:text-red-800 font-semibold cursor-pointer"
+                  >
+                    Effacer
+                  </button>
+                )}
+              </div>
             </div>
 
-            <textarea
-              id={`meeting-decision-${q.id}`}
-              ref={(el) => {
-                decisionTextareaRefs.current[q.id] = el;
-              }}
-              rows={2}
-              aria-label={`Réponse définitive pour : ${q.title}`}
-              placeholder="Saisissez directement la réponse définitive actée en séance..."
-              value={currentInput}
-              onChange={(e) => setDecisionInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                  e.preventDefault();
-                  handleSaveDecision(q.id);
-                }
-              }}
-              className="w-full px-2.5 py-1.5 bg-slate-50/60 focus:bg-white border border-black/[0.12] rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 resize-y"
-            />
-
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {hasFinalAnswer && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (window.confirm('Effacer la réponse définitive pour remettre cette question à trancher ?')) {
-                      try {
-                        await onSetQuestionDecision?.(q.id, '');
-                        setDecisionInputs(prev => {
-                          const next = { ...prev };
-                          delete next[q.id];
-                          return next;
-                        });
-                      } catch {
-                        // Erreur gérée par la notification globale
-                      }
-                    }
-                  }}
-                  className="px-2 py-1 text-red-700 hover:bg-red-50 text-xs font-semibold rounded-lg cursor-pointer mr-auto"
-                >
-                  Effacer
-                </button>
-              )}
-
-              {isDirty && hasFinalAnswer && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDecisionInputs(prev => {
-                      const next = { ...prev };
-                      delete next[q.id];
-                      return next;
-                    })
+            <div className="flex items-center gap-1.5">
+              <input
+                id={`meeting-decision-${q.id}`}
+                ref={(el) => {
+                  decisionInputRefs.current[q.id] = el;
+                }}
+                type="text"
+                aria-label={`Réponse définitive pour : ${q.title}`}
+                placeholder="Saisissez la réponse définitive et appuyez sur Entrée..."
+                value={currentInput}
+                onChange={(e) => setDecisionInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveDecision(q.id, true);
                   }
-                  className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-800 cursor-pointer"
-                >
-                  Annuler
-                </button>
-              )}
+                }}
+                className="flex-1 min-w-0 min-h-[38px] sm:min-h-[34px] px-2.5 py-1.5 bg-slate-50/60 focus:bg-white border border-black/[0.12] rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400"
+              />
 
               {(!hasFinalAnswer || isDirty) && (
                 <button
                   type="button"
                   disabled={!trimmedInput || isSubmittingDecision[q.id]}
-                  onClick={() => handleSaveDecision(q.id)}
-                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer transition-colors"
+                  onClick={() => handleSaveDecision(q.id, true)}
+                  className="min-h-[38px] sm:min-h-[34px] px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
                 >
-                  <Check className="w-3.5 h-3.5" strokeWidth={2.25} />
+                  <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
                   <span>
                     {isSubmittingDecision[q.id]
-                      ? 'Enregistrement...'
+                      ? '...'
                       : hasFinalAnswer
                       ? 'Mettre à jour'
-                      : 'Acter la décision'}
+                      : 'Acter'}
                   </span>
                 </button>
               )}
@@ -1104,7 +1144,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             const userQuestions = questions.filter(q => q.user_id === user.id);
             const userUndecided = userQuestions.filter(q => !hasFinalDecision(q));
             const userDecided = userQuestions.filter(hasFinalDecision);
-            const orderedQuestions = [...userUndecided, ...userDecided];
 
             return renderAssociateSection(
               user,
@@ -1130,7 +1169,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               </>,
               userQuestions.length > 0 ? (
                 <div className="space-y-2">
-                  {orderedQuestions.map(renderQuestionCard)}
+                  {userQuestions.map(renderQuestionCard)}
                 </div>
               ) : (
                 <p className="py-2 text-center text-xs text-slate-600 font-medium">
@@ -1165,7 +1204,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 )}
               </>,
               <div className="space-y-2">
-                {[...orphanUndecided, ...orphanDecided].map(renderQuestionCard)}
+                {orphanQuestions.map(renderQuestionCard)}
               </div>
             );
           })()}
