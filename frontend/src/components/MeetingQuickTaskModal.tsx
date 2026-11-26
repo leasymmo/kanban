@@ -280,9 +280,34 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
 
             {/* Logements */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                {isEdit ? 'Logement concerné' : 'Logement(s) concerné(s)'}
-              </label>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  {isEdit ? 'Logement concerné' : 'Logement(s) concerné(s)'}
+                </label>
+                {!isEdit && properties.length > 0 && (
+                  <div className="flex items-center gap-2 text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPropertyIds(properties.map(p => p.id))}
+                      className="text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                    >
+                      Tout sélectionner
+                    </button>
+                    {selectedPropertyIds.length > 0 && (
+                      <>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPropertyIds([])}
+                          className="text-slate-500 hover:text-slate-700 cursor-pointer"
+                        >
+                          Aucun
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
               {isEdit ? (
                 <select
                   value={propertyId}
