@@ -1,64 +1,83 @@
-# Dashboard Kanban Hebdomadaire en Sprints (Style Trello)
+# Dashboard Kanban Hebdomadaire en Sprints
 
-Dashboard de gestion de tâches et de réunions d'équipe hebdomadaires, remplaçant un compte rendu texte partagé par un Kanban réactif inspiré de Trello, fonctionnant en sprints hebdomadaires.
+Dashboard de gestion de tâches, d'hébergements et de réunions d'équipe hebdomadaires en sprints, conçu pour remplacer un compte rendu texte partagé par une interface réactive adaptée au travail préparatoire et à l'animation de séance en direct.
 
-L'application est conçue pour fonctionner de manière autonome sur tout hébergement web standard (**Apache + PHP + MySQL**, type offre mutualisée OVHcloud) sans nécessiter de serveur dédié, de conteneur Docker ni de processus d'arrière-plan.
+L'application fonctionne de manière autonome sur tout hébergement web mutualisé standard (**Apache + PHP 8 + MySQL**, ex. OVHcloud) sans serveur Node.js persistant, conteneur Docker ni processus d'arrière-plan.
 
 ---
 
 ## 🎯 Fonctionnalités clés
 
-1. **Cycle de Sprints Hebdomadaires sans contrainte rigide** :
-   * Le sprint en cours reste ouvert et modifiable tant que la réunion d'équipe n'est pas clôturée (qu'elle se tienne le lundi ou un autre jour).
-   * **Bascule explicite** : l'administrateur valide la clôture en fin de séance.
-   * **Règle de report conditionnel** :
-     * Tâche non terminée ➔ reportée au sprint suivant avec **100% de ses sous-tâches** (les sous-tâches faites restent cochées ✅ pour préserver l'historique de l'avancement).
-     * Tâche terminée ➔ archivée avec le sprint clôturé.
+### 1. Cycle de Sprints Hebdomadaires & Bascule en réunion
+* **Sprints ouverts sans contrainte calendaire** : le sprint actif reste éditable jusqu'à la clôture explicite validée par un administrateur en fin de réunion.
+* **Sélecteur de sprint épuré** : indication directe `(En cours)` ou `(Archivé)` dans la liste, avec badge `Lecture seule` lorsque le sprint consulté est archivé.
+* **Règle de report automatique à la clôture** :
+  * **Tâches terminées (`✅ Fait`)** : archivées dans le sprint clôturé.
+  * **Tâches actives non terminées** : reportées sur le nouveau sprint avec leur statut actuel et 100 % de leurs sous-tâches (les sous-tâches cochées restent cochées tout en préservant l'état figé des sprints déjà clos).
+  * **Tâches en attente (`pending`) attribuées** : activées sur le nouveau sprint au statut `⏳ À faire` avec le tag *« Nouveau »*.
+  * **Tâches en attente non attribuées** : conservées en `pending` pour attribution ultérieure.
+  * **Propositions indicatives des questions** : purgées automatiquement à la clôture du sprint (seules les questions et leurs réponses définitives sont conservées dans l'historique du sprint clos).
 
-2. **Comptes et Contrôle des Rôles** :
-   * **Lecture** : Consultation seule, aucune modification ni suppression.
-   * **Écriture** : Peut modifier et supprimer uniquement ses propres tâches (`assigned_to = lui`) ou les tâches non attribuées qu'il a lui-même créées.
-   * **Admin** : Accès complet, paramétrage, attribution des tâches orphelines et clôture de sprint.
+### 2. Comptes, Permissions & Administration
+* **Lecture (`read`)** : consultation seule des tâches, questions et comptes rendus.
+* **Écriture (`write`)** : création de tâches/questions, édition/suppression de ses propres questions, de sa réponse indicative (1 max par question), et des tâches qui lui sont attribuées (ou non attribuées qu'il a créées).
+* **Administrateur (`admin`)** : gestion complète (utilisateurs, hébergements avec réordonnancement/archivage, sprints et réouverture de sprint, attribution des tâches orphelines, clôture de réunion). Le **Panneau d'Administration** est accessible directement depuis le menu du profil utilisateur (avatar en haut à droite).
 
-3. **Pool des « Tâches non attribuées »** :
-   * Tout compte avec droits d'écriture peut créer une tâche orpheline dans le pool commun.
-   * **Seul un administrateur peut attribuer une tâche non attribuée à un membre de l'équipe.**
+### 3. Tableau Kanban & Modales de Tâches
+* **Deux modes d'affichage** :
+  * **Par Statut** : `⏳ À faire`, `🚧 En cours`, `❌ Bloqué`, `✅ Fait` avec glisser-déposer fluide entre colonnes et réordonnancement.
+  * **Par Logement / Catégorie** : regroupement par hébergement actif, avec réattribution rapide et création contextuelle.
+* **Sous-tâches hiérarchiques** jusqu'à 4 niveaux avec réordonnancement par glisser-déposer dans la modale.
+* **Création multi-logements & sélecteur rapide** : bouton **`Tout sélectionner | Aucun`** dans la modale classique et dans la modale d'ajout rapide en séance pour créer en une fois une tâche pour tout ou partie des hébergements.
 
-4. **Deux modes d'affichage des tâches** :
-   * **Vue par Statut (Kanban)** : *À faire*, *🚧 En cours*, *❌ Bloqué*, *✅ Fait* avec glisser-déposer fluide.
-   * **Vue par Propriété / Catégorie** : regroupement par projet, logement ou secteur.
+### 4. Onglet « Questions » (Préparation avant réunion)
+* Interface épurée dédiée à la préparation en amont de la séance :
+  * Filtrage par associé (`Mes questions`, `Toutes` affiché en pleine largeur `grid-cols-1`, ou par prénom).
+  * Cartes **toujours dépliées** présentant directement l'intitulé et le détail de la question, sans statut ni réponse définitive (renseignée uniquement pendant la réunion).
+  * **Réponse indicative facultative (1 max par associé et par question)** : chaque associé peut ajouter, modifier ou supprimer sa propre piste de réponse avant la réunion (contrainte appliquée à la fois en base via `UNIQUE KEY (question_id, user_id)` et par l'API HTTP `409`).
 
-5. **Onglet « Questions stratégiques »** :
-   * Sujets à aborder en réunion regroupés par membre de l'équipe, avec filtres individuels et statut de résolution.
+### 5. Vue Réunion dédiée (Pilotage en 3 étapes)
+1. **Étape 1 — Rétrospective par Associé** :
+   * Tâches mises en avant (`★`) puis accordéon *« Autres tâches »*, tous deux triés automatiquement par statut : **`✅ Fait` → `🚧 En cours` → `❌ Bloqué` → `⏳ À faire`**.
+   * Mise à jour du statut, cochage de sous-tâches et bascule d'étoile en direct.
+2. **Étape 2 — Revue des Questions & Décisions** :
+   * Ajout (`Q`) et édition de questions directement en séance.
+   * Champ texte classique (`<input type="text">`) affiché directement sur chaque question : la touche **`Entrée`** enregistre immédiatement la réponse définitive et place le focus sur la question suivante.
+   * Bouton **`Retenir`** sur chaque proposition indicative pour pré-remplir le champ de décision en un clic.
+3. **Étape 3 — Plan d'Action & Tâches orphelines** :
+   * Attribution en un clic des tâches en attente non attribuées et relecture des tâches planifiées par associé pour le sprint suivant.
+* **Super-dock flottant unifié** (`MeetingControlDock`) : regroupe les ancres par associé (avec compteurs contextuels et infobulles), l'ancre *À attribuer* à l'étape 3 et le bouton **`+` Ajouter une tâche en attente** séparé par un trait.
+* **Raccourcis clavier** : `1`/`2`/`3` (étapes), `J`/`K` (associé suivant/précédent), `0` (bloc *À attribuer*), `E` (accordéon *Autres tâches*), `N` / `+` / `=` (nouvelle tâche en attente), `Q` (nouvelle question), `Shift + C` (clôturer le sprint), `?` / `H` (mémo raccourcis), `Échap` (fermer).
 
-6. **Vue Réunion Dédiée** :
-   * Écran de pilotage en 3 temps : Rétrospective par membre, Revue des questions, Attribution du pool orphelin, et bouton de clôture avec calcul immédiat du report.
+### 6. Notifications temps réel (Toasts)
+* Retours visuels flottants en bas de page (`ToastContainer`) pour chaque création, modification, suppression, bascule ou erreur API, avec repositionnement automatique au-dessus du dock sur mobile en Vue Réunion.
 
 ---
 
 ## 🏗️ Architecture Technique
 
-* **Frontend** : React 18, TypeScript, Tailwind CSS, Lucide Icons, Vite (compilation en fichiers statiques servis par Apache).
-* **Backend** : API REST légère en **PHP 8 natif avec PDO**, requêtes préparées et transactions sécurisées.
-* **Base de données** : MySQL (compatible phpMyAdmin).
-* **Hébergement** : 100% compatible hébergement mutualisé standard (aucun démon Node.js persistant).
+* **Frontend** : React 18.3, TypeScript 5.6, Tailwind CSS 3.4, Lucide Icons, Vite 5.
+* **Backend** : API REST en **PHP 8 natif avec PDO**, requêtes préparées, transactions SQL et authentification par jeton (`user_sessions`).
+* **Base de données** : MySQL (scripts `schema.sql` + migrations `migration_v2.sql` à `migration_v11.sql`, appliquées automatiquement et de façon idempotente au démarrage via `Database::migrateSchema()`).
+* **Hébergement** : package statique + API PHP autonome généré dans `deploy/www/` pour Apache / OVHcloud.
 
 ---
 
-## 🚀 Installation & Déploiement
+## 🚀 Installation & Déploiement (OVH / Apache + MySQL)
 
 ### 1. Base de données MySQL
-1. Connectez-vous à votre interface d'administration MySQL (ex: phpMyAdmin).
-2. Exécutez le script de structure : `backend/database/schema.sql`.
-3. Optionnel : exécutez le script de données de test : `backend/database/seed.sql`.
+1. Connectez-vous à votre interface MySQL (ex. phpMyAdmin).
+2. Pour une installation vierge, exécutez `backend/database/schema.sql` (puis optionnellement `backend/database/seed.sql`).
+3. Pour une mise à jour d'une base existante, les migrations (`v2` à `v11`) s'appliquent automatiquement via PHP, ou manuellement dans phpMyAdmin avec `backend/database/migration_v11.sql` (qui supprime `status`, `answered_by`, `answered_at` de `questions` et ajoute l'unicité sur `question_answers`).
 
 ### 2. Configuration des accès
-Copiez le fichier d'exemple et renseignez vos identifiants de base de données :
+Copiez le fichier d'exemple et renseignez vos identifiants MySQL :
 ```bash
 cp backend/config/config.local.example.php backend/config/config.local.php
 ```
+*(Ou utilisez un fichier `backend/.env` local ; le script de déploiement génère automatiquement `config.local.php` dans le package exporté.)*
 
-Exemple de contenu pour `backend/config/config.local.php` :
+Exemple pour `backend/config/config.local.php` :
 ```php
 <?php
 return [
@@ -73,29 +92,29 @@ return [
 ];
 ```
 
-### 3. Génération du package de déploiement
-Exécutez le script d'export :
+### 3. Build & Génération du package de déploiement
 ```bash
-./deploy/export-ovh.sh
+bash deploy/export-ovh.sh
 ```
-Ce script compile le frontend et génère un dossier prêt à l'emploi dans `deploy/www/`.
-
-Téléversez ensuite l'ensemble du contenu de `deploy/www/` dans le dossier racine de votre hébergeur web (ex: `www/` ou `public_html/`) via SFTP ou FTP.
+Ce script compile le frontend (`tsc && vite build`) et régénère le dossier `deploy/www/` prêt à être téléversé dans le dossier racine de l'hébergeur (`www/` ou `public_html/`) via SFTP/FTP.
 
 ---
 
 ## 💻 Développement Local
 
 ### Prérequis
-* Node.js 20+ ou 22+
+* Node.js 20+ (ou 22+)
 
-### Démarrage du frontend :
+### Lancer le frontend et vérifier la compilation
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Rendez-vous sur `http://localhost:5173`. L'application intègre un mode de données local réactif permettant de tester l'interface, les filtres et la clôture de sprint même sans base de données locale active.
+Pour vérifier le typage TypeScript et la compilation de production :
+```bash
+cd frontend && npx tsc --noEmit && npm run build
+```
 
 ---
 
