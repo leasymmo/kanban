@@ -8,7 +8,7 @@ import {
   Users, CheckCircle2, UserPlus,
   Shield, CheckSquare, Square,
   Sparkles, Check, Edit3, Trash2, Star,
-  ChevronDown, Plus, AlertTriangle, Keyboard, X, Info
+  ChevronDown, Plus, Keyboard, X, Info
 } from 'lucide-react';
 
 interface MeetingViewProps {
@@ -1246,13 +1246,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   {pendingUnassigned.length} à attribuer
                 </span>
               </div>
-            </div>
-
-            <div className="px-3.5 py-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-2 text-xs text-amber-900">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" strokeWidth={1.5} />
-              <span>
-                <strong>À la clôture du sprint</strong> : si elles restent non attribuées, ces tâches seront conservées sur le Point {sprint.number + 1} au statut <strong>pending</strong>.
-              </span>
             </div>
 
             {pendingUnassigned.length > 0 ? (
