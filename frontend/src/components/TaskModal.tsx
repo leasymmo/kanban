@@ -18,6 +18,7 @@ interface TaskModalProps {
   properties: Property[];
   initialStatus?: TaskStatus;
   initialPropertyId?: number | null;
+  initialAssignedTo?: number | null;
   creationSource?: 'tasks' | 'meeting';
   onSave: (taskData: any) => Promise<void>;
 }
@@ -40,6 +41,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   properties,
   initialStatus = 'todo',
   initialPropertyId = null,
+  initialAssignedTo,
   creationSource = 'tasks',
   onSave
 }) => {
@@ -120,7 +122,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setPriority('medium');
       setPropertyId(initialPropertyId || '');
       setSelectedPropertyIds(initialPropertyId ? [initialPropertyId] : []);
-      setAssignedTo(currentUser?.id || assignableUsers[0]?.id || '');
+      if (isAdmin) {
+        if (initialAssignedTo !== undefined) {
+          setAssignedTo(initialAssignedTo || '');
+        } else {
+          setAssignedTo(currentUser?.id || assignableUsers[0]?.id || '');
+        }
+      } else {
+        setAssignedTo(currentUser?.id || assignableUsers[0]?.id || '');
+      }
       setDueDate('');
       setIsStarred(false);
       setSubtaskTree([]);
@@ -134,7 +144,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     dropTargetRef.current = null;
     dragCleanupRef.current?.();
     setError(null);
-  }, [task, isOpen, initialStatus, initialPropertyId]);
+  }, [task, isOpen, initialStatus, initialPropertyId, initialAssignedTo, isAdmin, currentUser?.id]);
 
   useEffect(() => {
     return () => {

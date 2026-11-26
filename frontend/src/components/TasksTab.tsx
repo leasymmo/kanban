@@ -20,7 +20,12 @@ interface TasksTabProps {
   onReorderKanbanTask: (taskId: number, targetStatus: TaskStatus, orderedColumnTaskIds: number[]) => void;
   onMoveTaskProperty: (taskId: number, targetPropertyId: number | null, orderedSectionTaskIds: number[]) => void;
   onToggleStar: (taskId: number) => void;
-  onOpenCreateTask: (options?: { status?: TaskStatus; propertyId?: number | null; source?: 'tasks' | 'meeting' }) => void;
+  onOpenCreateTask: (options?: {
+    status?: TaskStatus;
+    propertyId?: number | null;
+    assignedTo?: number | null;
+    source?: 'tasks' | 'meeting';
+  }) => void;
 }
 
 export const TasksTab: React.FC<TasksTabProps> = ({
@@ -78,6 +83,13 @@ export const TasksTab: React.FC<TasksTabProps> = ({
     filteredTasks
   } = useTaskFilters(tasks, properties, currentUser);
 
+  const contextualAssignedTo: number | null =
+    taskFilter === 'me'
+      ? (currentUser?.id ?? null)
+      : typeof taskFilter === 'number' && allUsers.some(u => u.id === taskFilter)
+      ? taskFilter
+      : null;
+
   return (
     <div className="space-y-4 sm:space-y-5">
       <TasksToolbar
@@ -101,7 +113,14 @@ export const TasksTab: React.FC<TasksTabProps> = ({
         taskViewMode={taskViewMode}
         onChangeViewMode={handleChangeViewMode}
         isReadOnly={isReadOnly}
-        onAddNewTask={() => onOpenCreateTask({ status: 'todo', propertyId: null, source: 'tasks' })}
+        onAddNewTask={() =>
+          onOpenCreateTask({
+            status: 'todo',
+            propertyId: null,
+            assignedTo: contextualAssignedTo,
+            source: 'tasks'
+          })
+        }
       />
 
       {taskViewMode === 'kanban' ? (
@@ -117,7 +136,12 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           onReorderTask={onReorderKanbanTask}
           onToggleStar={onToggleStar}
           onAddNewTask={(initialStatus) =>
-            onOpenCreateTask({ status: initialStatus || 'todo', propertyId: null, source: 'tasks' })
+            onOpenCreateTask({
+              status: initialStatus || 'todo',
+              propertyId: null,
+              assignedTo: contextualAssignedTo,
+              source: 'tasks'
+            })
           }
           isReadOnly={isReadOnly}
         />
@@ -135,7 +159,12 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           onMoveTaskProperty={onMoveTaskProperty}
           onToggleStar={onToggleStar}
           onAddNewTask={(propertyId) =>
-            onOpenCreateTask({ status: 'todo', propertyId: propertyId ?? null, source: 'tasks' })
+            onOpenCreateTask({
+              status: 'todo',
+              propertyId: propertyId ?? null,
+              assignedTo: contextualAssignedTo,
+              source: 'tasks'
+            })
           }
           isReadOnly={isReadOnly}
         />

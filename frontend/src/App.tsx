@@ -34,6 +34,7 @@ export const App: React.FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskModalInitialStatus, setTaskModalInitialStatus] = useState<TaskStatus>('todo');
   const [taskModalInitialPropertyId, setTaskModalInitialPropertyId] = useState<number | null>(null);
+  const [taskModalInitialAssignedTo, setTaskModalInitialAssignedTo] = useState<number | null | undefined>(undefined);
   const [taskModalCreationSource, setTaskModalCreationSource] = useState<'tasks' | 'meeting'>('tasks');
   const [isCloseSprintModalOpen, setIsCloseSprintModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
@@ -199,11 +200,13 @@ export const App: React.FC = () => {
   const openCreateTaskModal = (options?: {
     status?: TaskStatus;
     propertyId?: number | null;
+    assignedTo?: number | null;
     source?: 'tasks' | 'meeting';
   }) => {
     setEditingTask(null);
     setTaskModalInitialStatus(options?.status || 'todo');
     setTaskModalInitialPropertyId(options?.propertyId ?? null);
+    setTaskModalInitialAssignedTo(options?.assignedTo);
     setTaskModalCreationSource(options?.source || (activeTab === 'meeting' ? 'meeting' : 'tasks'));
     setIsTaskModalOpen(true);
   };
@@ -593,6 +596,7 @@ export const App: React.FC = () => {
         properties={sprintProperties}
         initialStatus={taskModalInitialStatus}
         initialPropertyId={taskModalInitialPropertyId}
+        initialAssignedTo={taskModalInitialAssignedTo}
         creationSource={taskModalCreationSource}
         onSave={saveTask}
       />
