@@ -352,6 +352,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     try {
       await onSetQuestionDecision(questionId, text, 'resolved');
       setEditingDecisionForId(null);
+    } catch {
+      // Erreur gérée par la notification globale ; l'éditeur reste ouvert
     } finally {
       setIsSubmittingDecision(prev => ({ ...prev, [questionId]: false }));
     }
@@ -602,8 +604,12 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   type="button"
                   onClick={async () => {
                     if (window.confirm('Supprimer la décision finale et réouvrir cette question ?')) {
-                      await onSetQuestionDecision?.(q.id, '', 'open');
-                      setEditingDecisionForId(null);
+                      try {
+                        await onSetQuestionDecision?.(q.id, '', 'open');
+                        setEditingDecisionForId(null);
+                      } catch {
+                        // Erreur gérée par la notification globale
+                      }
                     }
                   }}
                   className="px-2.5 py-1 text-red-600 hover:bg-red-50 text-xs font-semibold rounded-lg cursor-pointer mr-auto"

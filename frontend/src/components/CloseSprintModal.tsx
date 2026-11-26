@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sprint, Task } from '../types';
-import { CheckCircle2, AlertTriangle, ArrowRight, X, Calendar, RefreshCw, Sparkles, UserPlus } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, AlertCircle, ArrowRight, X, Calendar, RefreshCw, Sparkles, UserPlus } from 'lucide-react';
 
 interface CloseSprintModalProps {
   isOpen: boolean;
@@ -23,12 +23,14 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
   );
   const [notes, setNotes] = useState('Clôture validée en fin de réunion des associés.');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (isOpen && currentSprint) {
       const n = currentSprint.number + 1;
       setNextName(`Point ${n} — ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`);
       setNotes('Clôture validée en fin de réunion des associés.');
+      setError(null);
     }
   }, [isOpen, currentSprint]);
 
@@ -42,12 +44,17 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!nextName.trim()) {
+      setError('Le nom du prochain sprint est obligatoire.');
+      return;
+    }
+    setError(null);
     setIsSubmitting(true);
     try {
-      await onConfirmClose(nextName, notes);
+      await onConfirmClose(nextName.trim(), notes);
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setError(err?.message || 'Impossible de clôturer ce sprint.');
     } finally {
       setIsSubmitting(false);
     }
@@ -78,6 +85,12 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
 
         {/* Formulaire & Récapitulatif */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {error && (
+            <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs flex items-center gap-2 font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" strokeWidth={2} />
+              <span>{error}</span>
+            </div>
+          )}
           
           {/* Bloc Statut de la Bascule (2x2) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

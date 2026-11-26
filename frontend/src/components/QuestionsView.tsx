@@ -67,6 +67,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     try {
       await onAddAnswer(questionId, content);
       setNewAnswerText(prev => ({ ...prev, [questionId]: '' }));
+    } catch {
+      // Erreur gérée par la notification globale ; le brouillon est conservé
     } finally {
       setIsSubmittingAnswer(prev => ({ ...prev, [questionId]: false }));
     }
@@ -78,8 +80,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
       await onUpdateAnswer(answerId, editingAnswerText.trim());
       setEditingAnswerId(null);
       setEditingAnswerText('');
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // Erreur gérée par la notification globale ; l'édition reste ouverte
     }
   };
 

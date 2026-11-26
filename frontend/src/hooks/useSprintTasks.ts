@@ -9,8 +9,16 @@ interface UseSprintTasksOptions {
   allUsers: User[];
   properties: Property[];
   reloadSprintDetails: (sprintId: number) => Promise<void>;
+  onSuccess?: (message: string) => void;
   onError?: (message: string) => void;
 }
+
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  todo: '⏳ À faire',
+  in_progress: '🚧 En cours',
+  blocked: '❌ Bloqué',
+  done: '✅ Fait'
+};
 
 export function useSprintTasks({
   currentSprintId,
@@ -18,9 +26,14 @@ export function useSprintTasks({
   allUsers,
   properties,
   reloadSprintDetails,
+  onSuccess,
   onError
 }: UseSprintTasksOptions) {
   const [tasks, setTasks] = useState<Task[]>([]);
+
+  const notifySuccess = (msg: string) => {
+    onSuccess?.(msg);
+  };
 
   const notifyError = (err: any, fallbackMsg: string) => {
     const msg = err?.message || fallbackMsg;
@@ -29,21 +42,23 @@ export function useSprintTasks({
   };
 
   const saveTask = async (taskData: any) => {
+    const isUpdate = !!taskData.id;
     try {
-      if (taskData.id) {
-        await api.updateTask(taskData.id, {
-          sprint_id: currentSprintId || undefined,
-          ...taskData
-        });
-      } else {
-        await api.createTask(taskData);
-      }
+      const res: any = isUpdate
+        ? await api.updateTask(taskData.id, {
+            sprint_id: currentSprintId || undefined,
+            ...taskData
+          })
+        : await api.createTask(taskData);
+
       if (currentSprintId) {
         await reloadSprintDetails(currentSprintId);
       }
+      notifySuccess(res?.message || (isUpdate ? 'Tâche mise à jour.' : 'Tâche créée avec succès.'));
     } catch (err: any) {
       // Ne basculer en mode optimiste local que si l'API est injoignable (TypeError réseau)
       if (!(err instanceof TypeError)) {
+        notifyError(err, isUpdate ? 'Impossible de modifier cette tâche.' : 'Impossible de créer cette tâche.');
         throw err;
       }
       const isPendingMeeting =
@@ -65,6 +80,7 @@ export function useSprintTasks({
             };
           })
         );
+        notifySuccess('Tâche mise à jour localement.');
       } else {
         const targetProps: (number | null)[] =
           Array.isArray(taskData.property_ids) && taskData.property_ids.length > 0
@@ -99,6 +115,7 @@ export function useSprintTasks({
           };
         });
         setTasks(prev => [...prev, ...createdTasks]);
+        notifySuccess(createdTasks.length > 1 ? `${createdTasks.length} tâches créées localement.` : 'Tâche créée localement.');
       }
     }
   };
@@ -109,6 +126,7 @@ export function useSprintTasks({
 
     try {
       await api.updateTaskStatus(taskId, newStatus, currentSprintId || undefined);
+      notifySuccess(`Statut mis à jour : ${STATUS_LABELS[newStatus]}`);
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
         setTasks(previousTasks);
@@ -123,6 +141,9 @@ export function useSprintTasks({
     orderedColumnTaskIds: number[]
   ) => {
     const previousTasks = tasks;
+    const previousTask = previousTasks.find(t => t.id === taskId);
+    const statusChanged = previousTask && previousTask.status !== targetStatus;
+
     setTasks(prev => {
       const updated = prev.map(t => (t.id === taskId ? { ...t, status: targetStatus } : t));
       return reorderTasksInSubset(updated, orderedColumnTaskIds);
@@ -136,6 +157,11 @@ export function useSprintTasks({
           status: targetStatus,
           ordered_task_ids: orderedColumnTaskIds
         });
+        notifySuccess(
+          statusChanged
+            ? `Tâche déplacée vers ${STATUS_LABELS[targetStatus]}.`
+            : 'Ordre des tâches mis à jour.'
+        );
       } catch (err: any) {
         if (!(err instanceof TypeError)) {
           setTasks(previousTasks);
@@ -151,6 +177,8 @@ export function useSprintTasks({
     orderedSectionTaskIds: number[]
   ) => {
     const previousTasks = tasks;
+    const previousTask = previousTasks.find(t => t.id === taskId);
+    const propertyChanged = (previousTask?.property_id ?? null) !== targetPropertyId;
     const targetProp = targetPropertyId ? properties.find(p => p.id === targetPropertyId) : null;
 
     setTasks(prev => {
@@ -176,6 +204,13 @@ export function useSprintTasks({
           property_id: targetPropertyId,
           ordered_task_ids: orderedSectionTaskIds
         });
+        notifySuccess(
+          propertyChanged
+            ? targetProp
+              ? `Tâche déplacée vers « ${targetProp.name} ».`
+              : 'Tâche déplacée vers « Sans logement ».'
+            : 'Ordre des tâches mis à jour.'
+        );
       } catch (err: any) {
         if (!(err instanceof TypeError)) {
           setTasks(previousTasks);
@@ -207,6 +242,11 @@ export function useSprintTasks({
         assigned_to: userId,
         sprint_id: currentSprintId || undefined
       });
+      notifySuccess(
+        targetUser
+          ? `Tâche attribuée à ${targetUser.name}.`
+          : 'Responsable retiré (tâche à attribuer).'
+      );
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
         setTasks(previousTasks);
@@ -222,6 +262,7 @@ export function useSprintTasks({
 
     try {
       await api.deleteTask(id, currentSprintId || undefined);
+      notifySuccess('Tâche supprimée.');
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
         setTasks(previousTasks);
@@ -232,6 +273,11 @@ export function useSprintTasks({
 
   const toggleSubtask = async (subtaskId: number) => {
     const previousTasks = tasks;
+    const previousSubtask = previousTasks
+      .flatMap(t => t.subtasks)
+      .find(st => st.id === subtaskId);
+    const wasDone = !!previousSubtask?.is_done;
+
     setTasks(prev =>
       prev.map(t => ({
         ...t,
@@ -241,6 +287,7 @@ export function useSprintTasks({
 
     try {
       await api.toggleSubtask(subtaskId, currentSprintId || undefined);
+      notifySuccess(wasDone ? 'Sous-étape réouverte.' : 'Sous-étape validée.');
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
         setTasks(previousTasks);
@@ -250,22 +297,32 @@ export function useSprintTasks({
   };
 
   const addSubtask = async (taskId: number, title: string, parentId?: number | null) => {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      const err = new Error('Le titre de la sous-étape est obligatoire.');
+      notifyError(err, err.message);
+      throw err;
+    }
     try {
-      await api.addSubtask(taskId, title, parentId, currentSprintId || undefined);
+      await api.addSubtask(taskId, trimmed, parentId, currentSprintId || undefined);
       if (currentSprintId) {
         await reloadSprintDetails(currentSprintId);
       }
+      notifySuccess('Sous-étape ajoutée.');
     } catch (err: any) {
-      notifyError(err, "Erreur lors de l'ajout de la sous-tâche");
+      notifyError(err, "Erreur lors de l'ajout de la sous-tâche.");
+      throw err;
     }
   };
 
   const toggleStar = async (taskId: number) => {
     const previousTasks = tasks;
+    const wasStarred = !!previousTasks.find(t => t.id === taskId)?.is_starred;
     setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, is_starred: !t.is_starred } : t)));
 
     try {
       await api.toggleTaskStar(taskId, currentSprintId || undefined);
+      notifySuccess(wasStarred ? 'Mise en avant retirée.' : 'Tâche mise en avant pour la réunion.');
     } catch (err: any) {
       setTasks(previousTasks);
       notifyError(err, 'Impossible de modifier la mise en avant.');

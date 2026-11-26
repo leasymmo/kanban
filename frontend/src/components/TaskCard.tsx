@@ -79,6 +79,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       await onAddSubtask(task.id, childTitle.trim(), parentId);
       setChildTitle('');
       setAddingChildToId(null);
+    } catch {
+      // Erreur gérée par la notification globale ; la saisie reste conservée
     } finally {
       setIsSubmittingChild(false);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { User, Sprint, Task, Question, Property, TaskStatus } from './types';
 import { api } from './api/client';
 import { useSprintTasks } from './hooks/useSprintTasks';
@@ -13,7 +13,8 @@ import { MeetingQuickTaskModal } from './components/MeetingQuickTaskModal';
 import { CloseSprintModal } from './components/CloseSprintModal';
 import { LoginPage } from './components/LoginPage';
 import { AdminPanelModal } from './components/AdminPanelModal';
-import { RefreshCw, AlertCircle, X } from 'lucide-react';
+import { ToastContainer, ToastItem, ToastType } from './components/ToastContainer';
+import { RefreshCw, AlertCircle } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -25,7 +26,9 @@ export const App: React.FC = () => {
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [actionToast, setActionToast] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastIdRef = useRef(0);
+  const toastTimersRef = useRef<Map<number, number>>(new Map());
 
   // Onglets
   const [activeTab, setActiveTab] = useState<'tasks' | 'questions' | 'meeting'>('tasks');
@@ -44,12 +47,35 @@ export const App: React.FC = () => {
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [editingMeetingQuestion, setEditingMeetingQuestion] = useState<Question | null>(null);
 
-  const showToast = useCallback((msg: string) => {
-    setActionToast(msg);
-    setTimeout(() => {
-      setActionToast(prev => (prev === msg ? null : prev));
-    }, 5000);
+  const dismissToast = useCallback((id: number) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) {
+      window.clearTimeout(timer);
+      toastTimersRef.current.delete(id);
+    }
+    setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
+
+  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    const id = ++toastIdRef.current;
+    setToasts(prev => [...prev.slice(-3), { id, type, message }]);
+    const duration = type === 'error' ? 5500 : 3200;
+    const timer = window.setTimeout(() => {
+      toastTimersRef.current.delete(id);
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, duration);
+    toastTimersRef.current.set(id, timer);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      toastTimersRef.current.clear();
+    };
+  }, []);
+
+  const showSuccessToast = useCallback((msg: string) => showToast(msg, 'success'), [showToast]);
+  const showErrorToast = useCallback((msg: string) => showToast(msg, 'error'), [showToast]);
 
   const loadSprintDetails = useCallback(async (sprintId: number) => {
     try {
@@ -63,8 +89,11 @@ export const App: React.FC = () => {
       console.error('Erreur chargement sprint :', err);
       const sprint = sprints.find(s => s.id === sprintId);
       setIsReadOnly(sprint?.status === 'closed' && currentUser?.role !== 'admin');
+      if (!(err instanceof TypeError)) {
+        showErrorToast(err?.message || 'Impossible de charger les détails du sprint.');
+      }
     }
-  }, [sprints, currentUser]);
+  }, [sprints, currentUser, showErrorToast]);
 
   const {
     tasks,
@@ -84,7 +113,8 @@ export const App: React.FC = () => {
     allUsers,
     properties,
     reloadSprintDetails: loadSprintDetails,
-    onError: showToast
+    onSuccess: showSuccessToast,
+    onError: showErrorToast
   });
 
   useEffect(() => {
@@ -165,6 +195,7 @@ export const App: React.FC = () => {
         setAllUsers(usersRes.users);
       }
       await loadWorkspaceData();
+      showToast(`Bienvenue, ${user.name} !`, 'success');
     } catch (e: any) {
       console.error('Erreur de chargement API :', e);
       setApiError(e?.message || "Impossible de joindre l'API REST.");
@@ -192,6 +223,7 @@ export const App: React.FC = () => {
     } finally {
       setCurrentUser(null);
       localStorage.removeItem('kanban_token');
+      showToast('Session déconnectée.', 'info');
     }
   };
 
@@ -219,9 +251,10 @@ export const App: React.FC = () => {
     try {
       await api.createQuestion(data);
       if (currentSprintId) await loadSprintDetails(currentSprintId);
+      showSuccessToast('Question ajoutée avec succès.');
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
-        showToast(err?.message || "Impossible d'ajouter cette question.");
+        showErrorToast(err?.message || "Impossible d'ajouter cette question.");
         throw err;
       }
       const targetUser = allUsers.find(u => u.id === data.user_id) || currentUser;
@@ -240,6 +273,7 @@ export const App: React.FC = () => {
         can_delete: true
       };
       setQuestions([...questions, newQ]);
+      showSuccessToast('Question ajoutée localement.');
     }
   };
 
@@ -270,11 +304,24 @@ export const App: React.FC = () => {
       if (data.user_id !== undefined && currentSprintId) {
         await loadSprintDetails(currentSprintId);
       }
+      if (data.status && Object.keys(data).length === 1) {
+        showSuccessToast(
+          data.status === 'resolved'
+            ? 'Question clôturée.'
+            : data.status === 'open'
+            ? 'Question réouverte.'
+            : 'Statut de la question mis à jour.'
+        );
+      } else {
+        showSuccessToast('Question mise à jour.');
+      }
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
         setQuestions(previousQuestions);
-        showToast(err?.message || 'Impossible de modifier cette question.');
+        showErrorToast(err?.message || 'Impossible de modifier cette question.');
+        throw err;
       }
+      showSuccessToast('Question mise à jour localement.');
     }
   };
 
@@ -284,10 +331,11 @@ export const App: React.FC = () => {
     setQuestions(questions.filter(q => q.id !== id));
     try {
       await api.deleteQuestion(id);
+      showSuccessToast('Question supprimée.');
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
         setQuestions(previousQuestions);
-        showToast(err?.message || 'Impossible de supprimer cette question.');
+        showErrorToast(err?.message || 'Impossible de supprimer cette question.');
       }
     }
   };
@@ -295,18 +343,22 @@ export const App: React.FC = () => {
   const handleAddAnswer = async (questionId: number, content: string) => {
     try {
       await api.addQuestionAnswer(questionId, content);
-      if (currentSprintId) loadSprintDetails(currentSprintId);
+      if (currentSprintId) await loadSprintDetails(currentSprintId);
+      showSuccessToast('Proposition de réponse ajoutée.');
     } catch (e: any) {
-      showToast(e.message || "Erreur lors de l'envoi de la proposition");
+      showErrorToast(e?.message || "Erreur lors de l'envoi de la proposition.");
+      throw e;
     }
   };
 
   const handleUpdateAnswer = async (answerId: number, content: string) => {
     try {
       await api.updateQuestionAnswer(answerId, content);
-      if (currentSprintId) loadSprintDetails(currentSprintId);
+      if (currentSprintId) await loadSprintDetails(currentSprintId);
+      showSuccessToast('Proposition mise à jour.');
     } catch (e: any) {
-      showToast(e.message || 'Erreur lors de la modification de la réponse');
+      showErrorToast(e?.message || 'Erreur lors de la modification de la réponse.');
+      throw e;
     }
   };
 
@@ -314,18 +366,25 @@ export const App: React.FC = () => {
     if (!window.confirm('Supprimer cette proposition de réponse ?')) return;
     try {
       await api.deleteQuestionAnswer(answerId);
-      if (currentSprintId) loadSprintDetails(currentSprintId);
+      if (currentSprintId) await loadSprintDetails(currentSprintId);
+      showSuccessToast('Proposition supprimée.');
     } catch (e: any) {
-      showToast(e.message || 'Erreur lors de la suppression');
+      showErrorToast(e?.message || 'Erreur lors de la suppression.');
     }
   };
 
   const handleSetQuestionDecision = async (questionId: number, finalAnswer: string, status: string = 'resolved') => {
     try {
       await api.setQuestionDecision(questionId, finalAnswer, status);
-      if (currentSprintId) loadSprintDetails(currentSprintId);
+      if (currentSprintId) await loadSprintDetails(currentSprintId);
+      showSuccessToast(
+        finalAnswer.trim()
+          ? 'Décision finale actée en séance.'
+          : 'Décision supprimée, question réouverte.'
+      );
     } catch (e: any) {
-      showToast(e.message || "Erreur lors de l'enregistrement de la décision");
+      showErrorToast(e?.message || "Erreur lors de l'enregistrement de la décision.");
+      throw e;
     }
   };
 
@@ -336,7 +395,7 @@ export const App: React.FC = () => {
     try {
       const res = await api.closeSprint(current.id, nextName, notes);
       if (res.success) {
-        showToast(res.message);
+        showSuccessToast(res.message || 'Sprint clôturé avec succès.');
         const sprintsRes = await api.getSprints();
         setSprints(sprintsRes.sprints);
         setCurrentSprintId(res.new_sprint_id);
@@ -345,7 +404,7 @@ export const App: React.FC = () => {
       }
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
-        showToast(err?.message || 'Impossible de clôturer ce sprint.');
+        showErrorToast(err?.message || 'Impossible de clôturer ce sprint.');
         throw err;
       }
       const nextNumber = current.number + 1;
@@ -391,40 +450,58 @@ export const App: React.FC = () => {
       setCurrentSprintId(newSprintId);
       setTasks(rolledOverTasks);
       setQuestions([]);
-      showToast(`Le sprint ${current.name} a été clôturé localement (${rolledOverTasks.length} tâches transférées).`);
+      showSuccessToast(`Le sprint ${current.name} a été clôturé localement (${rolledOverTasks.length} tâches transférées).`);
     }
   };
 
   // Administration des sprints
   const handleSprintReopened = async (sprintId: number) => {
-    await api.reopenSprint(sprintId);
-    const sprintsRes = await api.getSprints();
-    if (sprintsRes?.sprints) {
-      setSprints(sprintsRes.sprints);
-      setCurrentSprintId(sprintId);
-      await loadSprintDetails(sprintId);
+    try {
+      await api.reopenSprint(sprintId);
+      const sprintsRes = await api.getSprints();
+      if (sprintsRes?.sprints) {
+        setSprints(sprintsRes.sprints);
+        setCurrentSprintId(sprintId);
+        await loadSprintDetails(sprintId);
+      }
+      showSuccessToast('Sprint réouvert avec succès.');
+    } catch (err: any) {
+      showErrorToast(err?.message || 'Impossible de réouvrir ce sprint.');
+      throw err;
     }
   };
 
   const handleSprintUpdated = async (sprintId: number, data: Partial<Sprint>) => {
-    await api.updateSprint(sprintId, data);
-    const sprintsRes = await api.getSprints();
-    if (sprintsRes?.sprints) {
-      setSprints(sprintsRes.sprints);
-      if (currentSprintId === sprintId) {
-        await loadSprintDetails(sprintId);
+    try {
+      await api.updateSprint(sprintId, data);
+      const sprintsRes = await api.getSprints();
+      if (sprintsRes?.sprints) {
+        setSprints(sprintsRes.sprints);
+        if (currentSprintId === sprintId) {
+          await loadSprintDetails(sprintId);
+        }
       }
+      showSuccessToast('Sprint mis à jour.');
+    } catch (err: any) {
+      showErrorToast(err?.message || 'Impossible de modifier ce sprint.');
+      throw err;
     }
   };
 
   const handleSprintDeleted = async (sprintId: number) => {
-    await api.deleteSprint(sprintId);
-    const sprintsRes = await api.getSprints();
-    if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
-      setSprints(sprintsRes.sprints);
-      const nextSprint = sprintsRes.sprints.find(s => s.status === 'active') || sprintsRes.sprints[0];
-      setCurrentSprintId(nextSprint.id);
-      await loadSprintDetails(nextSprint.id);
+    try {
+      await api.deleteSprint(sprintId);
+      const sprintsRes = await api.getSprints();
+      if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
+        setSprints(sprintsRes.sprints);
+        const nextSprint = sprintsRes.sprints.find(s => s.status === 'active') || sprintsRes.sprints[0];
+        setCurrentSprintId(nextSprint.id);
+        await loadSprintDetails(nextSprint.id);
+      }
+      showSuccessToast('Sprint supprimé.');
+    } catch (err: any) {
+      showErrorToast(err?.message || 'Impossible de supprimer ce sprint.');
+      throw err;
     }
   };
 
@@ -471,11 +548,14 @@ export const App: React.FC = () => {
 
   if (!currentUser) {
     return (
-      <LoginPage
-        users={allUsers}
-        onLoginSuccess={handleLoginSuccess}
-        onLoginSubmit={handleLoginSubmit}
-      />
+      <>
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+        <LoginPage
+          users={allUsers}
+          onLoginSuccess={handleLoginSuccess}
+          onLoginSubmit={handleLoginSubmit}
+        />
+      </>
     );
   }
 
@@ -494,21 +574,7 @@ export const App: React.FC = () => {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
-        {actionToast && (
-          <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-center justify-between gap-3 shadow-xs animate-fade-in">
-            <div className="flex items-center gap-2.5 text-xs font-semibold">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" strokeWidth={2} />
-              <span>{actionToast}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActionToast(null)}
-              className="p-1 text-red-500 hover:text-red-700 cursor-pointer"
-            >
-              <X className="w-4 h-4" strokeWidth={1.75} />
-            </button>
-          </div>
-        )}
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
         {apiError && (
           <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-center justify-between shadow-xs">
@@ -690,33 +756,44 @@ export const App: React.FC = () => {
         onSprintDeleted={handleSprintDeleted}
         onUserCreated={(newUser) => {
           setAllUsers([...allUsers, newUser]);
+          showSuccessToast(`Associé « ${newUser.name} » créé.`);
         }}
         onUserUpdated={(updatedUser) => {
           setAllUsers(allUsers.map(u => (u.id === updatedUser.id ? updatedUser : u)));
           if (currentUser?.id === updatedUser.id) {
             setCurrentUser(updatedUser);
           }
+          showSuccessToast(`Associé « ${updatedUser.name} » mis à jour.`);
         }}
         onUserDeleted={(deletedId) => {
           setAllUsers(allUsers.filter(u => u.id !== deletedId));
+          showSuccessToast('Associé supprimé.');
         }}
         onPropertyCreated={(newProp) => {
           setProperties(prev => sortProperties([...prev, newProp]));
+          showSuccessToast(`Hébergement « ${newProp.name} » ajouté.`);
         }}
         onPropertyUpdated={(updatedProp) => {
           setProperties(prev => sortProperties(prev.map(p => (p.id === updatedProp.id ? updatedProp : p))));
           if (currentSprintId) {
             loadSprintDetails(currentSprintId);
           }
+          showSuccessToast(`Hébergement « ${updatedProp.name} » mis à jour.`);
         }}
         onPropertyStatusChanged={async (updatedProp) => {
           setProperties(prev => sortProperties(prev.map(p => (p.id === updatedProp.id ? updatedProp : p))));
           if (currentSprintId) {
             await loadSprintDetails(currentSprintId);
           }
+          showSuccessToast(
+            Number(updatedProp.is_active) === 1
+              ? `Hébergement « ${updatedProp.name} » réactivé.`
+              : `Hébergement « ${updatedProp.name} » archivé.`
+          );
         }}
         onPropertiesReordered={(orderedProps) => {
           setProperties(orderedProps);
+          showSuccessToast('Ordre des hébergements mis à jour.');
         }}
       />
     </div>
