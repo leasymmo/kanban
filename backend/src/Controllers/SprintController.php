@@ -19,9 +19,9 @@ class SprintController {
         $stmt = $db->query("
             SELECT s.*,
                    u.name as closed_by_name,
-                   (SELECT COUNT(*) FROM tasks t WHERE t.sprint_id = s.id) as total_tasks,
-                   (SELECT COUNT(*) FROM tasks t WHERE t.sprint_id = s.id AND t.status = 'done') as done_tasks,
-                   (SELECT COUNT(*) FROM tasks t WHERE t.sprint_id = s.id AND t.status != 'done') as pending_tasks,
+                   (SELECT COUNT(*) FROM sprint_tasks st WHERE st.sprint_id = s.id AND st.status != 'pending') as total_tasks,
+                   (SELECT COUNT(*) FROM sprint_tasks st WHERE st.sprint_id = s.id AND st.status = 'done') as done_tasks,
+                   (SELECT COUNT(*) FROM sprint_tasks st WHERE st.sprint_id = s.id AND st.status NOT IN ('done', 'pending')) as pending_tasks,
                    (SELECT COUNT(*) FROM questions q WHERE q.sprint_id = s.id) as total_questions
             FROM sprints s
             LEFT JOIN users u ON u.id = s.closed_by
@@ -83,53 +83,51 @@ class SprintController {
             Response::error('Sprint introuvable', 404);
         }
 
-        // Récupération des tâches du sprint
+        // Récupération des tâches du sprint via la table d'association N-N sprint_tasks
         $stmtTasks = $db->prepare("
-            SELECT t.*,
+            SELECT t.id, t.title, t.description, t.created_by,
+                   t.property_id, t.priority, t.due_date, t.parent_task_id,
+                   t.created_at, t.updated_at,
+                   st.sprint_id, st.status, st.assigned_to, st.position, st.is_unplanned, st.is_starred, st.is_new,
                    p.name as property_name, p.color as property_color, p.code as property_code,
                    ua.name as assigned_to_name, ua.initials as assigned_to_initials, ua.avatar_color as assigned_to_color,
                    uc.name as created_by_name, uc.initials as created_by_initials
-            FROM tasks t
+            FROM sprint_tasks st
+            JOIN tasks t ON t.id = st.task_id
             LEFT JOIN properties p ON p.id = t.property_id
-            LEFT JOIN users ua ON ua.id = t.assigned_to
+            LEFT JOIN users ua ON ua.id = st.assigned_to
             JOIN users uc ON uc.id = t.created_by
-            WHERE t.sprint_id = ?
-            ORDER BY t.position ASC, t.id ASC
+            WHERE st.sprint_id = ?
+            ORDER BY st.position ASC, t.id ASC
         ");
         $stmtTasks->execute([$id]);
         $tasks = $stmtTasks->fetchAll();
 
-        // Récupération de toutes les sous-tâches du sprint
+        // Récupération de toutes les sous-tâches du sprint (visibilité et état différentiel si archivé)
         $taskIds = array_column($tasks, 'id');
-        $subtasksMap = [];
-        if (!empty($taskIds)) {
-            $inClause = implode(',', array_fill(0, count($taskIds), '?'));
-            $stmtSub = $db->prepare("
-                SELECT * FROM subtasks
-                WHERE task_id IN ($inClause)
-                ORDER BY position ASC, id ASC
-            ");
-            $stmtSub->execute($taskIds);
-            while ($sub = $stmtSub->fetch()) {
-                $subtasksMap[$sub['task_id']][] = $sub;
-            }
-        }
+        $subtasksMap = \App\SubtaskStateHelper::fetchResolvedSubtasksForTasks(
+            $db,
+            $taskIds,
+            (int)$sprint['id'],
+            isset($sprint['number']) ? (int)$sprint['number'] : null,
+            $sprint['status'] ?? null
+        );
 
-        // Attachement des sous-tâches et calcul des droits d'édition
+        $isSprintClosed = ($sprint['status'] === 'closed');
+        $isAdmin = ($currentUser['role'] === 'admin');
+        $isWrite = ($currentUser['role'] === 'write');
+
+        // Attachement des sous-tâches et calcul des droits d'édition (sprint clôturé = lecture seule pour non-admins)
         foreach ($tasks as &$task) {
             $task['subtasks'] = $subtasksMap[$task['id']] ?? [];
-            $task['can_edit'] = ($currentUser['role'] === 'admin')
-                || ($currentUser['role'] === 'write' && (
-                    $task['assigned_to'] == $currentUser['id']
-                    || ($task['assigned_to'] === null && $task['created_by'] == $currentUser['id'])
-                ));
-            $task['can_delete'] = $task['can_edit'];
-            $task['can_assign'] = ($currentUser['role'] === 'admin');
-            $task['can_star'] = ($currentUser['role'] === 'admin')
-                || ($currentUser['role'] === 'write' && (
-                    $task['assigned_to'] == $currentUser['id']
-                    || ($task['assigned_to'] === null && $task['created_by'] == $currentUser['id'])
-                ));
+            $isOwner = ($task['assigned_to'] == $currentUser['id'])
+                || ($task['assigned_to'] === null && $task['created_by'] == $currentUser['id']);
+            $canModify = $isAdmin || (!$isSprintClosed && $isWrite && $isOwner);
+
+            $task['can_edit'] = $canModify;
+            $task['can_delete'] = $canModify;
+            $task['can_assign'] = $isAdmin;
+            $task['can_star'] = $canModify && ($task['status'] !== 'pending');
         }
 
         // Récupération des questions du sprint
@@ -167,13 +165,13 @@ class SprintController {
         }
 
         foreach ($questions as &$q) {
-            $q['can_edit'] = ($currentUser['role'] === 'admin')
-                || ($currentUser['role'] === 'write' && $q['user_id'] == $currentUser['id']);
+            $q['can_edit'] = $isAdmin
+                || (!$isSprintClosed && $isWrite && $q['user_id'] == $currentUser['id']);
             $q['can_delete'] = $q['can_edit'];
 
             $rawAnswers = $answersMap[$q['id']] ?? [];
             foreach ($rawAnswers as &$ans) {
-                $ans['can_edit'] = ($currentUser['role'] === 'admin') || ($ans['user_id'] == $currentUser['id']);
+                $ans['can_edit'] = $isAdmin || (!$isSprintClosed && $ans['user_id'] == $currentUser['id']);
                 $ans['can_delete'] = $ans['can_edit'];
             }
             $q['answers'] = $rawAnswers;
@@ -221,6 +219,9 @@ class SprintController {
         $db->beginTransaction();
 
         try {
+            // 0. Figer uniquement les écarts d'état des sous-tâches dans l'archive du sprint clôturé
+            \App\SubtaskStateHelper::freezeSprintSubtaskDeltas($db, (int)$id);
+
             // 1. Clôture du sprint actuel
             $stmtClose = $db->prepare("
                 UPDATE sprints
@@ -245,106 +246,77 @@ class SprintController {
             ]);
             $newSprintId = (int)$db->lastInsertId();
 
-            // 3. Récupération des tâches NON TERMINÉES du sprint clôturé
+            // 3. Récupération des tâches NON TERMINÉES du sprint clôturé (table N-N sprint_tasks)
             $stmtPendingTasks = $db->prepare("
-                SELECT * FROM tasks
-                WHERE sprint_id = ? AND status != 'done'
-                ORDER BY position ASC, id ASC
+                SELECT st.id as sprint_task_id, st.task_id, st.status, st.assigned_to, st.position
+                FROM sprint_tasks st
+                WHERE st.sprint_id = ? AND st.status != 'done'
+                ORDER BY st.position ASC, st.id ASC
             ");
             $stmtPendingTasks->execute([$id]);
             $pendingTasks = $stmtPendingTasks->fetchAll();
 
             $rolledOverTasksCount = 0;
             $rolledOverSubtasksCount = 0;
+            $meetingTasksActivated = 0;
+            $unassignedPendingMoved = 0;
 
-            $stmtInsertTask = $db->prepare("
-                INSERT INTO tasks (
-                    sprint_id, title, description, status, assigned_to, created_by,
-                    property_id, priority, due_date, position, is_unplanned, parent_task_id, is_starred
+            $stmtMoveUnassignedPending = $db->prepare("
+                UPDATE sprint_tasks
+                SET sprint_id = ?, position = ?, is_unplanned = 0, is_starred = 0, is_new = 0
+                WHERE id = ?
+            ");
+
+            $stmtLinkTask = $db->prepare("
+                INSERT INTO sprint_tasks (
+                    sprint_id, task_id, status, assigned_to, position, is_unplanned, is_starred, is_new
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, 0, ?, ?
+                    ?, ?, ?, ?, ?, 0, 0, ?
                 )
             ");
 
-            $stmtGetSubtasks = $db->prepare("
-                SELECT * FROM subtasks
-                WHERE task_id = ?
-                ORDER BY parent_id ASC, position ASC, id ASC
-            ");
+            $stmtCountSubtasks = $db->prepare("SELECT COUNT(*) FROM subtasks WHERE task_id = ? AND deleted_sprint_id IS NULL");
 
-            $stmtInsertSubtask = $db->prepare("
-                INSERT INTO subtasks (task_id, parent_id, title, is_done, position)
-                VALUES (?, ?, ?, ?, ?)
-            ");
+            $pos = 1;
+            foreach ($pendingTasks as $oldSprintTask) {
+                $wasPending = ($oldSprintTask['status'] === 'pending');
+                $assignedTo = $oldSprintTask['assigned_to'] !== null ? (int)$oldSprintTask['assigned_to'] : null;
 
-            foreach ($pendingTasks as $oldTask) {
-                // Si la tâche était en statut 'todo', on la laisse en 'in_progress' ou son statut actuel
-                $statusToKeep = ($oldTask['status'] === 'todo') ? 'in_progress' : $oldTask['status'];
-
-                $stmtInsertTask->execute([
-                    $newSprintId,
-                    $oldTask['title'],
-                    $oldTask['description'],
-                    $statusToKeep,
-                    $oldTask['assigned_to'],
-                    $oldTask['created_by'],
-                    $oldTask['property_id'],
-                    $oldTask['priority'],
-                    $oldTask['due_date'],
-                    $oldTask['position'],
-                    $oldTask['id'], // parent_task_id pour traçabilité
-                    !empty($oldTask['is_starred']) ? 1 : 0
-                ]);
-                $newTaskId = (int)$db->lastInsertId();
-                $rolledOverTasksCount++;
-
-                // Report de TOUTES les sous-tâches (faites ou non) avec préservation exacte de la hiérarchie parent/enfant
-                $stmtGetSubtasks->execute([$oldTask['id']]);
-                $oldSubtasks = $stmtGetSubtasks->fetchAll();
-
-                $subtaskIdMap = [];
-                $remaining = $oldSubtasks;
-                $maxIterations = 10;
-                $iter = 0;
-
-                while (!empty($remaining) && $iter < $maxIterations) {
-                    $nextRemaining = [];
-                    $iter++;
-                    foreach ($remaining as $sub) {
-                        $oldParentId = !empty($sub['parent_id']) ? (int)$sub['parent_id'] : null;
-                        if ($oldParentId === null || isset($subtaskIdMap[$oldParentId])) {
-                            $newParentId = $oldParentId ? $subtaskIdMap[$oldParentId] : null;
-                            $stmtInsertSubtask->execute([
-                                $newTaskId,
-                                $newParentId,
-                                $sub['title'],
-                                $sub['is_done'], // Conserve l'état validé ou non
-                                $sub['position']
-                            ]);
-                            $subtaskIdMap[$sub['id']] = (int)$db->lastInsertId();
-                            $rolledOverSubtasksCount++;
-                        } else {
-                            $nextRemaining[] = $sub;
-                        }
-                    }
-                    if (count($nextRemaining) === count($remaining)) {
-                        // Cas exceptionnel d'orphelin : insérer à la racine pour éviter toute perte
-                        foreach ($nextRemaining as $orphan) {
-                            $stmtInsertSubtask->execute([
-                                $newTaskId,
-                                null,
-                                $orphan['title'],
-                                $orphan['is_done'],
-                                $orphan['position']
-                            ]);
-                            $subtaskIdMap[$orphan['id']] = (int)$db->lastInsertId();
-                            $rolledOverSubtasksCount++;
-                        }
-                        break;
-                    }
-                    $remaining = $nextRemaining;
+                if ($wasPending && $assignedTo === null) {
+                    // Tâche pending non attribuée : déplacée sur le nouveau sprint (même ligne sprint_tasks, reste 'pending', sans is_new)
+                    $stmtMoveUnassignedPending->execute([
+                        $newSprintId,
+                        $pos++,
+                        (int)$oldSprintTask['sprint_task_id']
+                    ]);
+                    $unassignedPendingMoved++;
+                } else if ($wasPending && $assignedTo !== null) {
+                    // Tâche pending attribuée : passe sur le nouveau sprint en 'todo' avec le tag 'Nouveau'
+                    $stmtLinkTask->execute([
+                        $newSprintId,
+                        $oldSprintTask['task_id'],
+                        'todo',
+                        $assignedTo,
+                        $pos++,
+                        1
+                    ]);
+                    $meetingTasksActivated++;
+                } else {
+                    // Tâche active non terminée : reportée avec son statut exact
+                    $stmtLinkTask->execute([
+                        $newSprintId,
+                        $oldSprintTask['task_id'],
+                        $oldSprintTask['status'],
+                        $assignedTo,
+                        $pos++,
+                        0
+                    ]);
+                    $rolledOverTasksCount++;
                 }
+
+                // Les sous-tâches restent rattachées à task_id avec leur état exact (faites / à faire)
+                $stmtCountSubtasks->execute([$oldSprintTask['task_id']]);
+                $rolledOverSubtasksCount += (int)$stmtCountSubtasks->fetchColumn();
             }
 
             $db->commit();
@@ -355,13 +327,16 @@ class SprintController {
                 'new_sprint_id' => $newSprintId,
                 'stats' => [
                     'tasks_rolled_over' => $rolledOverTasksCount,
-                    'subtasks_rolled_over' => $rolledOverSubtasksCount
+                    'subtasks_rolled_over' => $rolledOverSubtasksCount,
+                    'meeting_tasks_activated' => $meetingTasksActivated,
+                    'unassigned_pending_moved' => $unassignedPendingMoved
                 ]
             ]);
 
         } catch (\Exception $e) {
             $db->rollBack();
-            Response::error('Erreur lors de la bascule du sprint : ' . $e->getMessage(), 500);
+            error_log('Erreur SprintController::close : ' . $e->getMessage());
+            Response::error('Erreur interne lors de la bascule du sprint.', 500);
         }
     }
 
@@ -387,8 +362,18 @@ class SprintController {
 
         $db->beginTransaction();
         try {
+            // Figer les deltas de tout sprint actif avant de le passer en 'closed'
+            $stmtActives = $db->prepare("SELECT id, number FROM sprints WHERE status = 'active' AND id != ?");
+            $stmtActives->execute([$id]);
+            foreach ($stmtActives->fetchAll() as $activeRow) {
+                \App\SubtaskStateHelper::freezeSprintSubtaskDeltas($db, (int)$activeRow['id'], (int)$activeRow['number']);
+            }
+
             // Passer tout autre sprint actif en 'closed' pour assurer l'unicité du sprint actif
             $db->exec("UPDATE sprints SET status = 'closed' WHERE status = 'active'");
+
+            // Préserver l'état hérité des sprints clôturés postérieurs (y compris l'ancien sprint actif fraîchement clos)
+            \App\SubtaskStateHelper::materializeDownstreamInheritedStates($db, (int)$id, (int)$sprint['number']);
 
             // Réouvrir le sprint cible
             $stmtReopen = $db->prepare("
@@ -397,6 +382,9 @@ class SprintController {
                 WHERE id = ?
             ");
             $stmtReopen->execute([$id]);
+
+            // Restaurer subtasks.is_done à l'état résolu du sprint réouvert
+            \App\SubtaskStateHelper::restoreReopenedSprintSubtasks($db, (int)$id);
 
             $db->commit();
 
@@ -407,7 +395,8 @@ class SprintController {
             ]);
         } catch (\Throwable $e) {
             $db->rollBack();
-            Response::error('Erreur lors de la réouverture du sprint : ' . $e->getMessage(), 500);
+            error_log('Erreur SprintController::reopen : ' . $e->getMessage());
+            Response::error('Erreur interne lors de la réouverture du sprint.', 500);
         }
     }
 
@@ -465,13 +454,39 @@ class SprintController {
             Response::error('Impossible de supprimer le dernier sprint restant.', 400);
         }
 
-        $db->prepare("DELETE FROM sprints WHERE id = ?")->execute([$id]);
+        $db->beginTransaction();
+        try {
+            \App\SubtaskStateHelper::materializeDownstreamInheritedStates($db, (int)$id, (int)$sprint['number']);
+            \App\SubtaskStateHelper::reassignSubtaskSprintRefsBeforeDelete($db, (int)$id, (int)$sprint['number']);
 
-        // Si le sprint supprimé était actif, activer le dernier sprint existant
-        if ($sprint['status'] === 'active') {
-            $db->exec("UPDATE sprints SET status = 'active' ORDER BY number DESC LIMIT 1");
+            $db->prepare("DELETE FROM sprints WHERE id = ?")->execute([$id]);
+            $db->exec("DELETE FROM tasks WHERE id NOT IN (SELECT DISTINCT task_id FROM sprint_tasks)");
+
+            // Si le sprint supprimé était actif, réouvrir proprement le dernier sprint existant et restaurer ses sous-tâches
+            if ($sprint['status'] === 'active') {
+                $nextActive = $db->query("SELECT id, number FROM sprints ORDER BY number DESC LIMIT 1")->fetch();
+                if ($nextActive) {
+                    $nextActiveId = (int)$nextActive['id'];
+                    $nextActiveNumber = (int)$nextActive['number'];
+
+                    $stmtReopenLatest = $db->prepare("
+                        UPDATE sprints
+                        SET status = 'active', closed_at = NULL, closed_by = NULL
+                        WHERE id = ?
+                    ");
+                    $stmtReopenLatest->execute([$nextActiveId]);
+
+                    // Restaure subtasks.is_done depuis subtask_sprint_states puis nettoie les deltas du sprint réouvert
+                    \App\SubtaskStateHelper::restoreReopenedSprintSubtasks($db, $nextActiveId, $nextActiveNumber);
+                }
+            }
+
+            $db->commit();
+            Response::success(null, 'Sprint supprimé avec succès');
+        } catch (\Throwable $e) {
+            $db->rollBack();
+            error_log('Erreur SprintController::delete : ' . $e->getMessage());
+            Response::error('Erreur interne lors de la suppression du sprint.', 500);
         }
-
-        Response::success(null, 'Sprint supprimé avec succès');
     }
 }

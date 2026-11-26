@@ -1,29 +1,31 @@
-import React, { useState } from 'react';
-import { Sprint, Task, Question, User, Property } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Sprint, Task, TaskStatus, Question, User, Property } from '../types';
 import { buildSubtaskTree, HierarchicalSubtask } from '../utils/subtasks';
+import { BlurredIconSwap } from './BlurredIconSwap';
 import {
-  Users, CheckCircle2, Clock, AlertTriangle, ArrowRight, UserPlus,
-  HelpCircle, Shield, CheckSquare, Square, RefreshCw, Calendar,
-  Sparkles, MessageSquare, Check, Edit3, X, ChevronRight, Star,
-  ChevronDown, ChevronUp, ListFilter, Plus
+  Users, CheckCircle2, UserPlus,
+  Shield, CheckSquare, Square,
+  Sparkles, MessageSquare, Check, Edit3, Trash2, Star,
+  ChevronDown, Plus, AlertTriangle
 } from 'lucide-react';
 
 interface MeetingViewProps {
-  sprint: Sprint;
+  sprint?: Sprint | null;
   tasks: Task[];
   questions: Question[];
   users: User[];
   currentUser: User | null;
   properties: Property[];
   onOpenCloseSprintModal: () => void;
-  onUpdateTaskStatus: (taskId: number, status: Task['status']) => void;
-  onAssignTask: (taskId: number, userId: number) => void;
+  onUpdateTaskStatus: (taskId: number, status: TaskStatus) => void;
+  onAssignTask: (taskId: number, userId: number | null) => void;
+  onDeleteTask?: (taskId: number) => void;
   onToggleSubtask: (subtaskId: number) => void;
   onUpdateQuestionStatus: (questionId: number, status: Question['status']) => void;
   onSetQuestionDecision?: (questionId: number, finalAnswer: string, status?: string) => Promise<void>;
   onEditTask: (task: Task) => void;
   onToggleStar?: (taskId: number) => void;
-  onAddNewTask?: () => void;
+  onAddNewTask?: (editingPendingTask?: Task | null) => void;
   onAddNewQuestion?: () => void;
   isReadOnly: boolean;
 }
@@ -38,6 +40,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   onOpenCloseSprintModal,
   onUpdateTaskStatus,
   onAssignTask,
+  onDeleteTask,
   onToggleSubtask,
   onUpdateQuestionStatus,
   onSetQuestionDecision,
@@ -67,6 +70,18 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   // Accordéons des tâches non mises en avant (par associé)
   const [expandedAccordions, setExpandedAccordions] = useState<{ [userId: number]: boolean }>({});
 
+  useEffect(() => {
+    if (users.length === 0) return;
+    if (!users.some(u => u.id === animatorId)) {
+      const chris = users.find(u => u.name.toLowerCase().includes('chris'));
+      setAnimatorId(chris ? chris.id : users[0].id);
+    }
+    if (!users.some(u => u.id === scribeId)) {
+      const max = users.find(u => u.name.toLowerCase().includes('max'));
+      setScribeId(max ? max.id : (users[1]?.id || users[0].id));
+    }
+  }, [users, animatorId, scribeId]);
+
   const toggleAccordion = (userId: number) => {
     setExpandedAccordions(prev => ({
       ...prev,
@@ -79,11 +94,26 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   const [editingDecisionForId, setEditingDecisionForId] = useState<number | null>(null);
   const [isSubmittingDecision, setIsSubmittingDecision] = useState<{ [questionId: number]: boolean }>({});
 
-  // Séparation des tâches
-  const unassignedTasks = tasks.filter(t => !t.assigned_to);
-  const doneTasks = tasks.filter(t => t.status === 'done');
-  const pendingTasks = tasks.filter(t => t.status !== 'done');
+  // Séparation des tâches :
+  // - pendingAllTasks : toutes les tâches au statut 'pending' (jamais visibles dans l'onglet Tâches)
+  // - pendingUnassigned : tâches 'pending' non attribuées (Sous-section 1 : Tâches non-attribuées)
+  // - pendingAssigned : tâches 'pending' attribuées (Sous-section 2 : Tâches attribuées, regroupées par associé)
+  // - activeSprintTasks : tâches actives du sprint en cours (status !== 'pending')
+  const pendingAllTasks = tasks.filter(t => t.status === 'pending');
+  const pendingUnassigned = pendingAllTasks.filter(t => !t.assigned_to);
+  const pendingAssigned = pendingAllTasks.filter(t => !!t.assigned_to);
+  const activeSprintTasks = tasks.filter(t => t.status !== 'pending');
+  const doneTasks = activeSprintTasks.filter(t => t.status === 'done');
+  const unfinishedSprintTasks = activeSprintTasks.filter(t => t.status !== 'done');
   const openQuestions = questions.filter(q => q.status !== 'resolved');
+
+  if (!sprint) {
+    return (
+      <div className="bg-white rounded-2xl border border-black/[0.12] p-10 text-center text-slate-500 text-sm">
+        Aucun sprint disponible.
+      </div>
+    );
+  }
 
   const handleSelectPropositionAsDecision = (questionId: number, propositionContent: string) => {
     setDecisionInputs(prev => ({ ...prev, [questionId]: propositionContent }));
@@ -125,11 +155,11 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 canEditThis ? 'cursor-pointer hover:text-slate-900' : 'cursor-default'
               }`}
             >
-              {node.is_done ? (
-                <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              ) : (
-                <Square className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-              )}
+              <BlurredIconSwap
+                active={!!node.is_done}
+                activeIcon={<CheckSquare className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />}
+                inactiveIcon={<Square className="w-3.5 h-3.5 text-slate-300" strokeWidth={1.75} />}
+              />
               <span className={node.is_done ? 'line-through text-slate-400' : 'font-medium'}>
                 {node.title}
               </span>
@@ -149,13 +179,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     <div className="space-y-6">
       
       {/* Header spécial Réunion Hebdomadaire (Responsive) */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-5 sm:p-6 text-white shadow-xl border border-indigo-900/40 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-[32px] sm:rounded-[36px] p-5 sm:p-6 text-white shadow-xl border border-indigo-900/40 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold uppercase tracking-wider mb-2">
-              <Users className="w-3.5 h-3.5" />
+              <Users className="w-3.5 h-3.5" strokeWidth={2.25} />
               Réunion hebdomadaire de l'équipe
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-3 flex-wrap">
@@ -173,21 +203,21 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
           {/* Bouton de Clôture / Bascule */}
           <div className="flex items-center gap-3 shrink-0">
-            {isAdmin && !isReadOnly ? (
-              <button
-                onClick={onOpenCloseSprintModal}
-                className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-brand-600 hover:from-indigo-600 hover:to-brand-700 text-white font-bold text-xs sm:text-sm shadow-xl shadow-brand-500/25 transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
-              >
-                <CheckCircle2 className="w-5 h-5 text-indigo-200" />
-                Valider la réunion & Clôturer le sprint
-              </button>
-            ) : isReadOnly ? (
-              <div className="text-xs text-slate-400 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700">
+            {sprint.status === 'closed' ? (
+              <div className="text-xs text-slate-300 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700">
                 🔒 Sprint validé et archivé
               </div>
+            ) : isAdmin ? (
+              <button
+                onClick={onOpenCloseSprintModal}
+                className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-brand-600 hover:from-indigo-600 hover:to-brand-700 text-white font-bold text-xs sm:text-sm shadow-xl shadow-brand-500/25 transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
+              >
+                <CheckCircle2 className="w-5 h-5 text-indigo-200" strokeWidth={2.25} />
+                Valider la réunion & Clôturer le sprint
+              </button>
             ) : (
               <div className="text-xs text-slate-300 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-purple-400" />
+                <Shield className="w-4 h-4 text-purple-400" strokeWidth={1.75} />
                 Seul un administrateur peut clôturer le sprint
               </div>
             )}
@@ -198,7 +228,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-6 pt-6 border-t border-slate-800/80 text-xs">
           <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
             <span className="text-slate-400 font-medium">Tâches totales</span>
-            <div className="text-lg font-bold text-white mt-0.5">{tasks.length}</div>
+            <div className="text-lg font-bold text-white mt-0.5">{activeSprintTasks.length}</div>
           </div>
           <div className="bg-emerald-950/40 p-3 rounded-xl border border-emerald-800/40">
             <span className="text-emerald-400 font-medium">Tâches terminées ✅</span>
@@ -206,11 +236,11 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           </div>
           <div className="bg-amber-950/40 p-3 rounded-xl border border-amber-800/40">
             <span className="text-amber-400 font-medium">En cours / À reporter 🚧</span>
-            <div className="text-lg font-bold text-amber-300 mt-0.5">{pendingTasks.length}</div>
+            <div className="text-lg font-bold text-amber-300 mt-0.5">{unfinishedSprintTasks.length}</div>
           </div>
           <div className="bg-purple-950/40 p-3 rounded-xl border border-purple-800/40">
             <span className="text-purple-400 font-medium">À attribuer en réunion</span>
-            <div className="text-lg font-bold text-purple-300 mt-0.5">{unassignedTasks.length}</div>
+            <div className="text-lg font-bold text-purple-300 mt-0.5">{pendingUnassigned.length}</div>
           </div>
         </div>
 
@@ -229,10 +259,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   setAnimatorId(val);
                   localStorage.setItem('meeting_animator_id', String(val));
                 }}
-                className="bg-slate-900 border border-slate-700 rounded-md px-1.5 py-0.5 text-white font-bold text-xs focus:outline-none cursor-pointer"
+                className="bg-slate-700 border border-slate-600 rounded-md px-1.5 py-0.5 text-white font-bold text-xs focus:outline-none cursor-pointer"
               >
                 {users.map(u => (
-                  <option key={u.id} value={u.id} className="bg-slate-900 text-white">
+                  <option key={u.id} value={u.id} className="bg-slate-800 text-white">
                     {u.name}
                   </option>
                 ))}
@@ -252,10 +282,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   setScribeId(val);
                   localStorage.setItem('meeting_scribe_id', String(val));
                 }}
-                className="bg-slate-900 border border-slate-700 rounded-md px-1.5 py-0.5 text-white font-bold text-xs focus:outline-none cursor-pointer"
+                className="bg-slate-700 border border-slate-600 rounded-md px-1.5 py-0.5 text-white font-bold text-xs focus:outline-none cursor-pointer"
               >
                 {users.map(u => (
-                  <option key={u.id} value={u.id} className="bg-slate-900 text-white">
+                  <option key={u.id} value={u.id} className="bg-slate-800 text-white">
                     {u.name}
                   </option>
                 ))}
@@ -265,13 +295,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           </div>
 
           {/* Bouton d'ajout rapide de tâche en direct pendant la réunion */}
-          {!isReadOnly && currentUser?.role !== 'read' && onAddNewTask && (
+          {!isReadOnly && currentUser?.role !== 'read' && onAddNewTask && sprint.status !== 'closed' && (
             <button
-              onClick={onAddNewTask}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/20 hover:bg-brand-500/30 text-brand-200 border border-brand-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ml-auto"
+              onClick={() => onAddNewTask(null)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-500/25 hover:bg-violet-500/35 text-violet-100 border border-violet-400/40 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ml-auto"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ Nouvelle tâche en séance</span>
+              <Plus className="w-3.5 h-3.5" strokeWidth={2.25} />
+              <span>Nouvelle tâche en séance</span>
             </button>
           )}
         </div>
@@ -279,10 +309,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       </div>
 
       {/* Barre d'étapes de la réunion (Responsive horizontal scroll on mobile) */}
-      <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200/90 shadow-xs overflow-x-auto">
+      <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-black/[0.12] shadow-xs overflow-x-auto">
         <button
           onClick={() => setMeetingStep('retro')}
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
             meetingStep === 'retro'
               ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -295,7 +325,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
         <button
           onClick={() => setMeetingStep('questions')}
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
             meetingStep === 'questions'
               ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -309,7 +339,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
         <button
           onClick={() => setMeetingStep('unassigned')}
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
             meetingStep === 'unassigned'
               ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -318,7 +348,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           <span className="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px]">3</span>
           <span>Plan d'Action & Tâches orphelines</span>
           <span className="text-[10px] opacity-75 font-normal px-1.5 py-0.5 rounded bg-black/20">10 min</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px]">{unassignedTasks.length}</span>
+          <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px]">
+            {pendingUnassigned.length + pendingAssigned.length}
+          </span>
         </button>
       </div>
 
@@ -328,7 +360,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       {meetingStep === 'retro' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {users.map((user) => {
-            const userTasks = tasks.filter(t => t.assigned_to === user.id);
+            const userTasks = activeSprintTasks.filter(t => t.assigned_to === user.id);
             const userDone = userTasks.filter(t => t.status === 'done');
             const userPending = userTasks.filter(t => t.status !== 'done');
             const userStarred = userTasks.filter(t => !!t.is_starred);
@@ -349,7 +381,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                       ? 'bg-emerald-50/40 border-emerald-200'
                       : t.status === 'blocked'
                       ? 'bg-red-50/40 border-red-200'
-                      : 'bg-slate-50 border-slate-200'
+                      : 'bg-slate-50 border-black/[0.12]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -361,11 +393,11 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                           className="mt-0.5 text-slate-400 hover:text-emerald-600 transition-colors shrink-0 cursor-pointer"
                           title="Marquer fait / en cours"
                         >
-                          {t.status === 'done' ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          ) : (
-                            <Square className="w-4 h-4 text-slate-400" />
-                          )}
+                          <BlurredIconSwap
+                            active={t.status === 'done'}
+                            activeIcon={<CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />}
+                            inactiveIcon={<Square className="w-4 h-4 text-slate-400" strokeWidth={1.75} />}
+                          />
                         </button>
                       ) : (
                         <span className="mt-0.5 shrink-0">
@@ -395,7 +427,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                               }`}
                               title={t.is_starred ? 'Mise en avant activée (cliquer pour retirer)' : 'Mettre en avant pour la réunion'}
                             >
-                              <Star className={`w-3.5 h-3.5 ${t.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-300'}`} />
+                              <Star className={`w-3.5 h-3.5 ${t.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-300'}`} strokeWidth={1.75} />
                             </button>
                           )}
 
@@ -422,7 +454,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
                         {/* Sous-tâches hiérarchiques jusqu'à 4 niveaux */}
                         {t.subtasks && t.subtasks.length > 0 && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-200/60">
+                          <div className="mt-2.5 pt-2 border-t border-black/[0.12]">
                             {renderRetroSubtasks(hierarchicalSubtasks, canEditThis)}
                           </div>
                         )}
@@ -433,8 +465,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                     {canEditThis && (
                       <select
                         value={t.status}
-                        onChange={(e) => onUpdateTaskStatus(t.id, e.target.value as Task['status'])}
-                        className="text-[11px] font-semibold border border-slate-200 rounded px-1.5 py-0.5 bg-white text-slate-700 cursor-pointer shrink-0"
+                        onChange={(e) => onUpdateTaskStatus(t.id, e.target.value as TaskStatus)}
+                        className="text-[11px] font-semibold border border-black/[0.12] rounded px-1.5 py-0.5 bg-white text-slate-700 cursor-pointer shrink-0"
                       >
                         <option value="todo">À faire</option>
                         <option value="in_progress">🚧 En cours</option>
@@ -450,10 +482,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             return (
               <div
                 key={user.id}
-                className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-col space-y-4"
+                className="bg-white rounded-[28px] sm:rounded-[32px] p-4 sm:p-5 border border-black/[0.12] shadow-xs flex flex-col space-y-4"
               >
                 {/* Entête Associé */}
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center justify-between pb-3 border-b border-black/[0.12]">
                   <div className="flex items-center gap-3">
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-xs"
@@ -472,7 +504,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {userStarred.length > 0 && (
                       <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
-                        <Star className="w-3 h-3 fill-amber-500 text-amber-600" />
+                        <Star className="w-3 h-3 fill-amber-500 text-amber-600" strokeWidth={2.25} />
                         {userStarred.length} mise{userStarred.length > 1 ? 's' : ''} en avant
                       </span>
                     )}
@@ -491,7 +523,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   ) : (
                     <div className="p-4 border border-dashed border-amber-200/90 bg-amber-50/20 rounded-xl text-center">
                       <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-900">
-                        <Star className="w-4 h-4 text-amber-500" />
+                        <Star className="w-4 h-4 text-amber-500" strokeWidth={2} />
                         Aucune tâche mise en avant avec l'étoile
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
@@ -504,14 +536,14 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
                   {/* ACCORDÉON EN BAS POUR LES AUTRES TÂCHES NON MISES EN AVANT */}
                   {userUnstarred.length > 0 && (
-                    <div className="pt-2 border-t border-slate-100 mt-3">
+                    <div className="pt-2 border-t border-black/[0.12] mt-3">
                       <button
                         type="button"
                         onClick={() => toggleAccordion(user.id)}
-                        className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/90 text-xs font-semibold text-slate-700 transition-all border border-slate-200/80 cursor-pointer group"
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/90 text-xs font-semibold text-slate-700 transition-all border border-black/[0.12] cursor-pointer group"
                       >
                         <span className="flex items-center gap-2">
-                          <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isAccordionOpen ? 'rotate-180' : ''}`} />
+                          <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isAccordionOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
                           <span>Autres tâches non mises en avant ({userUnstarred.length})</span>
                         </span>
                         <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-700 uppercase tracking-wider">
@@ -535,8 +567,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
       {/* ÉTAPE 2 : Revue des questions avec Décision Définitive */}
       {meetingStep === 'questions' && (
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+        <div className="bg-white rounded-[32px] sm:rounded-[36px] p-5 sm:p-6 border border-black/[0.12] shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-black/[0.12]">
             <div>
               <h3 className="font-bold text-base text-slate-800">Sujets stratégiques & Revue des Questions</h3>
               <p className="text-xs text-slate-500">
@@ -553,7 +585,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   onClick={onAddNewQuestion}
                   className="flex items-center gap-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3.5 h-3.5" strokeWidth={2.25} />
                   <span>+ Poser une question</span>
                 </button>
               )}
@@ -572,8 +604,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               return (
                 <div
                   key={q.id}
-                  className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-                    isResolved ? 'bg-emerald-50/20 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                  className={`p-4 sm:p-5 rounded-xl border transition-all ${
+                    isResolved ? 'bg-emerald-50/20 border-emerald-200' : 'bg-slate-50 border-black/[0.12]'
                   }`}
                 >
                   {/* Top Bar Question */}
@@ -604,7 +636,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                               : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
                           }`}
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2.25} />
                           {isResolved ? 'Réouvrir' : 'Clore'}
                         </button>
                       )}
@@ -617,16 +649,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   </h4>
 
                   {q.details && (
-                    <p className="mt-2 text-xs sm:text-sm text-slate-600 bg-white p-3 rounded-xl border border-slate-200/70 leading-relaxed font-normal whitespace-pre-line break-words">
+                    <p className="mt-2 text-xs sm:text-sm text-slate-600 bg-white p-3 rounded-lg border border-black/[0.12] leading-relaxed font-normal whitespace-pre-line break-words">
                       {q.details}
                     </p>
                   )}
 
                   {/* SECTION DES PROPOSITIONS DE RÉPONSES DU SPRINT */}
                   {answers.length > 0 && (
-                    <div className="mt-3.5 pt-3 border-t border-slate-200/70 space-y-2">
+                    <div className="mt-3.5 pt-3 border-t border-black/[0.12] space-y-2">
                       <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-indigo-500" />
+                        <MessageSquare className="w-3.5 h-3.5 text-indigo-500" strokeWidth={2.25} />
                         Propositions apportées pendant le sprint ({answers.length}) :
                       </span>
 
@@ -634,7 +666,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                         {answers.map((ans) => (
                           <div
                             key={ans.id}
-                            className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                            className="p-2.5 bg-white rounded-lg border border-black/[0.12] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                           >
                             <div className="space-y-1 flex-1">
                               <div className="flex items-center gap-1.5">
@@ -657,7 +689,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                                 className="px-2.5 py-1 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg flex items-center gap-1 transition-colors self-end sm:self-center shrink-0 cursor-pointer"
                                 title="Retenir cette proposition comme décision finale"
                               >
-                                <Sparkles className="w-3 h-3 text-indigo-500" />
+                                <Sparkles className="w-3 h-3 text-indigo-500" strokeWidth={2.25} />
                                 <span>Choisir comme décision</span>
                               </button>
                             )}
@@ -668,13 +700,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   )}
 
                   {/* SECTION DÉCISION DÉFINITIVE ACTÉE EN SÉANCE */}
-                  <div className="mt-4 pt-3.5 border-t border-slate-200">
+                  <div className="mt-4 pt-3.5 border-t border-black/[0.12]">
                     {hasFinalAnswer && !isEditingDecision ? (
                       // Affichage de la décision actée
-                      <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-300">
+                      <div className="p-3.5 rounded-lg bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-300">
                         <div className="flex items-center justify-between gap-2 mb-1.5">
                           <div className="flex items-center gap-2 text-xs font-black text-emerald-900 uppercase tracking-wide">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={2.25} />
                             <span>Décision finale actée en séance</span>
                           </div>
                           {canArbitrate && (
@@ -686,7 +718,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                               }}
                               className="text-[11px] font-semibold text-slate-500 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
                             >
-                              <Edit3 className="w-3 h-3" />
+                              <Edit3 className="w-3 h-3" strokeWidth={2} />
                               Modifier
                             </button>
                           )}
@@ -703,10 +735,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                     ) : (
                       // Formulaire de saisie de la décision définitive
                       canArbitrate && (
-                        <div className="p-3.5 rounded-xl bg-white border border-indigo-200 shadow-xs space-y-2.5">
+                        <div className="p-3.5 rounded-lg bg-white border border-indigo-200 shadow-xs space-y-2.5">
                           <div className="flex items-center justify-between">
                             <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                              <Sparkles className="w-3.5 h-3.5 text-indigo-600" strokeWidth={2.25} />
                               Apporter une réponse définitive à la question
                             </label>
                             {hasFinalAnswer && (
@@ -725,7 +757,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                             placeholder="Saisissez la décision actée par les associés, ou cliquez sur 'Choisir comme décision' au-dessus..."
                             value={currentInput}
                             onChange={(e) => setDecisionInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
-                            className="w-full p-2.5 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            className="w-full p-2.5 border border-black/[0.12] rounded-xl text-xs sm:text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                           />
 
                           <div className="flex items-center justify-end gap-2">
@@ -749,7 +781,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                               onClick={() => handleSaveDecision(q.id)}
                               className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer transition-all"
                             >
-                              <Check className="w-4 h-4" />
+                              <Check className="w-4 h-4" strokeWidth={2.25} />
                               <span>{isSubmittingDecision[q.id] ? 'Enregistrement...' : 'Acter la décision finale'}</span>
                             </button>
                           </div>
@@ -765,88 +797,310 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         </div>
       )}
 
-      {/* ÉTAPE 3 : Pool des tâches non-attribuées */}
+      {/* ÉTAPE 3 : Plan d'Action & Tâches orphelines (Tâches au statut 'pending') */}
       {meetingStep === 'unassigned' && (
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-            <div>
-              <h3 className="font-bold text-base text-slate-800">Plan d'action & Tâches orphelines à attribuer</h3>
-              <p className="text-xs text-slate-500">
-                L'administrateur peut attribuer ces tâches en un clic à l'associé qui s'en charge.
-              </p>
+        <div className="space-y-5">
+          {/* Sous-section 1 : Tâches non-attribuées (pending sans responsable) */}
+          <div className="bg-white rounded-[32px] sm:rounded-[36px] p-5 sm:p-6 border border-amber-200/90 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-black/[0.12]">
+              <div>
+                <h3 className="font-bold text-base text-slate-800 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-amber-600" strokeWidth={2.25} />
+                  <span>Tâches non-attribuées</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  En attente d'un responsable (statut pending). Attribuez-les en un clic pour les planifier sur le Point {sprint.number + 1}.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+                  {pendingUnassigned.length} à attribuer
+                </span>
+                {!isReadOnly && currentUser?.role !== 'read' && onAddNewTask && sprint.status !== 'closed' && (
+                  <button
+                    type="button"
+                    onClick={() => onAddNewTask(null)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" strokeWidth={2.25} />
+                    <span>Nouvelle tâche en séance</span>
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
-                {unassignedTasks.length} tâche{unassignedTasks.length > 1 ? 's' : ''} en attente
-              </span>
-              {!isReadOnly && currentUser?.role !== 'read' && onAddNewTask && (
-                <button
-                  type="button"
-                  onClick={onAddNewTask}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Ajouter une tâche au pool</span>
-                </button>
-              )}
-            </div>
-          </div>
 
-          <div className="space-y-3">
-            {unassignedTasks.length > 0 ? (
-              unassignedTasks.map((t) => (
-                <div
-                  key={t.id}
-                  className="p-4 rounded-xl border border-amber-200 bg-amber-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 flex items-center gap-1">
-                        <UserPlus className="w-3 h-3" /> À attribuer
-                      </span>
-                      {t.property_name && (
-                        <span
-                          className="text-[11px] font-bold px-2 py-0.5 rounded text-white"
-                          style={{ backgroundColor: t.property_color || '#3B82F6' }}
-                        >
-                          {t.property_name}
+            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-2 text-xs text-amber-900">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" strokeWidth={1.5} />
+              <span>
+                <strong>À la clôture du sprint</strong> : si elles restent non attribuées, ces tâches seront déplacées vers le Point {sprint.number + 1} en conservant le statut <strong>pending</strong>.
+              </span>
+            </div>
+
+            {pendingUnassigned.length > 0 ? (
+              <div className="space-y-3">
+                {pendingUnassigned.map((t) => (
+                  <div
+                    key={t.id}
+                    className="p-4 rounded-xl border border-amber-200 bg-amber-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                          <UserPlus className="w-3 h-3" strokeWidth={2.25} /> À attribuer
                         </span>
+
+                        {t.property_name && (
+                          <span
+                            className="text-[11px] font-bold px-2 py-0.5 rounded text-white"
+                            style={{ backgroundColor: t.property_color || '#3B82F6' }}
+                          >
+                            {t.property_name}
+                          </span>
+                        )}
+
+                        {t.priority === 'high' && (
+                          <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                            Urgent
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="font-bold text-sm text-slate-800 break-words">{t.title}</h4>
+                      {t.description && (
+                        <p className="text-xs text-slate-600 mt-1 break-words">
+                          <span className="text-brand-600 font-bold mr-1">→</span>
+                          {t.description}
+                        </p>
+                      )}
+                      {t.subtasks && t.subtasks.length > 0 && (
+                        <ul className="mt-2 space-y-1 pl-2 border-l-2 border-amber-200">
+                          {t.subtasks.map(st => (
+                            <li key={st.id} className="text-[11px] text-slate-600 font-medium">
+                              • {st.title}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
-                    <h4 className="font-bold text-sm text-slate-800">{t.title}</h4>
-                    {t.description && (
-                      <p className="text-xs text-slate-600 mt-1">
-                        <span className="text-brand-600 font-bold mr-1">→</span>
-                        {t.description}
-                      </p>
-                    )}
-                  </div>
 
-                  {/* Boutons d'attribution rapide réservés à l'admin */}
-                  {isAdmin && !isReadOnly ? (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-slate-500 mr-1">Attribuer à :</span>
-                      {users.map((u) => (
-                        <button
-                          key={u.id}
-                          onClick={() => onAssignTask(t.id, u.id)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs hover:opacity-90 transition-opacity flex items-center gap-1.5 cursor-pointer"
-                          style={{ backgroundColor: u.avatar_color }}
-                        >
-                          {u.name}
-                        </button>
-                      ))}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
+                      {isAdmin && !isReadOnly && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-semibold text-slate-500 mr-0.5">Attribuer :</span>
+                          {users.map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => onAssignTask(t.id, u.id)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white border border-black/[0.12] text-slate-700 hover:border-black/[0.22] hover:bg-slate-50 transition-all flex items-center gap-1.5 cursor-pointer"
+                              title={`Attribuer à ${u.name}`}
+                            >
+                              <span
+                                className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                                style={{ backgroundColor: u.avatar_color }}
+                              >
+                                {u.initials}
+                              </span>
+                              <span>{u.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {!isReadOnly && (t.can_edit || t.can_delete) && (
+                        <div className="flex items-center gap-1 self-end sm:self-auto">
+                          {t.can_edit && onAddNewTask && (
+                            <button
+                              type="button"
+                              onClick={() => onAddNewTask(t)}
+                              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg cursor-pointer transition-colors"
+                              title="Modifier cette tâche"
+                            >
+                              <Edit3 className="w-4 h-4" strokeWidth={1.75} />
+                            </button>
+                          )}
+                          {t.can_delete && onDeleteTask && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteTask(t.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg cursor-pointer transition-colors"
+                              title="Supprimer cette tâche"
+                            >
+                              <Trash2 className="w-4 h-4" strokeWidth={1.75} />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <span className="text-xs text-slate-400 italic">
-                      Attribution par l'administrateur
-                    </span>
-                  )}
-                </div>
-              ))
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="h-28 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-xs text-slate-400 font-medium">
-                Aucune tâche orpheline dans le pool. Toutes les tâches ont un responsable !
+              <div className="h-20 border-2 border-dashed border-amber-200/80 rounded-xl flex items-center justify-center text-xs text-slate-400 font-medium text-center px-4">
+                Aucune tâche non attribuée en attente.
+              </div>
+            )}
+          </div>
+
+          {/* Sous-section 2 : Tâches attribuées (pending avec responsable, regroupées par associé) */}
+          <div className="bg-white rounded-[32px] sm:rounded-[36px] p-5 sm:p-6 border border-violet-200/90 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-black/[0.12]">
+              <div>
+                <h3 className="font-bold text-base text-slate-800 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-violet-600" strokeWidth={2.25} />
+                  <span>Tâches attribuées (Plan d'action Point {sprint.number + 1})</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Regroupées par associé. Elles passeront automatiquement en statut « À faire » avec le tag « Nouveau » lors de la clôture.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-violet-100 text-violet-800">
+                  {pendingAssigned.length} planifiée{pendingAssigned.length > 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+
+            {pendingAssigned.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                {users.map((u) => {
+                  const userPending = pendingAssigned.filter(t => t.assigned_to === u.id);
+                  if (userPending.length === 0) return null;
+
+                  return (
+                    <div
+                      key={u.id}
+                      className="rounded-2xl border border-black/[0.12] bg-slate-50/70 p-4 space-y-3"
+                    >
+                      {/* En-tête du groupe associé */}
+                      <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.12]">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0"
+                            style={{ backgroundColor: u.avatar_color || '#2563EB' }}
+                          >
+                            {u.initials}
+                          </div>
+                          <h4 className="font-bold text-sm text-slate-800 truncate">{u.name}</h4>
+                        </div>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800 shrink-0">
+                          {userPending.length} tâche{userPending.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+
+                      {/* Liste des tâches attribuées à cet associé */}
+                      <div className="space-y-2.5">
+                        {userPending.map((t) => (
+                          <div
+                            key={t.id}
+                            className="p-3 rounded-xl bg-white border border-black/[0.12] shadow-2xs space-y-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 border border-violet-200 flex items-center gap-1">
+                                  <Sparkles className="w-2.5 h-2.5 text-violet-600" strokeWidth={2.25} />
+                                  Nouveau (Point {sprint.number + 1})
+                                </span>
+
+                                {t.property_name && (
+                                  <span
+                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white"
+                                    style={{ backgroundColor: t.property_color || '#3B82F6' }}
+                                  >
+                                    {t.property_name}
+                                  </span>
+                                )}
+
+                                {t.priority === 'high' && (
+                                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                                    Urgent
+                                  </span>
+                                )}
+                              </div>
+
+                              {!isReadOnly && (t.can_edit || t.can_delete) && (
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {t.can_edit && onAddNewTask && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onAddNewTask(t)}
+                                      className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+                                      title="Modifier cette tâche en attente"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                    </button>
+                                  )}
+                                  {t.can_delete && onDeleteTask && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onDeleteTask(t.id)}
+                                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                                      title="Supprimer cette tâche en attente"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            <h5 className="font-bold text-sm text-slate-800 break-words leading-snug">{t.title}</h5>
+
+                            {t.description && (
+                              <p className="text-xs text-slate-600 break-words">
+                                <span className="text-brand-600 font-bold mr-1">→</span>
+                                {t.description}
+                              </p>
+                            )}
+
+                            {t.subtasks && t.subtasks.length > 0 && (
+                              <ul className="space-y-1 pl-2 border-l-2 border-violet-200">
+                                {t.subtasks.map(st => (
+                                  <li key={st.id} className="text-[11px] text-slate-600 font-medium">
+                                    • {st.title}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+
+                            {/* Réattribution / Retrait rapide (Admin) */}
+                            {isAdmin && !isReadOnly && (
+                              <div className="pt-2 border-t border-black/[0.12] flex items-center justify-between gap-1.5 flex-wrap">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {users
+                                    .filter(other => other.id !== u.id)
+                                    .map(other => (
+                                      <button
+                                        key={other.id}
+                                        type="button"
+                                        onClick={() => onAssignTask(t.id, other.id)}
+                                        className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-slate-50 border border-black/[0.12] text-slate-700 hover:border-black/[0.22] hover:bg-slate-100 transition-colors cursor-pointer"
+                                        title={`Réattribuer à ${other.name}`}
+                                      >
+                                        → {other.name}
+                                      </button>
+                                    ))}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => onAssignTask(t.id, null)}
+                                  className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors cursor-pointer"
+                                  title="Retirer le responsable (renvoyer dans Tâches non-attribuées)"
+                                >
+                                  Retirer
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-20 border-2 border-dashed border-violet-200/80 rounded-xl flex items-center justify-center text-xs text-slate-400 font-medium text-center px-4">
+                Aucune tâche attribuée en attente pour le prochain sprint.
               </div>
             )}
           </div>

@@ -25,3 +25,10 @@
   background-size: 40px 40px;
   background-position: 0 0, 20px 20px;
 }
+
+@media (max-width: 767px) {
+  .kanban-carousel-fade {
+    -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+    mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+  }
+}

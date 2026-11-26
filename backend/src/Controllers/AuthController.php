@@ -29,6 +29,7 @@ class AuthController {
         try {
             if (mt_rand(1, 20) === 1) {
                 $db->exec("DELETE FROM login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+                $db->exec("DELETE FROM user_sessions WHERE expires_at <= NOW()");
             }
             $stmtAttempts = $db->prepare("
                 SELECT COUNT(*) FROM login_attempts
@@ -37,7 +38,7 @@ class AuthController {
             $stmtAttempts->execute([$ip]);
             $failCount = (int)$stmtAttempts->fetchColumn();
 
-            if ($failCount >= 30) {
+            if ($failCount >= 10) {
                 Response::error('Trop de tentatives de connexion échouées. Veuillez patienter quelques minutes.', 429);
             }
         } catch (\Throwable $t) {}
@@ -62,7 +63,6 @@ class AuthController {
 
         // Vérification sécurisée du mot de passe
         $passwordValid = false;
-        $dummySeedHash = '$2y$10$wKz0b9lM9V5bYI.m9Hn42OKxJ4qZJomk8f2aG4R1qO7C0YhT1K1wS';
 
         if (password_verify($password, $user['password_hash'])) {
             $passwordValid = true;
@@ -73,18 +73,6 @@ class AuthController {
         } else if (hash('sha256', $password) === $user['password_hash']) {
             $passwordValid = true;
             $newHash = password_hash($password, PASSWORD_BCRYPT);
-            $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$newHash, $user['id']]);
-        } else if (
-            $password === 'password123' && 
-            (
-                $user['password_hash'] === $dummySeedHash || 
-                strlen($user['password_hash']) < 50 || 
-                empty($user['password_hash'])
-            )
-        ) {
-            // Migration transparente du compte vers un vrai hash BCRYPT pour password123
-            $passwordValid = true;
-            $newHash = password_hash('password123', PASSWORD_BCRYPT);
             $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$newHash, $user['id']]);
         }
 
@@ -110,10 +98,13 @@ class AuthController {
         ");
         $stmtSession->execute([$user['id'], $token, $expiresAt]);
 
-        // Définition du cookie sécurisé (HttpOnly)
+        // Définition du cookie sécurisé (HttpOnly + Secure si HTTPS)
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
         setcookie('kanban_token', $token, [
             'expires' => strtotime('+30 days'),
             'path' => '/',
+            'secure' => $isHttps,
             'httponly' => true,
             'samesite' => 'Lax'
         ]);
@@ -153,9 +144,14 @@ class AuthController {
             $stmt->execute([$token]);
         }
 
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
         setcookie('kanban_token', '', [
             'expires' => time() - 3600,
-            'path' => '/'
+            'path' => '/',
+            'secure' => $isHttps,
+            'httponly' => true,
+            'samesite' => 'Lax'
         ]);
 
         Response::success(null, 'Déconnexion effectuée');

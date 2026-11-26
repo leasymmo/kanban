@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
-import { Task, User, Subtask, TaskStatus } from '../types';
-import { buildSubtaskTree, calculateSubtaskStats, HierarchicalSubtask } from '../utils/subtasks';
+import { Task, TaskStatus } from '../types';
+import { BlurredIconSwap } from './BlurredIconSwap';
+import {
+  buildSubtaskTree,
+  calculateSubtaskStats,
+  HierarchicalSubtask,
+  SUBTASK_DEPTH_THEME,
+  parseLocalDate,
+  isTaskOverdue
+} from '../utils/subtasks';
 import {
   CheckSquare, Square, ChevronDown, ChevronUp, Clock, Home,
-  Trash2, Edit3, UserPlus, Plus, CornerDownRight, Check, X, Star
+  Trash2, Edit3, UserPlus, CornerDownRight, Check, X, Star
 } from 'lucide-react';
 
 interface TaskCardProps {
   task: Task;
-  currentUser: User | null;
+  isReadOnly?: boolean;
   onEdit: (task: Task) => void;
   onDelete: (id: number) => void;
   onToggleSubtask: (subtaskId: number) => void;
@@ -16,23 +24,39 @@ interface TaskCardProps {
   onUpdateStatus?: (taskId: number, newStatus: TaskStatus) => void;
   onToggleStar?: (taskId: number) => void;
   onDragStart?: (e: React.DragEvent, task: Task) => void;
+  onDragEnd?: () => void;
+  onDragOverCard?: (e: React.DragEvent, task: Task) => void;
+  onDropOnCard?: (e: React.DragEvent, task: Task) => void;
+  dropIndicator?: 'before' | 'after' | null;
+  isDragging?: boolean;
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({
   task,
-  currentUser,
+  isReadOnly = false,
   onEdit,
   onDelete,
   onToggleSubtask,
   onAddSubtask,
   onUpdateStatus,
   onToggleStar,
-  onDragStart
+  onDragStart,
+  onDragEnd,
+  onDragOverCard,
+  onDropOnCard,
+  dropIndicator,
+  isDragging
 }) => {
   const [showSubtasks, setShowSubtasks] = useState(false);
   const [addingChildToId, setAddingChildToId] = useState<number | null>(null);
   const [childTitle, setChildTitle] = useState('');
   const [isSubmittingChild, setIsSubmittingChild] = useState(false);
+
+  const canModify = !isReadOnly && !!task.can_edit;
+  const canDelete = !isReadOnly && !!task.can_delete;
+  const canStar = !isReadOnly && !!task.can_star;
+  const parsedDueDate = parseLocalDate(task.due_date);
+  const overdue = isTaskOverdue(task.due_date, task.status);
 
   const { total: totalSubtasks, done: doneSubtasksCount, percent: progressPercent } = calculateSubtaskStats(task.subtasks);
   const hierarchicalSubtasks = buildSubtaskTree(task.subtasks);
@@ -63,37 +87,31 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   // Rendu récursif jusqu'à 4 niveaux
   const renderSubtaskNode = (node: HierarchicalSubtask) => {
     const isDone = !!node.is_done;
-    const canHaveChildren = node.depth < 3; // Niveaux 0, 1, 2 peuvent avoir des enfants => total 4 niveaux (0, 1, 2, 3)
-
-    const depthBorderColors = [
-      'border-slate-200',
-      'border-indigo-300 ml-2.5 pl-2',
-      'border-amber-300 ml-2.5 pl-2',
-      'border-emerald-300 ml-2.5 pl-2'
-    ];
+    const canHaveChildren = node.depth < 3;
+    const depthTheme = SUBTASK_DEPTH_THEME[node.depth] || SUBTASK_DEPTH_THEME[3];
 
     return (
-      <div key={node.id} className={`space-y-1 ${node.depth > 0 ? `border-l-2 ${depthBorderColors[node.depth] || 'border-slate-300 ml-2 pl-2'}` : ''}`}>
+      <div key={node.id} className={`space-y-1 ${node.depth > 0 ? `border-l-2 ${depthTheme.borderClass}` : ''}`}>
         <div className="flex items-start justify-between gap-1.5 py-0.5 group/item hover:bg-slate-50/80 rounded px-1">
           <button
             type="button"
-            onClick={() => task.can_edit && onToggleSubtask(node.id)}
+            onClick={() => canModify && onToggleSubtask(node.id)}
             className={`flex items-start gap-1.5 flex-1 text-left text-xs ${
-              task.can_edit ? 'cursor-pointer' : 'cursor-default'
+              canModify ? 'cursor-pointer' : 'cursor-default'
             }`}
           >
-            {isDone ? (
-              <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-            ) : (
-              <Square className="w-3.5 h-3.5 text-slate-300 shrink-0 mt-0.5" />
-            )}
+            <BlurredIconSwap
+              active={isDone}
+              className="mt-0.5"
+              activeIcon={<CheckSquare className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />}
+              inactiveIcon={<Square className="w-3.5 h-3.5 text-slate-300" strokeWidth={1.75} />}
+            />
             <span className={`${isDone ? 'line-through text-slate-400' : 'text-slate-700 font-medium'} leading-tight break-words`}>
               {node.title}
             </span>
           </button>
 
-          {/* Bouton pour ajouter un niveau enfant directement */}
-          {task.can_edit && canHaveChildren && onAddSubtask && (
+          {canModify && canHaveChildren && onAddSubtask && (
             <button
               type="button"
               onClick={(e) => {
@@ -102,9 +120,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 setChildTitle('');
               }}
               className="opacity-100 sm:opacity-0 group-hover/item:opacity-100 p-0.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded transition-opacity cursor-pointer shrink-0"
-              title={`Ajouter une sous-tâche de niveau ${node.depth + 2}`}
+              title="Ajouter une sous-étape imbriquée"
             >
-              <CornerDownRight className="w-3 h-3" />
+              <CornerDownRight className="w-3 h-3" strokeWidth={1.75} />
             </button>
           )}
         </div>
@@ -115,7 +133,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             <input
               type="text"
               autoFocus
-              placeholder={`Sous-tâche (Niv. ${node.depth + 2})...`}
+              placeholder="Ajouter une sous-étape..."
               value={childTitle}
               onChange={(e) => setChildTitle(e.target.value)}
               onKeyDown={(e) => {
@@ -126,7 +144,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   setAddingChildToId(null);
                 }
               }}
-              className="flex-1 px-2 py-0.5 text-[11px] border border-slate-300 rounded focus:ring-1 focus:ring-brand-500 focus:outline-none"
+              className="flex-1 px-2 py-0.5 text-[11px] border border-black/[0.12] rounded focus:ring-1 focus:ring-brand-500 focus:outline-none"
             />
             <button
               type="button"
@@ -134,14 +152,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               onClick={() => handleCreateChildSubtask(node.id)}
               className="p-1 bg-brand-600 hover:bg-brand-700 text-white rounded text-[10px] disabled:opacity-50 cursor-pointer"
             >
-              <Check className="w-3 h-3" />
+              <Check className="w-3 h-3" strokeWidth={2} />
             </button>
             <button
               type="button"
               onClick={() => setAddingChildToId(null)}
               className="p-1 text-slate-400 hover:text-slate-600 rounded text-[10px] cursor-pointer"
             >
-              <X className="w-3 h-3" />
+              <X className="w-3 h-3" strokeWidth={1.75} />
             </button>
           </div>
         )}
@@ -157,19 +175,28 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   };
 
   return (
-    <div
-      draggable={task.can_edit}
-      onDragStart={(e) => onDragStart && onDragStart(e, task)}
-      className={`bg-white rounded-xl p-3.5 shadow-xs border transition-all duration-150 group hover:shadow-md ${
-        task.can_edit ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
-      } ${
-        task.is_starred
-          ? 'border-amber-300 ring-1 ring-amber-300/70 bg-amber-50/15'
-          : task.status === 'blocked'
-          ? 'border-red-300 bg-red-50/20'
-          : 'border-slate-200/90 hover:border-slate-300'
-      }`}
-    >
+    <div className="relative">
+      {dropIndicator === 'before' && (
+        <div className="h-1 bg-brand-500 rounded-full mb-1.5 shadow-xs animate-pulse" />
+      )}
+      <div
+        draggable={canModify && !!onDragStart}
+        onDragStart={(e) => canModify && onDragStart && onDragStart(e, task)}
+        onDragEnd={() => onDragEnd && onDragEnd()}
+        onDragOver={(e) => onDragOverCard && onDragOverCard(e, task)}
+        onDrop={(e) => onDropOnCard && onDropOnCard(e, task)}
+        className={`bg-white rounded-xl p-3.5 shadow-xs border transition-all duration-150 group hover:shadow-md ${
+          canModify && onDragStart ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
+        } ${
+          isDragging ? 'opacity-45 scale-[0.98]' : ''
+        } ${
+          task.is_starred
+            ? 'border-amber-300 ring-1 ring-amber-300/70 bg-amber-50/15'
+            : task.status === 'blocked'
+            ? 'border-red-300 bg-red-50/20'
+            : 'border-black/[0.12] hover:border-black/[0.22]'
+        }`}
+      >
       {/* Top Badges (Logement & Priorité) */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -178,12 +205,18 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md text-white shadow-xs"
               style={{ backgroundColor: task.property_color || '#3B82F6' }}
             >
-              <Home className="w-3 h-3" />
+              <Home className="w-3 h-3" strokeWidth={2} />
               {task.property_name}
             </span>
           )}
 
           {getPriorityBadge(task.priority)}
+
+          {task.is_new ? (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 border border-violet-200/80">
+              ✨ Nouveau
+            </span>
+          ) : null}
 
           {task.is_unplanned ? (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
@@ -194,69 +227,71 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
         {/* Actions (Étoile / Modifier / Supprimer) */}
         <div className="flex items-center gap-1 shrink-0">
-          {/* Étoile de mise en avant (Highlight) : À gauche du bouton Modifier */}
-          {(task.can_star || !!task.is_starred) && (
+          {(canStar || !!task.is_starred) && (
             <button
               type="button"
-              disabled={!task.can_star}
+              disabled={!canStar}
               onClick={(e) => {
                 e.stopPropagation();
-                if (task.can_star && onToggleStar) {
+                if (canStar && onToggleStar) {
                   onToggleStar(task.id);
                 }
               }}
-              className={`p-1 rounded transition-all cursor-pointer ${
+              className={`p-1 rounded transition-all ${
                 task.is_starred
-                  ? 'text-amber-500 hover:text-amber-600 bg-amber-50 shadow-2xs'
-                  : task.can_star
-                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 text-slate-300 hover:text-amber-400 hover:bg-slate-100'
+                  ? `text-amber-500 bg-amber-50 shadow-2xs ${canStar ? 'hover:text-amber-600 cursor-pointer' : 'cursor-default'}`
+                  : canStar
+                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 text-slate-300 hover:text-amber-400 hover:bg-slate-100 cursor-pointer'
                   : 'text-slate-200 cursor-not-allowed hidden'
               }`}
               title={
                 task.is_starred
-                  ? 'Mise en avant activée pour la réunion (cliquer pour retirer)'
-                  : task.can_star
-                  ? 'Mettre en avant pour la réunion'
-                  : 'Mise en avant'
+                  ? (canStar ? 'Mise en avant activée (cliquer pour retirer)' : 'Mise en avant pour la réunion')
+                  : 'Mettre en avant pour la réunion'
               }
             >
               <Star
                 className={`w-3.5 h-3.5 ${
                   task.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-300'
                 }`}
+                strokeWidth={1.75}
               />
             </button>
           )}
 
           {/* Modifier & Supprimer */}
-          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 sm:transition-opacity">
-            {task.can_edit && (
-              <button
-                onClick={() => onEdit(task)}
-                className="p-1 text-slate-400 hover:text-brand-600 rounded hover:bg-slate-100 cursor-pointer"
-                title="Modifier la tâche"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-              </button>
-            )}
+          {(canModify || canDelete) && (
+            <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 sm:transition-opacity">
+              {canModify && (
+                <button
+                  onClick={() => onEdit(task)}
+                  className="p-1 text-slate-400 hover:text-brand-600 rounded hover:bg-slate-100 cursor-pointer"
+                  title="Modifier la tâche"
+                >
+                  <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                </button>
+              )}
 
-            {task.can_delete && (
-              <button
-                onClick={() => onDelete(task.id)}
-                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-slate-100 cursor-pointer"
-                title="Supprimer la tâche"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+              {canDelete && (
+                <button
+                  onClick={() => onDelete(task.id)}
+                  className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-slate-100 cursor-pointer"
+                  title="Supprimer la tâche"
+                >
+                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Titre de la tâche */}
       <h3
-        onClick={() => task.can_edit && onEdit(task)}
-        className={`font-semibold text-sm text-slate-800 leading-snug hover:text-brand-600 transition-colors break-words ${
+        onClick={() => canModify && onEdit(task)}
+        className={`font-semibold text-sm text-slate-800 leading-snug transition-colors break-words ${
+          canModify ? 'hover:text-brand-600 cursor-pointer' : ''
+        } ${
           task.status === 'done' ? 'line-through text-slate-400' : ''
         }`}
       >
@@ -265,7 +300,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Description / Remarques (style flèche '→ ...' du document) */}
       {task.description && (
-        <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 leading-relaxed font-normal break-words">
+        <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-black/[0.12] leading-relaxed font-normal break-words">
           <span className="text-brand-600 font-bold mr-1">→</span>
           {task.description}
         </div>
@@ -273,18 +308,22 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Sous-tâches Checklist hiérarchique */}
       {totalSubtasks > 0 && (
-        <div className="mt-3 pt-2.5 border-t border-slate-100">
+        <div className="mt-3 pt-2.5 border-t border-black/[0.12]">
           <button
             onClick={() => setShowSubtasks(!showSubtasks)}
             className="w-full flex items-center justify-between text-xs text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
           >
             <span className="flex items-center gap-1.5">
-              <CheckSquare className="w-3.5 h-3.5 text-slate-400" />
+              <CheckSquare className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />
               Sous-tâches ({doneSubtasksCount}/{totalSubtasks})
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-slate-400">{progressPercent}%</span>
-              {showSubtasks ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <BlurredIconSwap
+                active={showSubtasks}
+                activeIcon={<ChevronUp className="w-3.5 h-3.5" strokeWidth={1.75} />}
+                inactiveIcon={<ChevronDown className="w-3.5 h-3.5" strokeWidth={1.75} />}
+              />
             </div>
           </button>
 
@@ -308,7 +347,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       )}
 
       {/* Footer : Assigné, Échéance & Changement rapide de statut (Touch/Mobile & Desktop) */}
-      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap text-xs">
+      <div className="mt-3 pt-2.5 border-t border-black/[0.12] flex items-center justify-between gap-2 flex-wrap text-xs">
         
         {/* Responsable */}
         {task.assigned_to ? (
@@ -326,22 +365,29 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           </div>
         ) : (
           <div className="flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium text-[11px] border border-amber-200">
-            <UserPlus className="w-3 h-3 text-amber-600" />
+            <UserPlus className="w-3 h-3 text-amber-600" strokeWidth={1.75} />
             <span>À attribuer</span>
           </div>
         )}
 
         <div className="flex items-center gap-2 shrink-0">
           {/* Échéance */}
-          {task.due_date && (
-            <div className="flex items-center gap-1 text-slate-500 text-[11px]">
-              <Clock className="w-3 h-3 text-slate-400" />
-              <span>{new Date(task.due_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
+          {parsedDueDate && (
+            <div
+              className={`flex items-center gap-1 text-[11px] ${
+                overdue
+                  ? 'text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded font-semibold'
+                  : 'text-slate-500'
+              }`}
+              title={overdue ? 'Échéance dépassée' : 'Date d’échéance'}
+            >
+              <Clock className={`w-3 h-3 ${overdue ? 'text-red-500' : 'text-slate-400'}`} strokeWidth={overdue ? 2 : 1.5} />
+              <span>{parsedDueDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
             </div>
           )}
 
           {/* Sélecteur de statut rapide (essentiel sur mobile tactile sans drag-and-drop) */}
-          {onUpdateStatus && task.can_edit && (
+          {onUpdateStatus && canModify && (
             <select
               value={task.status}
               onClick={(e) => e.stopPropagation()}
@@ -349,7 +395,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 e.stopPropagation();
                 onUpdateStatus(task.id, e.target.value as TaskStatus);
               }}
-              className="text-[10px] font-semibold border border-slate-200 rounded-md px-1 py-0.5 bg-slate-50 hover:bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="text-[10px] font-semibold border border-black/[0.12] rounded-md px-1 py-0.5 bg-slate-50 hover:bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500"
               title="Changer rapidement de statut"
             >
               <option value="todo">À faire</option>
@@ -361,6 +407,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
 
       </div>
+      </div>
+      {dropIndicator === 'after' && (
+        <div className="h-1 bg-brand-500 rounded-full mt-1.5 shadow-xs animate-pulse" />
+      )}
     </div>
   );
 };

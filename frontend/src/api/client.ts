@@ -4,10 +4,6 @@ function getStoredToken(): string | null {
   return localStorage.getItem('kanban_token');
 }
 
-function getStoredUserId(): string | null {
-  return localStorage.getItem('kanban_current_user_id');
-}
-
 export function getApiBase(): string {
   if (typeof window === 'undefined') return '/api';
 
@@ -25,14 +21,10 @@ export function getApiBase(): string {
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
-  const userId = getStoredUserId();
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
-  }
-  if (userId) {
-    headers.set('X-User-Id', userId);
   }
 
   const apiBase = getApiBase();
@@ -55,24 +47,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
-  setCurrentUserId(id: number) {
-    localStorage.setItem('kanban_current_user_id', String(id));
-  },
-
-  getCurrentUserId(): number | null {
-    const val = localStorage.getItem('kanban_current_user_id');
-    return val ? Number(val) : null;
-  },
 
   // Auth
-  async login(userIdOrEmail: number | string, password?: string, direct?: boolean) {
+  async login(userIdOrEmail: number | string, password?: string) {
     const body: Record<string, any> = { password: password || 'password123' };
     if (typeof userIdOrEmail === 'number') {
       body.user_id = userIdOrEmail;
     } else {
       body.email = userIdOrEmail;
     }
-    if (direct) body.direct = true;
 
     const res = await request<{ success: boolean; token: string; user: User }>('/auth/login', {
       method: 'POST',
@@ -122,17 +105,63 @@ export const api = {
     });
   },
 
-  async getProperties() {
-    return request<{ success: boolean; properties: Property[] }>('/properties');
+  async getProperties(includeInactive: boolean = false) {
+    const query = includeInactive ? '?include_inactive=1' : '';
+    return request<{ success: boolean; properties: Property[] }>(`/properties${query}`);
+  },
+
+  async createProperty(data: { name: string; code?: string; color?: string }) {
+    return request<{ success: boolean; message: string; property: Property }>('/properties', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateProperty(id: number, data: { name?: string; code?: string; color?: string }) {
+    return request<{ success: boolean; message: string; property: Property }>(`/properties/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async getPropertyPendingTasks(id: number) {
+    return request<{
+      success: boolean;
+      active_sprint: { id: number; name: string; number: number } | null;
+      tasks: { id: number; title: string; status: string }[];
+    }>(`/properties/${id}/pending-tasks`);
+  },
+
+  async deactivateProperty(id: number, pendingAction?: 'detach' | 'delete') {
+    return request<{ success: boolean; message: string; property: Property; resolved_count: number }>(
+      `/properties/${id}/deactivate`,
+      {
+        method: 'POST',
+        body: JSON.stringify(pendingAction ? { pending_action: pendingAction } : {})
+      }
+    );
+  },
+
+  async reactivateProperty(id: number) {
+    return request<{ success: boolean; message: string; property: Property }>(
+      `/properties/${id}/reactivate`,
+      { method: 'POST' }
+    );
+  },
+
+  async reorderProperties(orderedPropertyIds: number[]) {
+    return request<{ success: boolean; message: string; properties: Property[] }>(
+      '/properties/reorder',
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ ordered_property_ids: orderedPropertyIds })
+      }
+    );
   },
 
   // Sprints
   async getSprints() {
     return request<{ success: boolean; sprints: Sprint[] }>('/sprints');
-  },
-
-  async getCurrentSprint() {
-    return request<{ success: boolean; sprint: Sprint }>('/sprints/current');
   },
 
   async getSprintDetails(id: number) {
@@ -150,7 +179,7 @@ export const api = {
       success: boolean;
       message: string;
       new_sprint_id: number;
-      stats: { tasks_rolled_over: number; subtasks_rolled_over: number };
+      stats: { tasks_rolled_over: number; subtasks_rolled_over: number; meeting_tasks_activated?: number };
     }>(`/sprints/${id}/close`, {
       method: 'POST',
       body: JSON.stringify({ next_name: nextName, notes })
@@ -187,64 +216,83 @@ export const api = {
   },
 
   // Tasks
-  async createTask(data: Partial<Task> & { sprint_id: number; subtasks?: string[] }) {
-    return request<{ success: boolean; task_id: number; message: string }>('/tasks', {
+  async createTask(data: Partial<Task> & {
+    sprint_id: number;
+    property_ids?: (number | null)[];
+    created_from?: 'tasks' | 'meeting' | 'meeting_pending';
+    pending_for_next_sprint?: boolean;
+    subtasks?: any[];
+  }) {
+    return request<{
+      success: boolean;
+      task_id: number;
+      task_ids?: number[];
+      created_count?: number;
+      pending_for_next_sprint?: boolean;
+      message: string;
+    }>('/tasks', {
       method: 'POST',
       body: JSON.stringify(data)
     });
   },
 
-  async updateTask(id: number, data: Partial<Task>) {
+  async updateTask(id: number, data: Partial<Task> & { subtasks?: any[] }) {
     return request<{ success: boolean; message: string }>(`/tasks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data)
     });
   },
 
-  async updateTaskStatus(id: number, status: Task['status']) {
+  async reorderTasks(data: {
+    sprint_id: number;
+    task_id: number;
+    status?: Task['status'];
+    property_id?: number | null;
+    ordered_task_ids: number[];
+  }) {
+    return request<{ success: boolean; message: string }>('/tasks/reorder', {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateTaskStatus(id: number, status: Task['status'], sprintId?: number) {
     return request<{ success: boolean }>(`/tasks/${id}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status, sprint_id: sprintId })
     });
   },
 
-  async toggleTaskStar(id: number) {
+  async toggleTaskStar(id: number, sprintId?: number) {
     return request<{ success: boolean; task_id: number; is_starred: boolean; message: string }>(`/tasks/${id}/star`, {
-      method: 'PATCH'
+      method: 'PATCH',
+      body: JSON.stringify({ sprint_id: sprintId })
     });
   },
 
-  async deleteTask(id: number) {
-    return request<{ success: boolean }>(`/tasks/${id}`, {
+  async deleteTask(id: number, sprintId?: number) {
+    const query = sprintId ? `?sprint_id=${sprintId}` : '';
+    return request<{ success: boolean }>(`/tasks/${id}${query}`, {
       method: 'DELETE'
     });
   },
 
   // Subtasks
-  async addSubtask(taskId: number, title: string, parentId?: number | null) {
+  async addSubtask(taskId: number, title: string, parentId?: number | null, sprintId?: number) {
     return request<{ success: boolean; subtask_id: number; subtask?: any }>(`/tasks/${taskId}/subtasks`, {
       method: 'POST',
-      body: JSON.stringify({ title, parent_id: parentId || null })
+      body: JSON.stringify({ title, parent_id: parentId || null, sprint_id: sprintId })
     });
   },
 
-  async toggleSubtask(subtaskId: number) {
+  async toggleSubtask(subtaskId: number, sprintId?: number) {
     return request<{ success: boolean; is_done: number }>(`/subtasks/${subtaskId}/toggle`, {
-      method: 'PATCH'
-    });
-  },
-
-  async deleteSubtask(subtaskId: number) {
-    return request<{ success: boolean }>(`/subtasks/${subtaskId}`, {
-      method: 'DELETE'
+      method: 'PATCH',
+      body: JSON.stringify({ sprint_id: sprintId })
     });
   },
 
   // Questions
-  async getQuestions(sprintId: number) {
-    return request<{ success: boolean; sprint_id: number; questions: Question[] }>(`/questions?sprint_id=${sprintId}`);
-  },
-
   async createQuestion(data: { sprint_id: number; title: string; details?: string; user_id?: number }) {
     return request<{ success: boolean; question_id: number }>(`/questions`, {
       method: 'POST',

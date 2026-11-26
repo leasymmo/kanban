@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Question, User, QuestionStatus, QuestionAnswer } from '../types';
+import { Question, User, QuestionStatus } from '../types';
 import {
   HelpCircle, Plus, Edit3, Trash2, CheckCircle2, MessageSquare,
-  Clock, ShieldAlert, X, Send, UserCheck, Check, CornerDownRight,
-  MessageCircle, Sparkles
+  X, Send, UserCheck
 } from 'lucide-react';
 
 interface QuestionsViewProps {
@@ -148,8 +147,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     return (
       <div
         key={q.id}
-        className={`bg-white rounded-2xl p-4 sm:p-5 shadow-xs border transition-all ${
-          isDone ? 'border-emerald-200/90 bg-emerald-50/15' : 'border-slate-200/90'
+        className={`bg-white rounded-xl p-4 sm:p-5 shadow-xs border transition-all ${
+          isDone ? 'border-emerald-200/90 bg-emerald-50/15' : 'border-black/[0.12]'
         } ${isFullWidth ? 'w-full' : ''}`}
       >
         {/* Entête Carte */}
@@ -188,7 +187,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 className="p-1.5 text-slate-400 hover:text-brand-600 rounded-lg hover:bg-slate-100 cursor-pointer"
                 title="Modifier la question"
               >
-                <Edit3 className="w-4 h-4" />
+                <Edit3 className="w-4 h-4" strokeWidth={1.75} />
               </button>
             )}
             {q.can_delete && (
@@ -197,7 +196,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-slate-100 cursor-pointer"
                 title="Supprimer la question"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" strokeWidth={1.75} />
               </button>
             )}
           </div>
@@ -210,16 +209,16 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
 
         {/* Détails */}
         {q.details && (
-          <p className="mt-2 text-xs sm:text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed font-normal whitespace-pre-line break-words">
+          <p className="mt-2 text-xs sm:text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-black/[0.12] leading-relaxed font-normal whitespace-pre-line break-words">
             {q.details}
           </p>
         )}
 
         {/* Décision définitive actée en séance si présente */}
         {q.final_answer && (
-          <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-xs">
+          <div className="mt-3 p-3 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-xs">
             <div className="flex items-center gap-1.5 font-bold text-emerald-800 mb-1">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" strokeWidth={2.25} />
               <span>Décision actée en séance :</span>
             </div>
             <p className="text-slate-800 font-medium pl-5 whitespace-pre-line">
@@ -234,10 +233,10 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
         )}
 
         {/* Réponses collaboratives apportées pendant le sprint */}
-        <div className="mt-4 pt-3 border-t border-slate-100 space-y-2.5">
+        <div className="mt-4 pt-3 border-t border-black/[0.12] space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5 text-indigo-500" />
+              <MessageSquare className="w-3.5 h-3.5 text-indigo-500" strokeWidth={2.25} />
               Propositions de réponses ({answers.length})
             </span>
           </div>
@@ -251,7 +250,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 return (
                   <div
                     key={ans.id}
-                    className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 space-y-1.5 group/ans"
+                    className="p-2.5 rounded-lg bg-slate-50 border border-black/[0.12] text-xs text-slate-700 space-y-1.5 group/ans"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -281,7 +280,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                             className="p-1 text-slate-400 hover:text-brand-600 rounded cursor-pointer"
                             title="Modifier ma proposition"
                           >
-                            <Edit3 className="w-3 h-3" />
+                            <Edit3 className="w-3 h-3" strokeWidth={1.75} />
                           </button>
                           {ans.can_delete && onDeleteAnswer && (
                             <button
@@ -290,7 +289,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                               className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
                               title="Supprimer ma proposition"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash2 className="w-3 h-3" strokeWidth={1.75} />
                             </button>
                           )}
                         </div>
@@ -348,7 +347,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                       handleSendAnswer(q.id);
                     }
                   }}
-                  className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none bg-slate-50/50 hover:bg-white focus:bg-white transition-all"
+                  className="flex-1 px-3 py-2 border border-black/[0.12] rounded-xl text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none bg-slate-50/50 hover:bg-white focus:bg-white transition-all"
                 />
                 <button
                   type="button"
@@ -356,7 +355,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   onClick={() => handleSendAnswer(q.id)}
                   className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-3.5 h-3.5" strokeWidth={2.25} />
                   <span>Proposer</span>
                 </button>
               </div>
@@ -366,7 +365,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
 
         {/* Bouton rapide de passage à résolu en réunion */}
         {q.can_edit && !isReadOnly && (
-          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <div className="mt-3 pt-2.5 border-t border-black/[0.12] flex items-center justify-between text-[11px]">
             <button
               onClick={() => onUpdateQuestion(q.id, {
                 status: q.status === 'resolved' ? 'open' : 'resolved'
@@ -377,7 +376,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   : 'text-slate-500 hover:text-emerald-700'
               }`}
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
+              <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2} />
               {q.status === 'resolved' ? 'Marquer à réaborder' : 'Marquer comme résolu'}
             </button>
           </div>
@@ -390,7 +389,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     <div className="space-y-6">
       
       {/* Barre d'outils et Filtres */}
-      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white p-3.5 sm:p-4 rounded-[26px] sm:rounded-[28px] border border-black/[0.12] shadow-xs flex flex-wrap items-center justify-between gap-3">
         
         {/* Filtres par personne */}
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -402,13 +401,13 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           {currentUser && (
             <button
               onClick={() => setSelectedFilter('me')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 selectedFilter === 'me'
                   ? 'bg-brand-600 text-white shadow-xs'
                   : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
               }`}
             >
-              <UserCheck className="w-3.5 h-3.5" />
+              <UserCheck className="w-3.5 h-3.5" strokeWidth={2.25} />
               Mes questions ({questions.filter(q => q.user_id === currentUser.id).length})
             </button>
           )}
@@ -416,7 +415,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           {/* 2. Toutes */}
           <button
             onClick={() => setSelectedFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               selectedFilter === 'all'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -436,7 +435,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 <button
                   key={u.id}
                   onClick={() => setSelectedFilter(u.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                     isSelected
                       ? 'text-white shadow-xs'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -461,7 +460,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
             onClick={() => openCreateModal()}
             className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" strokeWidth={2.25} />
             Poser une question
           </button>
         )}
@@ -490,9 +489,9 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               {filteredQuestions.map(q => renderQuestionCard(q, true))}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl p-12 text-center border border-slate-200/90 shadow-xs space-y-3">
+            <div className="bg-white rounded-2xl p-12 text-center border border-black/[0.12] shadow-xs space-y-3">
               <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
-                <HelpCircle className="w-6 h-6" />
+                <HelpCircle className="w-6 h-6" strokeWidth={1.75} />
               </div>
               <h4 className="font-bold text-slate-800 text-base">Aucune question inscrite</h4>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -503,7 +502,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   onClick={() => openCreateModal()}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-4 h-4" strokeWidth={2.25} />
                   Poser une question
                 </button>
               )}
@@ -516,10 +515,10 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           {usersWithQuestions.map(({ user, questions: userQuestions }) => (
             <div
               key={user.id}
-              className="bg-slate-200/70 rounded-2xl p-4 border border-slate-300/80 flex flex-col min-h-[380px]"
+              className="bg-slate-200/70 rounded-[28px] p-4 border border-black/[0.12] flex flex-col min-h-[380px]"
             >
               {/* Header associé */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-300/70 mb-3">
+              <div className="flex items-center justify-between pb-3 border-b border-black/[0.12] mb-3">
                 <div className="flex items-center gap-2.5">
                   <div
                     className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs"
@@ -541,7 +540,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                     className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg cursor-pointer"
                     title={`Ajouter une question pour ${user.name}`}
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-4 h-4" strokeWidth={1.75} />
                   </button>
                 )}
               </div>
@@ -551,7 +550,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 {userQuestions.length > 0 ? (
                   userQuestions.map(q => renderQuestionCard(q, false))
                 ) : (
-                  <div className="h-24 border-2 border-dashed border-slate-300/70 rounded-xl flex items-center justify-center text-xs text-slate-500 font-medium text-center p-2">
+                  <div className="h-24 border-2 border-dashed border-black/[0.12] rounded-xl flex items-center justify-center text-xs text-slate-500 font-medium text-center p-2">
                     Aucune question inscrite
                   </div>
                 )}
@@ -561,9 +560,9 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               {!isReadOnly && (isAdmin || currentUser?.id === user.id) && (
                 <button
                   onClick={() => openCreateModal(user.id)}
-                  className="mt-3 w-full py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="mt-3 w-full py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3.5 h-3.5" strokeWidth={2} />
                   Ajouter une question
                 </button>
               )}
@@ -575,7 +574,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
       {/* Modal Créer / Modifier Question */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-black/[0.12] overflow-hidden">
             <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-brand-400 uppercase tracking-wider">
@@ -586,7 +585,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 </h3>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" strokeWidth={1.75} />
               </button>
             </div>
 
@@ -599,7 +598,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   <select
                     value={targetUserId}
                     onChange={(e) => setTargetUserId(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 bg-white cursor-pointer"
+                    className="w-full px-3 py-2 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white cursor-pointer"
                   >
                     {users.map(u => (
                       <option key={u.id} value={u.id}>{u.name}</option>
@@ -618,7 +617,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   placeholder="Ex: Choix du prestataire serrurerie, point avec Asma..."
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
                 />
               </div>
 
@@ -631,7 +630,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   placeholder="Précisions pour la discussion en séance..."
                   value={details}
                   onChange={(e) => setDetails(e.target.value)}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  className="w-full p-2.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
                 />
               </div>
 
@@ -642,7 +641,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as QuestionStatus)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 bg-white cursor-pointer"
+                  className="w-full px-3 py-2 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white cursor-pointer"
                 >
                   <option value="open">À aborder</option>
                   <option value="discussed">En discussion</option>
@@ -650,7 +649,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 </select>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/[0.12]">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

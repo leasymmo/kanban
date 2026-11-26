@@ -1,3 +1,5 @@
+import colors from 'tailwindcss/colors';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -9,16 +11,69 @@ export default {
       screens: {
         'xs': '480px',
       },
+      backgroundImage: {
+        'gradient-to-r': 'linear-gradient(to right in oklch, var(--tw-gradient-stops))',
+        'gradient-to-br': 'linear-gradient(to bottom right in oklch, var(--tw-gradient-stops))',
+        'gradient-to-tr': 'linear-gradient(to top right in oklch, var(--tw-gradient-stops))',
+      },
       colors: {
         brand: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        }
+          50: 'oklch(0.97 0.015 255)',
+          100: 'oklch(0.93 0.035 255)',
+          500: 'oklch(0.62 0.190 260)',
+          600: 'oklch(0.55 0.200 260)',
+          700: 'oklch(0.49 0.190 260)',
+          800: 'oklch(0.42 0.160 260)',
+          900: 'oklch(0.36 0.130 260)',
+        },
+        blue: {
+          ...colors.blue,
+          500: 'oklch(0.62 0.190 260)',
+          600: 'oklch(0.55 0.200 260)',
+          700: 'oklch(0.49 0.190 260)',
+        },
+        indigo: {
+          ...colors.indigo,
+          500: 'oklch(0.62 0.190 277)',
+          600: 'oklch(0.55 0.200 277)',
+          700: 'oklch(0.49 0.190 277)',
+        },
+        violet: {
+          ...colors.violet,
+          500: 'oklch(0.62 0.190 293)',
+          600: 'oklch(0.55 0.200 293)',
+          700: 'oklch(0.49 0.190 293)',
+        },
+        purple: {
+          ...colors.purple,
+          500: 'oklch(0.62 0.190 304)',
+          600: 'oklch(0.55 0.200 304)',
+          700: 'oklch(0.49 0.190 304)',
+        },
+        emerald: {
+          ...colors.emerald,
+          500: 'oklch(0.62 0.130 162)',
+          600: 'oklch(0.55 0.120 162)',
+          700: 'oklch(0.49 0.110 162)',
+        },
+        teal: {
+          ...colors.teal,
+          500: 'oklch(0.62 0.105 180)',
+          600: 'oklch(0.55 0.095 180)',
+          700: 'oklch(0.49 0.090 180)',
+        },
+        amber: {
+          ...colors.amber,
+          500: 'oklch(0.62 0.145 55)',
+          600: 'oklch(0.55 0.135 55)',
+          700: 'oklch(0.49 0.120 55)',
+        },
+        red: {
+          ...colors.red,
+          500: 'oklch(0.62 0.190 27)',
+          600: 'oklch(0.55 0.200 27)',
+          700: 'oklch(0.49 0.190 27)',
+        },
       }
     },
   },

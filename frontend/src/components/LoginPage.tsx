@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User } from '../types';
+import { BlurredIconSwap } from './BlurredIconSwap';
 import { Lock, Mail, Eye, EyeOff, LogIn, Shield, UserCheck, AlertCircle } from 'lucide-react';
 
 interface LoginPageProps {
@@ -16,6 +17,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isManualMode && !selectedUser && users.length > 0) {
+      setSelectedUser(users[0]);
+    }
+  }, [users, isManualMode, selectedUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,22 +59,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
     if (role === 'admin') {
       return (
         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-700 border border-purple-500/20">
-          <Shield className="w-2.5 h-2.5" /> Admin
+          <Shield className="w-2.5 h-2.5" strokeWidth={2.25} /> Admin
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-700 border border-blue-500/20">
-        <UserCheck className="w-2.5 h-2.5" /> Associé
+        <UserCheck className="w-2.5 h-2.5" strokeWidth={2.25} /> Associé
       </span>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 flex flex-col items-center justify-center p-4 sm:p-6">
+    <div className="min-h-dvh bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 flex flex-col items-center justify-center p-4 sm:p-6">
       
       {/* Carte Centrale */}
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200/80 overflow-hidden">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-black/[0.12] overflow-hidden">
         
         {/* En-tête avec branding */}
         <div className="bg-slate-900 px-6 py-8 text-white text-center relative overflow-hidden">
@@ -93,7 +100,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
 
           {error && (
             <div className="mb-5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-2.5 text-xs animate-shake">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" strokeWidth={1.75} />
               <div className="flex-1 font-medium">{error}</div>
             </div>
           )}
@@ -120,7 +127,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                         className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                           isSelected
                             ? 'border-brand-600 bg-brand-50/70 shadow-xs ring-2 ring-brand-500/20'
-                            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 bg-white'
+                            : 'border-black/[0.12] hover:border-black/[0.22] hover:bg-slate-50/80 bg-white'
                         }`}
                       >
                         <div
@@ -170,14 +177,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                   </button>
                 </div>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.5} />
                   <input
                     type="email"
                     value={customEmail}
                     onChange={(e) => setCustomEmail(e.target.value)}
                     placeholder="nom@carredhotes.fr"
                     required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-black/[0.12] text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
               </div>
@@ -189,7 +196,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                 Mot de passe :
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.5} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -197,14 +204,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                   placeholder="Votre mot de passe"
                   required
                   autoFocus
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-black/[0.12] text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <BlurredIconSwap
+                    active={showPassword}
+                    activeIcon={<EyeOff className="w-4 h-4" strokeWidth={1.75} />}
+                    inactiveIcon={<Eye className="w-4 h-4" strokeWidth={1.75} />}
+                  />
                 </button>
               </div>
             </div>
@@ -222,7 +233,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                 </>
               ) : (
                 <>
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-4 h-4" strokeWidth={2.25} />
                   Accéder au Kanban
                 </>
               )}

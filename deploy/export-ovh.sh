@@ -31,12 +31,9 @@ cp -R "$PROJECT_ROOT/backend/config" "$BUILD_DIR/api/"
 cp "$PROJECT_ROOT/backend/public/index.php" "$BUILD_DIR/api/index.php"
 cp "$PROJECT_ROOT/backend/public/.htaccess" "$BUILD_DIR/api/.htaccess"
 
-# Si un fichier .env local existe, on l'embarque dans api/ pour la production
+# Si un fichier .env local existe, on génère config.local.php (sans exposer .env sur la racine web)
 if [ -f "$PROJECT_ROOT/backend/.env" ]; then
-    echo "==> 4b. Copie de backend/.env vers $BUILD_DIR/api/.env..."
-    cp "$PROJECT_ROOT/backend/.env" "$BUILD_DIR/api/.env"
-
-    echo "==> 4c. Création de config.local.php pour compatibilité FTP maximale..."
+    echo "==> 4b. Génération de config.local.php depuis backend/.env pour compatibilité OVH..."
     DB_HOST=$(grep -E '^DB_HOST=' "$PROJECT_ROOT/backend/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
     DB_NAME=$(grep -E '^DB_NAME=' "$PROJECT_ROOT/backend/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
     DB_USER=$(grep -E '^DB_USER=' "$PROJECT_ROOT/backend/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
@@ -64,6 +61,30 @@ cp "$PROJECT_ROOT/backend/database/seed.sql" "$BUILD_DIR/database/"
 if [ -f "$PROJECT_ROOT/backend/database/migration_v2.sql" ]; then
     cp "$PROJECT_ROOT/backend/database/migration_v2.sql" "$BUILD_DIR/database/"
 fi
+if [ -f "$PROJECT_ROOT/backend/database/migration_v3.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v3.sql" "$BUILD_DIR/database/"
+fi
+if [ -f "$PROJECT_ROOT/backend/database/migration_v4.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v4.sql" "$BUILD_DIR/database/"
+fi
+if [ -f "$PROJECT_ROOT/backend/database/migration_v5.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v5.sql" "$BUILD_DIR/database/"
+fi
+if [ -f "$PROJECT_ROOT/backend/database/migration_v6.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v6.sql" "$BUILD_DIR/database/"
+fi
+if [ -f "$PROJECT_ROOT/backend/database/migration_v7.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v7.sql" "$BUILD_DIR/database/"
+fi
+if [ -f "$PROJECT_ROOT/backend/database/migration_v8.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v8.sql" "$BUILD_DIR/database/"
+fi
+if [ -f "$PROJECT_ROOT/backend/database/migration_v9.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v9.sql" "$BUILD_DIR/database/"
+fi
+if [ -f "$PROJECT_ROOT/backend/database/migration_v10.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v10.sql" "$BUILD_DIR/database/"
+fi
 
 # Si la seed de production existe localement dans .agents/notes/, on la copie aussi pour phpMyAdmin
 if [ -f "$PROJECT_ROOT/.agents/notes/seed-carredhotes.sql" ]; then
@@ -72,8 +93,26 @@ fi
 
 echo "==> 6. Création du fichier .htaccess racine pour Apache OVH..."
 cat << 'EOF' > "$BUILD_DIR/.htaccess"
+# Interdire l'accès HTTP aux scripts SQL, dotfiles et fichiers internes
+<FilesMatch "(^\.|\.(env|sql|log|bak|ini|sh)$|^config\.local.*\.php$)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # Préserver l'en-tête Authorization sous Apache/CGI/FPM
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Bloquer l'accès direct au dossier database/ et aux sources/configs API
+    RewriteRule ^(database|api/src|api/config)/ - [F,L]
 
     # Redirection des requêtes API vers api/index.php
     RewriteRule ^api/(.*)$ api/index.php [QSA,L]
@@ -85,9 +124,9 @@ cat << 'EOF' > "$BUILD_DIR/.htaccess"
 </IfModule>
 
 <IfModule mod_headers.c>
-    Header always set Access-Control-Allow-Origin "*"
-    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-User-Id"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 EOF
 

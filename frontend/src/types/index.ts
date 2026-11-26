@@ -14,7 +14,9 @@ export interface Property {
   name: string;
   code?: string;
   color: string;
+  position?: number;
   is_active: number;
+  deleted_at?: string | null;
 }
 
 export interface Subtask {
@@ -24,6 +26,8 @@ export interface Subtask {
   title: string;
   is_done: number | boolean;
   position: number;
+  created_sprint_id?: number | null;
+  deleted_sprint_id?: number | null;
   children?: Subtask[];
 }
 
@@ -35,7 +39,7 @@ export interface Task {
   sprint_id: number;
   title: string;
   description?: string;
-  status: TaskStatus;
+  status: TaskStatus | 'pending';
   assigned_to: number | null;
   assigned_to_name?: string;
   assigned_to_initials?: string;
@@ -51,6 +55,7 @@ export interface Task {
   position: number;
   is_unplanned?: number | boolean;
   is_starred?: number | boolean;
+  is_new?: number | boolean;
   parent_task_id?: number | null;
   subtasks: Subtask[];
   can_edit?: boolean;

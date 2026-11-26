@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Sprint, Task, Question, Property, TaskStatus } from './types';
 import { api } from './api/client';
+import { useSprintTasks } from './hooks/useSprintTasks';
+import { getUserPreferences, saveUserPreferences } from './utils/cookies';
 import { Navbar } from './components/Navbar';
-import { KanbanBoard } from './components/KanbanBoard';
-import { PropertyBoard } from './components/PropertyBoard';
+import { TasksTab } from './components/TasksTab';
 import { QuestionsView } from './components/QuestionsView';
 import { MeetingView } from './components/MeetingView';
 import { TaskModal } from './components/TaskModal';
+import { MeetingQuickTaskModal } from './components/MeetingQuickTaskModal';
 import { CloseSprintModal } from './components/CloseSprintModal';
 import { LoginPage } from './components/LoginPage';
 import { AdminPanelModal } from './components/AdminPanelModal';
-import {
-  Plus, LayoutGrid, Home, Filter, UserCheck, UserPlus,
-  RefreshCw, CheckCircle2, AlertCircle, ShieldAlert, Search, X
-} from 'lucide-react';
+import { RefreshCw, AlertCircle, X } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -21,41 +20,109 @@ export const App: React.FC = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [currentSprintId, setCurrentSprintId] = useState<number | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [actionToast, setActionToast] = useState<string | null>(null);
 
-  // Tabs & Views
+  // Onglets
   const [activeTab, setActiveTab] = useState<'tasks' | 'questions' | 'meeting'>('tasks');
-  const [taskViewMode, setTaskViewMode] = useState<'kanban' | 'property'>('kanban');
-  const [taskFilter, setTaskFilter] = useState<'all' | 'me' | 'unassigned' | number>('me');
-  const [taskSearchQuery, setTaskSearchQuery] = useState('');
-  const [taskPropertyFilter, setTaskPropertyFilter] = useState<number | 'all'>('all');
 
   // Modales
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskModalInitialStatus, setTaskModalInitialStatus] = useState<TaskStatus>('todo');
+  const [taskModalInitialPropertyId, setTaskModalInitialPropertyId] = useState<number | null>(null);
+  const [taskModalCreationSource, setTaskModalCreationSource] = useState<'tasks' | 'meeting'>('tasks');
   const [isCloseSprintModalOpen, setIsCloseSprintModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isMeetingQuickModalOpen, setIsMeetingQuickModalOpen] = useState(false);
+  const [editingPendingTask, setEditingPendingTask] = useState<Task | null>(null);
 
-  // Synchronisation avec l'API
+  const showToast = useCallback((msg: string) => {
+    setActionToast(msg);
+    setTimeout(() => {
+      setActionToast(prev => (prev === msg ? null : prev));
+    }, 5000);
+  }, []);
+
+  const loadSprintDetails = useCallback(async (sprintId: number) => {
+    try {
+      const details = await api.getSprintDetails(sprintId);
+      if (details.success) {
+        setTasks(details.tasks);
+        setQuestions(details.questions);
+        setIsReadOnly(details.is_read_only);
+      }
+    } catch (err: any) {
+      console.error('Erreur chargement sprint :', err);
+      const sprint = sprints.find(s => s.id === sprintId);
+      setIsReadOnly(sprint?.status === 'closed' && currentUser?.role !== 'admin');
+    }
+  }, [sprints, currentUser]);
+
+  const {
+    tasks,
+    setTasks,
+    saveTask,
+    updateTaskStatus,
+    reorderKanbanTask,
+    moveTaskProperty,
+    assignTask,
+    deleteTask,
+    toggleSubtask,
+    addSubtask,
+    toggleStar
+  } = useSprintTasks({
+    currentSprintId,
+    currentUser,
+    allUsers,
+    properties,
+    reloadSprintDetails: loadSprintDetails,
+    onError: showToast
+  });
+
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  const loadWorkspaceData = async () => {
+    const [propsRes, sprintsRes] = await Promise.all([
+      api.getProperties(true).catch(() => ({ success: false, properties: [] as Property[] })),
+      api.getSprints().catch(() => ({ success: false, sprints: [] as Sprint[] }))
+    ]);
+
+    if (propsRes?.properties) {
+      setProperties(propsRes.properties);
+    }
+
+    if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
+      setSprints(sprintsRes.sprints);
+      const active = sprintsRes.sprints.find(s => s.status === 'active') || sprintsRes.sprints[0];
+      setCurrentSprintId(active.id);
+      const details = await api.getSprintDetails(active.id);
+      if (details.success) {
+        setTasks(details.tasks);
+        setQuestions(details.questions);
+        setIsReadOnly(details.is_read_only);
+      }
+    } else {
+      setSprints([]);
+      setTasks([]);
+      setQuestions([]);
+    }
+  };
 
   const loadInitialData = async () => {
     setIsLoading(true);
     setApiError(null);
     try {
-      // 1. Charger la liste des utilisateurs (public)
       const usersRes = await api.getUsers().catch(() => ({ success: false, users: [] as User[] }));
       if (usersRes?.users && usersRes.users.length > 0) {
         setAllUsers(usersRes.users);
       }
 
-      // 2. Vérifier si une session active existe
       let meRes: { success: boolean; user: User } | null = null;
       try {
         meRes = await api.getMe();
@@ -69,42 +136,44 @@ export const App: React.FC = () => {
         return;
       }
 
-      // 3. Utilisateur authentifié !
       setCurrentUser(meRes.user);
-      api.setCurrentUserId(meRes.user.id);
+      const userPrefs = getUserPreferences(meRes.user.id);
+      setActiveTab(userPrefs.activeTab ?? 'tasks');
 
-      // 4. Charger logements et sprints
-      const [propsRes, sprintsRes] = await Promise.all([
-        api.getProperties().catch(() => ({ success: false, properties: [] })),
-        api.getSprints().catch(() => ({ success: false, sprints: [] }))
-      ]);
-
-      if (propsRes?.properties) {
-        setProperties(propsRes.properties);
-      }
-
-      if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
-        setSprints(sprintsRes.sprints);
-        const active = sprintsRes.sprints.find(s => s.status === 'active') || sprintsRes.sprints[0];
-        setCurrentSprintId(active.id);
-        await loadSprintDetails(active.id);
-      } else {
-        setSprints([]);
-        setTasks([]);
-        setQuestions([]);
-      }
+      await loadWorkspaceData();
     } catch (e: any) {
-      console.error("Erreur de chargement API :", e);
+      console.error('Erreur de chargement API :', e);
       setApiError(e?.message || "Impossible de joindre l'API REST.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleLoginSuccess = async (user: User, token: string) => {
+  const handleLoginSuccess = async (user: User) => {
+    setIsLoading(true);
+    setApiError(null);
     setCurrentUser(user);
-    api.setCurrentUserId(user.id);
-    await loadInitialData();
+    const userPrefs = getUserPreferences(user.id);
+    setActiveTab(userPrefs.activeTab ?? 'tasks');
+    try {
+      const usersRes = await api.getUsers().catch(() => ({ success: false, users: [] as User[] }));
+      if (usersRes?.users && usersRes.users.length > 0) {
+        setAllUsers(usersRes.users);
+      }
+      await loadWorkspaceData();
+    } catch (e: any) {
+      console.error('Erreur de chargement API :', e);
+      setApiError(e?.message || "Impossible de joindre l'API REST.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChangeTab = (tab: 'tasks' | 'questions' | 'meeting') => {
+    setActiveTab(tab);
+    if (currentUser) {
+      saveUserPreferences(currentUser.id, { activeTab: tab });
+    }
   };
 
   const handleLoginSubmit = async (emailOrId: string | number, password: string) => {
@@ -115,174 +184,40 @@ export const App: React.FC = () => {
     try {
       await api.logout();
     } catch (err) {
-      console.warn("Erreur déconnexion :", err);
+      console.warn('Erreur déconnexion :', err);
     } finally {
       setCurrentUser(null);
       localStorage.removeItem('kanban_token');
-      localStorage.removeItem('kanban_current_user_id');
     }
   };
 
-  const loadSprintDetails = async (sprintId: number) => {
-    try {
-      const details = await api.getSprintDetails(sprintId);
-      if (details.success) {
-        setTasks(details.tasks);
-        setQuestions(details.questions);
-        setIsReadOnly(details.is_read_only);
-      }
-    } catch (err: any) {
-      console.error("Erreur chargement sprint :", err);
-      const sprint = sprints.find(s => s.id === sprintId);
-      setIsReadOnly(sprint?.status === 'closed' && currentUser?.role !== 'admin');
-    }
-  };
-
-  const enrichLocalTasks = (rawTasks: Task[], user: User | null) => {
-    const enriched = rawTasks.map(t => {
-      const canEdit = (user?.role === 'admin')
-        || (user?.role === 'write' && (t.assigned_to === user.id || (t.assigned_to === null && t.created_by === user.id)));
-      return {
-        ...t,
-        can_edit: canEdit,
-        can_delete: canEdit,
-        can_assign: user?.role === 'admin'
-      };
-    });
-    setTasks(enriched);
-  };
-
-  // Changement d'associé connecté (switcher)
-  const handleSwitchUser = (userId: number) => {
-    const user = allUsers.find(u => u.id === userId) || null;
-    setCurrentUser(user);
-    api.setCurrentUserId(userId);
-    enrichLocalTasks(tasks, user);
-    if (currentSprintId) {
-      loadSprintDetails(currentSprintId);
-    }
-  };
-
-  // Sélection d'un sprint
   const handleSelectSprint = (id: number) => {
     setCurrentSprintId(id);
     loadSprintDetails(id);
   };
 
-  // Tâches : Création / Édition
-  const handleSaveTask = async (taskData: any) => {
-    try {
-      if (taskData.id) {
-        await api.updateTask(taskData.id, taskData);
-      } else {
-        await api.createTask(taskData);
-      }
-      if (currentSprintId) loadSprintDetails(currentSprintId);
-    } catch (err) {
-      // Mise à jour optimiste locale
-      if (taskData.id) {
-        setTasks(tasks.map(t => t.id === taskData.id ? { ...t, ...taskData } : t));
-      } else {
-        const newTask: Task = {
-          id: Date.now(),
-          sprint_id: currentSprintId || 1,
-          title: taskData.title,
-          description: taskData.description,
-          status: taskData.status,
-          priority: taskData.priority,
-          assigned_to: taskData.assigned_to,
-          assigned_to_name: allUsers.find(u => u.id === taskData.assigned_to)?.name,
-          assigned_to_initials: allUsers.find(u => u.id === taskData.assigned_to)?.initials,
-          assigned_to_color: allUsers.find(u => u.id === taskData.assigned_to)?.avatar_color,
-          created_by: currentUser?.id || 1,
-          property_id: taskData.property_id,
-          property_name: properties.find(p => p.id === taskData.property_id)?.name,
-          property_color: properties.find(p => p.id === taskData.property_id)?.color,
-          position: tasks.length + 1,
-          subtasks: (taskData.subtasks || []).map((st: string, idx: number) => ({
-            id: Date.now() + idx,
-            task_id: Date.now(),
-            title: st,
-            is_done: 0,
-            position: idx + 1
-          })),
-          can_edit: true,
-          can_delete: true
-        };
-        setTasks([...tasks, newTask]);
-      }
-    }
-  };
-
-  // Changement rapide de statut (Drag & Drop ou Clic)
-  const handleUpdateTaskStatus = async (taskId: number, newStatus: TaskStatus) => {
-    // Optimistic UI
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-    try {
-      await api.updateTaskStatus(taskId, newStatus);
-    } catch {
-      // Ignorer si mode local
-    }
-  };
-
-  // Attribution rapide d'une tâche orpheline en réunion par l'Admin
-  const handleAssignTask = async (taskId: number, userId: number) => {
-    const targetUser = allUsers.find(u => u.id === userId);
-    setTasks(tasks.map(t => t.id === taskId ? {
-      ...t,
-      assigned_to: userId,
-      assigned_to_name: targetUser?.name,
-      assigned_to_initials: targetUser?.initials,
-      assigned_to_color: targetUser?.avatar_color
-    } : t));
-
-    try {
-      await api.updateTask(taskId, { assigned_to: userId });
-    } catch {
-      // Mode local
-    }
-  };
-
-  // Suppression d'une tâche
-  const handleDeleteTask = async (id: number) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer cette tâche ?')) return;
-    setTasks(tasks.filter(t => t.id !== id));
-    try {
-      await api.deleteTask(id);
-    } catch {
-      // Mode local
-    }
-  };
-
-  // Coche / Décoche sous-tâche
-  const handleToggleSubtask = async (subtaskId: number) => {
-    setTasks(tasks.map(t => ({
-      ...t,
-      subtasks: t.subtasks.map(st => st.id === subtaskId ? { ...st, is_done: !st.is_done } : st)
-    })));
-    try {
-      await api.toggleSubtask(subtaskId);
-    } catch {
-      // Mode local
-    }
-  };
-
-  // Ajout direct d'une sous-tâche hiérarchique
-  const handleAddSubtask = async (taskId: number, title: string, parentId?: number | null) => {
-    try {
-      await api.addSubtask(taskId, title, parentId);
-      if (currentSprintId) loadSprintDetails(currentSprintId);
-    } catch (e: any) {
-      alert(e.message || "Erreur lors de l'ajout de la sous-tâche");
-    }
+  const openCreateTaskModal = (options?: {
+    status?: TaskStatus;
+    propertyId?: number | null;
+    source?: 'tasks' | 'meeting';
+  }) => {
+    setEditingTask(null);
+    setTaskModalInitialStatus(options?.status || 'todo');
+    setTaskModalInitialPropertyId(options?.propertyId ?? null);
+    setTaskModalCreationSource(options?.source || (activeTab === 'meeting' ? 'meeting' : 'tasks'));
+    setIsTaskModalOpen(true);
   };
 
   // Questions : Ajout / Modif / Suppr
   const handleAddQuestion = async (data: any) => {
     try {
       await api.createQuestion(data);
-      if (currentSprintId) loadSprintDetails(currentSprintId);
-    } catch {
+      if (currentSprintId) await loadSprintDetails(currentSprintId);
+    } catch (err: any) {
+      if (!(err instanceof TypeError)) {
+        showToast(err?.message || "Impossible d'ajouter cette question.");
+        throw err;
+      }
       const targetUser = allUsers.find(u => u.id === data.user_id) || currentUser;
       const newQ: Question = {
         id: Date.now(),
@@ -303,31 +238,38 @@ export const App: React.FC = () => {
   };
 
   const handleUpdateQuestion = async (id: number, data: Partial<Question>) => {
-    setQuestions(questions.map(q => q.id === id ? { ...q, ...data } : q));
+    const previousQuestions = questions;
+    setQuestions(questions.map(q => (q.id === id ? { ...q, ...data } : q)));
     try {
       await api.updateQuestion(id, data);
-    } catch {
-      // Mode local
+    } catch (err: any) {
+      if (!(err instanceof TypeError)) {
+        setQuestions(previousQuestions);
+        showToast(err?.message || 'Impossible de modifier cette question.');
+      }
     }
   };
 
   const handleDeleteQuestion = async (id: number) => {
     if (!window.confirm('Voulez-vous vraiment supprimer cette question ?')) return;
+    const previousQuestions = questions;
     setQuestions(questions.filter(q => q.id !== id));
     try {
       await api.deleteQuestion(id);
-    } catch {
-      // Mode local
+    } catch (err: any) {
+      if (!(err instanceof TypeError)) {
+        setQuestions(previousQuestions);
+        showToast(err?.message || 'Impossible de supprimer cette question.');
+      }
     }
   };
 
-  // Réponses collaboratives sur les questions
   const handleAddAnswer = async (questionId: number, content: string) => {
     try {
       await api.addQuestionAnswer(questionId, content);
       if (currentSprintId) loadSprintDetails(currentSprintId);
     } catch (e: any) {
-      alert(e.message || "Erreur lors de l'envoi de la proposition");
+      showToast(e.message || "Erreur lors de l'envoi de la proposition");
     }
   };
 
@@ -336,7 +278,7 @@ export const App: React.FC = () => {
       await api.updateQuestionAnswer(answerId, content);
       if (currentSprintId) loadSprintDetails(currentSprintId);
     } catch (e: any) {
-      alert(e.message || "Erreur lors de la modification de la réponse");
+      showToast(e.message || 'Erreur lors de la modification de la réponse');
     }
   };
 
@@ -346,21 +288,19 @@ export const App: React.FC = () => {
       await api.deleteQuestionAnswer(answerId);
       if (currentSprintId) loadSprintDetails(currentSprintId);
     } catch (e: any) {
-      alert(e.message || "Erreur lors de la suppression");
+      showToast(e.message || 'Erreur lors de la suppression');
     }
   };
 
-  // Arbitrage / Décision définitive prise en réunion
   const handleSetQuestionDecision = async (questionId: number, finalAnswer: string, status: string = 'resolved') => {
     try {
       await api.setQuestionDecision(questionId, finalAnswer, status);
       if (currentSprintId) loadSprintDetails(currentSprintId);
     } catch (e: any) {
-      alert(e.message || "Erreur lors de l'enregistrement de la décision");
+      showToast(e.message || "Erreur lors de l'enregistrement de la décision");
     }
   };
 
-  // Clôture du sprint & Bascule (action clé du lundi)
   const handleConfirmCloseSprint = async (nextName: string, notes: string) => {
     const current = sprints.find(s => s.id === currentSprintId);
     if (!current) return;
@@ -368,15 +308,18 @@ export const App: React.FC = () => {
     try {
       const res = await api.closeSprint(current.id, nextName, notes);
       if (res.success) {
-        alert(res.message);
+        showToast(res.message);
         const sprintsRes = await api.getSprints();
         setSprints(sprintsRes.sprints);
         setCurrentSprintId(res.new_sprint_id);
-        loadSprintDetails(res.new_sprint_id);
+        await loadSprintDetails(res.new_sprint_id);
         return;
       }
-    } catch {
-      // Simulation locale fidèle de la bascule de sprint
+    } catch (err: any) {
+      if (!(err instanceof TypeError)) {
+        showToast(err?.message || 'Impossible de clôturer ce sprint.');
+        throw err;
+      }
       const nextNumber = current.number + 1;
       const newSprintId = Date.now();
       const newSprint: Sprint = {
@@ -387,54 +330,44 @@ export const App: React.FC = () => {
         started_at: new Date().toISOString()
       };
 
-      // 1. Figer le sprint actuel
-      const updatedSprints = sprints.map(s => s.id === current.id ? { ...s, status: 'closed' as const } : s);
+      const updatedSprints = sprints.map(s => (s.id === current.id ? { ...s, status: 'closed' as const } : s));
       setSprints([newSprint, ...updatedSprints]);
 
-      // 2. Report des tâches non terminées avec 100% de leurs sous-tâches
       const pendingTasks = tasks.filter(t => t.status !== 'done');
-      const rolledOverTasks: Task[] = pendingTasks.map((t, idx) => ({
-        ...t,
-        id: Date.now() + idx + 10,
-        sprint_id: newSprintId,
-        status: (t.status === 'todo' ? 'in_progress' : t.status),
-        // Conservation de toutes les sous-tâches (faites et à faire)
-        subtasks: t.subtasks.map(st => ({ ...st, id: Date.now() + Math.random() }))
-      }));
+      const rolledOverTasks: Task[] = pendingTasks.map((t, idx) => {
+        const wasPending = t.status === 'pending';
+        if (wasPending && !t.assigned_to) {
+          return {
+            ...t,
+            sprint_id: newSprintId,
+            status: 'pending',
+            is_unplanned: false,
+            is_starred: false,
+            is_new: false,
+            position: idx + 1,
+            subtasks: (t.subtasks || []).map(st => ({ ...st }))
+          };
+        }
+        return {
+          ...t,
+          sprint_id: newSprintId,
+          status: wasPending ? 'todo' : t.status,
+          is_unplanned: false,
+          is_starred: false,
+          is_new: wasPending,
+          position: idx + 1,
+          subtasks: (t.subtasks || []).map(st => ({ ...st }))
+        };
+      });
 
       setCurrentSprintId(newSprintId);
       setTasks(rolledOverTasks);
-      setQuestions([]); // Les questions sont réinitialisées pour la nouvelle semaine
-      alert(`Le sprint ${current.name} a été clôturé. Le nouveau sprint Point ${nextNumber} est maintenant ouvert avec ${rolledOverTasks.length} tâches reportées.`);
+      setQuestions([]);
+      showToast(`Le sprint ${current.name} a été clôturé localement (${rolledOverTasks.length} tâches transférées).`);
     }
   };
 
-  // Bascule de l'étoile de mise en avant (Highlight)
-  const handleToggleStar = async (taskId: number) => {
-    // Mise à jour optimiste de l'UI
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        return { ...t, is_starred: !t.is_starred };
-      }
-      return t;
-    }));
-
-    try {
-      await api.toggleTaskStar(taskId);
-    } catch (err: any) {
-      console.error("Erreur lors de la mise en avant :", err);
-      // Rétablissement en cas d'erreur
-      setTasks(prev => prev.map(t => {
-        if (t.id === taskId) {
-          return { ...t, is_starred: !t.is_starred };
-        }
-        return t;
-      }));
-      alert(err?.message || "Impossible de modifier la mise en avant.");
-    }
-  };
-
-  // Administration : Réouverture d'un sprint fermé par erreur
+  // Administration des sprints
   const handleSprintReopened = async (sprintId: number) => {
     await api.reopenSprint(sprintId);
     const sprintsRes = await api.getSprints();
@@ -445,7 +378,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Administration : Modification d'un sprint
   const handleSprintUpdated = async (sprintId: number, data: Partial<Sprint>) => {
     await api.updateSprint(sprintId, data);
     const sprintsRes = await api.getSprints();
@@ -457,7 +389,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Administration : Suppression d'un sprint
   const handleSprintDeleted = async (sprintId: number) => {
     await api.deleteSprint(sprintId);
     const sprintsRes = await api.getSprints();
@@ -469,41 +400,41 @@ export const App: React.FC = () => {
     }
   };
 
-  // Filtrage des tâches selon la sélection, le logement et la recherche
-  const filteredTasks = tasks.filter(t => {
-    // 1. Filtre par associé / assigné
-    if (taskFilter === 'me') {
-      if (t.assigned_to !== currentUser?.id) return false;
-    } else if (taskFilter === 'unassigned') {
-      if (t.assigned_to) return false;
-    } else if (typeof taskFilter === 'number') {
-      if (t.assigned_to !== taskFilter) return false;
-    }
-
-    // 2. Filtre par logement
-    if (taskPropertyFilter !== 'all') {
-      if (t.property_id !== taskPropertyFilter) return false;
-    }
-
-    // 3. Recherche instantanée (titre, description, logement, sous-tâches)
-    if (taskSearchQuery.trim()) {
-      const q = taskSearchQuery.toLowerCase();
-      const matchTitle = t.title.toLowerCase().includes(q);
-      const matchDesc = (t.description || '').toLowerCase().includes(q);
-      const matchProp = (t.property_name || '').toLowerCase().includes(q);
-      const matchSub = (t.subtasks || []).some(st => st.title.toLowerCase().includes(q));
-      if (!matchTitle && !matchDesc && !matchProp && !matchSub) return false;
-    }
-
-    return true;
-  });
-
   const activeSprint = sprints.find(s => s.id === currentSprintId) || sprints[0];
 
-  // Si non connecté, afficher la page de connexion sécurisée
+  const sortProperties = (list: Property[]) =>
+    [...list].sort(
+      (a, b) =>
+        Number(b.is_active) - Number(a.is_active) ||
+        (a.position ?? 0) - (b.position ?? 0) ||
+        a.name.localeCompare(b.name)
+    );
+
+  // Les tâches au statut 'pending' ou sans responsable ne sont jamais visibles dans l'onglet Tâches
+  const boardTasks = useMemo(
+    () => tasks.filter(t => t.status !== 'pending' && !!t.assigned_to),
+    [tasks]
+  );
+
+  // Logements visibles selon le sprint affiché :
+  // - Sprint ouvert : uniquement les logements actifs
+  // - Sprint archivé : logements actifs + logements désactivés contenant des tâches sur ce sprint
+  const sprintProperties = useMemo(() => {
+    const ordered = sortProperties(properties);
+    if (!activeSprint || activeSprint.status !== 'closed') {
+      return ordered.filter(p => Number(p.is_active) === 1);
+    }
+    const usedPropIds = new Set(
+      boardTasks.map(t => t.property_id).filter((id): id is number => id !== null && id !== undefined)
+    );
+    return ordered
+      .filter(p => Number(p.is_active) === 1 || usedPropIds.has(p.id))
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name));
+  }, [properties, activeSprint, boardTasks]);
+
   if (isLoading && !currentUser) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white p-4">
+      <div className="min-h-dvh bg-slate-900 flex flex-col items-center justify-center text-white p-4">
         <div className="w-12 h-12 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin mb-4" />
         <p className="text-sm font-semibold text-slate-300">Vérification de la session Carré d'Hôtes...</p>
       </div>
@@ -521,30 +452,40 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col">
-      
-      {/* Navbar Principale */}
+    <div className="min-h-dvh bg-slate-100 flex flex-col">
       <Navbar
         currentUser={currentUser}
-        allUsers={allUsers}
         sprints={sprints}
         currentSprintId={currentSprintId}
         onSelectSprint={handleSelectSprint}
         isReadOnly={isReadOnly}
         activeTab={activeTab}
-        onChangeTab={setActiveTab}
+        onChangeTab={handleChangeTab}
         onLogout={handleLogout}
         onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
       />
 
-      {/* Conteneur Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+        {actionToast && (
+          <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-center justify-between gap-3 shadow-xs animate-fade-in">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" strokeWidth={2} />
+              <span>{actionToast}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionToast(null)}
+              className="p-1 text-red-500 hover:text-red-700 cursor-pointer"
+            >
+              <X className="w-4 h-4" strokeWidth={1.75} />
+            </button>
+          </div>
+        )}
 
-        {/* Message d'erreur API si échec */}
         {apiError && (
           <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-center justify-between shadow-xs">
             <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" strokeWidth={2} />
               <div>
                 <p className="font-semibold text-sm">Erreur de communication avec l'API :</p>
                 <p className="text-xs text-red-700">{apiError}</p>
@@ -559,278 +500,89 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* État de chargement initial */}
-        {isLoading && allUsers.length === 0 ? (
+        {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-400">
-            <RefreshCw className="w-8 h-8 animate-spin text-brand-600 mb-3" />
+            <RefreshCw className="w-8 h-8 animate-spin text-brand-600 mb-3" strokeWidth={1.75} />
             <p className="text-sm font-medium text-slate-600">Chargement du tableau de bord Carré d'Hôtes...</p>
           </div>
         ) : (
           <>
-            {/* TAB 1 : TÂCHES */}
             {activeTab === 'tasks' && (
-          <div className="space-y-4 sm:space-y-5">
-            
-            {/* Barre de contrôles des tâches */}
-            <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3">
-              
-              {/* Filtres par associé / pool */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
-                  Filtres :
-                </span>
-
-                {/* Mes tâches (DEFAULT) */}
-                {currentUser && (
-                  <button
-                    onClick={() => setTaskFilter('me')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      taskFilter === 'me'
-                        ? 'bg-brand-600 text-white shadow-xs'
-                        : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
-                    }`}
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    Mes tâches ({tasks.filter(t => t.assigned_to === currentUser.id).length})
-                  </button>
-                )}
-
-                {/* Toutes */}
-                <button
-                  onClick={() => setTaskFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    taskFilter === 'all'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Toutes ({tasks.length})
-                </button>
-
-                {/* Tâches non attribuées (pool commun) */}
-                <button
-                  onClick={() => setTaskFilter('unassigned')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    taskFilter === 'unassigned'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-                  }`}
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  Non attribuées ({tasks.filter(t => !t.assigned_to).length})
-                </button>
-
-                {/* Filtre par autres associés */}
-                {allUsers
-                  .filter(u => u.id !== currentUser?.id)
-                  .map(u => {
-                    const count = tasks.filter(t => t.assigned_to === u.id).length;
-                    const isSelected = taskFilter === u.id;
-
-                    return (
-                      <button
-                        key={u.id}
-                        onClick={() => setTaskFilter(u.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                          isSelected
-                            ? 'text-white shadow-xs'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                        style={isSelected ? { backgroundColor: u.avatar_color } : {}}
-                      >
-                        <div
-                          className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
-                          style={{ backgroundColor: u.avatar_color }}
-                        >
-                          {u.initials}
-                        </div>
-                        {u.name} ({count})
-                      </button>
-                    );
-                  })}
-              </div>
-
-              {/* Sélecteur de vue (Statut vs Logement) + Bouton Nouvelle Tâche */}
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
-                
-                {/* Barre de Recherche Instantanée */}
-                <div className="relative flex-1 sm:w-48 max-w-xs">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={taskSearchQuery}
-                    onChange={(e) => setTaskSearchQuery(e.target.value)}
-                    placeholder="Rechercher..."
-                    className="w-full pl-8 pr-7 py-1 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  />
-                  {taskSearchQuery && (
-                    <button
-                      onClick={() => setTaskSearchQuery('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Filtre par Logement */}
-                {properties.length > 0 && (
-                  <select
-                    value={taskPropertyFilter}
-                    onChange={(e) => setTaskPropertyFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                    className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-slate-700 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
-                    title="Filtrer par logement"
-                  >
-                    <option value="all">Tous les logements</option>
-                    {properties.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Switch vue Kanban / Logement */}
-                <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
-                  <button
-                    onClick={() => setTaskViewMode('kanban')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      taskViewMode === 'kanban'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                    title="Vue Kanban par statut (À faire / En cours / Fait / Bloqué)"
-                  >
-                    <LayoutGrid className="w-3.5 h-3.5" />
-                    Par Statut
-                  </button>
-
-                  <button
-                    onClick={() => setTaskViewMode('property')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      taskViewMode === 'property'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                    title="Vue groupée par logement"
-                  >
-                    <Home className="w-3.5 h-3.5" />
-                    Par Logement
-                  </button>
-                </div>
-
-                {/* Bouton Ajouter Tâche */}
-                {!isReadOnly && currentUser?.role !== 'read' && (
-                  <button
-                    onClick={() => {
-                      setEditingTask(null);
-                      setIsTaskModalOpen(true);
-                    }}
-                    className="flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Nouvelle tâche</span>
-                  </button>
-                )}
-              </div>
-
-            </div>
-
-            {/* Vue active : Kanban ou Logement */}
-            {taskViewMode === 'kanban' ? (
-              <KanbanBoard
-                tasks={filteredTasks}
+              <TasksTab
+                tasks={boardTasks}
+                properties={sprintProperties}
+                allUsers={allUsers}
                 currentUser={currentUser}
-                onEditTask={(t) => {
-                  setEditingTask(t);
-                  setIsTaskModalOpen(true);
-                }}
-                onDeleteTask={handleDeleteTask}
-                onToggleSubtask={handleToggleSubtask}
-                onAddSubtask={handleAddSubtask}
-                onUpdateStatus={handleUpdateTaskStatus}
-                onToggleStar={handleToggleStar}
-                onAddNewTask={() => {
-                  setEditingTask(null);
-                  setIsTaskModalOpen(true);
-                }}
                 isReadOnly={isReadOnly}
-              />
-            ) : (
-              <PropertyBoard
-                tasks={filteredTasks}
-                properties={properties}
-                currentUser={currentUser}
                 onEditTask={(t) => {
                   setEditingTask(t);
                   setIsTaskModalOpen(true);
                 }}
-                onDeleteTask={handleDeleteTask}
-                onToggleSubtask={handleToggleSubtask}
-                onAddSubtask={handleAddSubtask}
-                onUpdateStatus={handleUpdateTaskStatus}
-                onToggleStar={handleToggleStar}
-                onAddNewTask={() => {
-                  setEditingTask(null);
-                  setIsTaskModalOpen(true);
-                }}
+                onDeleteTask={deleteTask}
+                onToggleSubtask={toggleSubtask}
+                onAddSubtask={addSubtask}
+                onUpdateStatus={updateTaskStatus}
+                onReorderKanbanTask={reorderKanbanTask}
+                onMoveTaskProperty={moveTaskProperty}
+                onToggleStar={toggleStar}
+                onOpenCreateTask={openCreateTaskModal}
+              />
+            )}
+
+            {activeTab === 'questions' && (
+              <QuestionsView
+                questions={questions}
+                users={allUsers}
+                currentUser={currentUser}
+                sprintId={currentSprintId || 1}
+                onAddQuestion={handleAddQuestion}
+                onUpdateQuestion={handleUpdateQuestion}
+                onDeleteQuestion={handleDeleteQuestion}
+                onAddAnswer={handleAddAnswer}
+                onUpdateAnswer={handleUpdateAnswer}
+                onDeleteAnswer={handleDeleteAnswer}
                 isReadOnly={isReadOnly}
               />
             )}
 
-          </div>
-        )}
-
-        {/* TAB 2 : QUESTIONS */}
-        {activeTab === 'questions' && (
-          <QuestionsView
-            questions={questions}
-            users={allUsers}
-            currentUser={currentUser}
-            sprintId={currentSprintId || 1}
-            onAddQuestion={handleAddQuestion}
-            onUpdateQuestion={handleUpdateQuestion}
-            onDeleteQuestion={handleDeleteQuestion}
-            onAddAnswer={handleAddAnswer}
-            onUpdateAnswer={handleUpdateAnswer}
-            onDeleteAnswer={handleDeleteAnswer}
-            isReadOnly={isReadOnly}
-          />
-        )}
-
-        {/* TAB 3 : VUE RÉUNION */}
-        {activeTab === 'meeting' && (
-          <MeetingView
-            sprint={activeSprint}
-            tasks={tasks}
-            questions={questions}
-            users={allUsers}
-            currentUser={currentUser}
-            properties={properties}
-            onOpenCloseSprintModal={() => setIsCloseSprintModalOpen(true)}
-            onUpdateTaskStatus={handleUpdateTaskStatus}
-            onAssignTask={handleAssignTask}
-            onToggleSubtask={handleToggleSubtask}
-            onUpdateQuestionStatus={(qId, st) => handleUpdateQuestion(qId, { status: st })}
-            onSetQuestionDecision={handleSetQuestionDecision}
-            onEditTask={(t) => {
-              setEditingTask(t);
-              setIsTaskModalOpen(true);
-            }}
-            onToggleStar={handleToggleStar}
-            onAddNewTask={() => {
-              setEditingTask(null);
-              setIsTaskModalOpen(true);
-            }}
-            onAddNewQuestion={() => setActiveTab('questions')}
-            isReadOnly={isReadOnly}
-          />
-        )}
-
+            {activeTab === 'meeting' && (
+              activeSprint ? (
+                <MeetingView
+                  sprint={activeSprint}
+                  tasks={tasks}
+                  questions={questions}
+                  users={allUsers}
+                  currentUser={currentUser}
+                  properties={sprintProperties}
+                  onOpenCloseSprintModal={() => setIsCloseSprintModalOpen(true)}
+                  onUpdateTaskStatus={updateTaskStatus}
+                  onAssignTask={assignTask}
+                  onDeleteTask={deleteTask}
+                  onToggleSubtask={toggleSubtask}
+                  onUpdateQuestionStatus={(qId, st) => handleUpdateQuestion(qId, { status: st })}
+                  onSetQuestionDecision={handleSetQuestionDecision}
+                  onEditTask={(t) => {
+                    setEditingTask(t);
+                    setIsTaskModalOpen(true);
+                  }}
+                  onToggleStar={toggleStar}
+                  onAddNewTask={(pendingTaskToEdit) => {
+                    setEditingPendingTask(pendingTaskToEdit || null);
+                    setIsMeetingQuickModalOpen(true);
+                  }}
+                  onAddNewQuestion={() => handleChangeTab('questions')}
+                  isReadOnly={isReadOnly}
+                />
+              ) : (
+                <div className="bg-white rounded-2xl border border-black/[0.12] p-10 text-center text-slate-500 text-sm">
+                  Aucun sprint configuré pour la vue réunion.
+                </div>
+              )
+            )}
           </>
         )}
-
       </main>
 
-      {/* Modale d'Édition / Création de Tâche */}
       <TaskModal
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
@@ -838,11 +590,13 @@ export const App: React.FC = () => {
         sprintId={currentSprintId || 1}
         currentUser={currentUser}
         users={allUsers}
-        properties={properties}
-        onSave={handleSaveTask}
+        properties={sprintProperties}
+        initialStatus={taskModalInitialStatus}
+        initialPropertyId={taskModalInitialPropertyId}
+        creationSource={taskModalCreationSource}
+        onSave={saveTask}
       />
 
-      {/* Modale de Clôture & Bascule du Sprint */}
       <CloseSprintModal
         isOpen={isCloseSprintModalOpen}
         onClose={() => setIsCloseSprintModalOpen(false)}
@@ -851,13 +605,28 @@ export const App: React.FC = () => {
         onConfirmClose={handleConfirmCloseSprint}
       />
 
-      {/* Vraie Interface Administrateur (Sprints, Réouverture de sprint, Associés & Sécurité) */}
+      <MeetingQuickTaskModal
+        isOpen={isMeetingQuickModalOpen}
+        onClose={() => {
+          setIsMeetingQuickModalOpen(false);
+          setEditingPendingTask(null);
+        }}
+        sprintId={currentSprintId || 1}
+        nextSprintNumber={(activeSprint?.number ?? 0) + 1}
+        currentUser={currentUser}
+        users={allUsers}
+        properties={sprintProperties}
+        editingTask={editingPendingTask}
+        onSave={saveTask}
+      />
+
       <AdminPanelModal
         isOpen={isAdminPanelOpen}
         onClose={() => setIsAdminPanelOpen(false)}
         currentUser={currentUser}
         users={allUsers}
         sprints={sprints}
+        properties={properties}
         currentSprintId={currentSprintId}
         onSprintReopened={handleSprintReopened}
         onSprintUpdated={handleSprintUpdated}
@@ -866,7 +635,7 @@ export const App: React.FC = () => {
           setAllUsers([...allUsers, newUser]);
         }}
         onUserUpdated={(updatedUser) => {
-          setAllUsers(allUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
+          setAllUsers(allUsers.map(u => (u.id === updatedUser.id ? updatedUser : u)));
           if (currentUser?.id === updatedUser.id) {
             setCurrentUser(updatedUser);
           }
@@ -874,11 +643,25 @@ export const App: React.FC = () => {
         onUserDeleted={(deletedId) => {
           setAllUsers(allUsers.filter(u => u.id !== deletedId));
         }}
-        apiCreateUser={api.createUser}
-        apiUpdateUser={api.updateUser}
-        apiDeleteUser={api.deleteUser}
+        onPropertyCreated={(newProp) => {
+          setProperties(prev => sortProperties([...prev, newProp]));
+        }}
+        onPropertyUpdated={(updatedProp) => {
+          setProperties(prev => sortProperties(prev.map(p => (p.id === updatedProp.id ? updatedProp : p))));
+          if (currentSprintId) {
+            loadSprintDetails(currentSprintId);
+          }
+        }}
+        onPropertyStatusChanged={async (updatedProp) => {
+          setProperties(prev => sortProperties(prev.map(p => (p.id === updatedProp.id ? updatedProp : p))));
+          if (currentSprintId) {
+            await loadSprintDetails(currentSprintId);
+          }
+        }}
+        onPropertiesReordered={(orderedProps) => {
+          setProperties(orderedProps);
+        }}
       />
-
     </div>
   );
 };

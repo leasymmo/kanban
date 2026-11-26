@@ -3,37 +3,31 @@ import { User, Sprint } from '../types';
 import { SprintSelector } from './SprintSelector';
 import {
   CheckSquare, HelpCircle, Users, Shield, UserCheck, Eye,
-  LogOut, UserCog, ChevronDown
+  LogOut, ChevronDown
 } from 'lucide-react';
 
 interface NavbarProps {
   currentUser: User | null;
-  allUsers: User[];
   sprints: Sprint[];
   currentSprintId: number | null;
   onSelectSprint: (id: number) => void;
   isReadOnly: boolean;
   activeTab: 'tasks' | 'questions' | 'meeting';
   onChangeTab: (tab: 'tasks' | 'questions' | 'meeting') => void;
-  onSwitchUser?: (userId: number) => void;
   onLogout: () => void;
   onOpenAdminPanel?: () => void;
-  onOpenUserManager?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
-  allUsers,
   sprints,
   currentSprintId,
   onSelectSprint,
   isReadOnly,
   activeTab,
   onChangeTab,
-  onSwitchUser,
   onLogout,
-  onOpenAdminPanel,
-  onOpenUserManager
+  onOpenAdminPanel
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -53,19 +47,19 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'admin':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-            <Shield className="w-2.5 h-2.5" /> Admin
+            <Shield className="w-2.5 h-2.5" strokeWidth={2} /> Admin
           </span>
         );
       case 'write':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-            <UserCheck className="w-2.5 h-2.5" /> Écriture
+            <UserCheck className="w-2.5 h-2.5" strokeWidth={2} /> Écriture
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-500/20 text-slate-300 border border-slate-500/30">
-            <Eye className="w-2.5 h-2.5" /> Lecture
+            <Eye className="w-2.5 h-2.5" strokeWidth={2} /> Lecture
           </span>
         );
     }
@@ -142,11 +136,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           {currentUser?.role === 'admin' && (
             <button
               type="button"
-              onClick={() => onOpenAdminPanel ? onOpenAdminPanel() : onOpenUserManager?.()}
+              onClick={() => onOpenAdminPanel?.()}
               className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-600/20 text-purple-300 border border-purple-500/40 hover:bg-purple-600/30 hover:text-white transition-all cursor-pointer shadow-xs"
               title="Ouvrir le panneau d'administration des sprints et des utilisateurs"
             >
-              <Shield className="w-3.5 h-3.5 text-purple-400" />
+              <Shield className="w-3.5 h-3.5 text-purple-400" strokeWidth={2.25} />
               <span>Admin</span>
             </button>
           )}
@@ -170,7 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="hidden md:flex flex-col text-left">
                   <span className="font-semibold text-xs leading-none text-white flex items-center gap-1">
                     {currentUser.name}
-                    <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
                   </span>
                   <span className="mt-0.5">{getRoleBadge(currentUser.role)}</span>
                 </div>
@@ -179,10 +173,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Menu Popover */}
             {isMenuOpen && currentUser && (
-              <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl py-2 z-50 text-white animate-fade-in">
+              <div className="absolute right-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl py-2 z-50 text-white animate-fade-in">
                 
                 {/* En-tête profil */}
-                <div className="px-4 py-3 border-b border-slate-800 flex items-center gap-3">
+                <div className="px-4 py-3 border-b border-slate-700 flex items-center gap-3">
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0"
                     style={{ backgroundColor: currentUser.avatar_color || '#2563EB' }}
@@ -202,8 +196,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       onClick={() => {
                         setIsMenuOpen(false);
-                        if (onOpenAdminPanel) onOpenAdminPanel();
-                        else if (onOpenUserManager) onOpenUserManager();
+                        onOpenAdminPanel?.();
                       }}
                       className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-purple-300 hover:text-white hover:bg-purple-600/20 transition-colors cursor-pointer text-left"
                     >
@@ -241,7 +234,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <CheckSquare className="w-3.5 h-3.5" />
+            <CheckSquare className="w-3.5 h-3.5" strokeWidth={2.25} />
             Tâches
           </button>
 
@@ -253,7 +246,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <HelpCircle className="w-3.5 h-3.5" />
+            <HelpCircle className="w-3.5 h-3.5" strokeWidth={2.25} />
             Questions
           </button>
 
@@ -265,16 +258,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-3.5 h-3.5" strokeWidth={2.25} />
             Réunion
           </button>
 
           {currentUser?.role === 'admin' && (
             <button
-              onClick={() => onOpenAdminPanel ? onOpenAdminPanel() : onOpenUserManager?.()}
+              onClick={() => onOpenAdminPanel?.()}
               className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold text-purple-300 hover:text-white"
             >
-              <Shield className="w-3.5 h-3.5" />
+              <Shield className="w-3.5 h-3.5" strokeWidth={2.25} />
               Admin
             </button>
           )}

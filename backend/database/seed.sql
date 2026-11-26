@@ -12,26 +12,36 @@ INSERT INTO `users` (`id`, `name`, `email`, `password_hash`, `role`, `avatar_col
 (4, 'Damien', 'damien@example.com', '$2y$10$hlNwWbr0bWb6zib8A3iUXuHidlfR4XADpvmRTvXCbxnguwUtxdfai', 'write', '#D97706', 'DA');
 
 /* 2. Propriétés Démo */
-INSERT INTO `properties` (`id`, `name`, `code`, `color`, `is_active`) VALUES
-(1, 'Résidence Centre', 'RC', '#3B82F6', 1),
-(2, 'Studio Sud', 'SS', '#EC4899', 1),
-(3, 'Villa Colline', 'VC', '#10B981', 1),
-(4, 'Loft Urbain', 'LU', '#8B5CF6', 1),
-(5, 'Appartement Panorama', 'AP', '#F59E0B', 1);
+INSERT INTO `properties` (`id`, `name`, `code`, `color`, `position`, `is_active`) VALUES
+(1, 'Résidence Centre', 'RC', '#3B82F6', 1, 1),
+(2, 'Studio Sud', 'SS', '#EC4899', 2, 1),
+(3, 'Villa Colline', 'VC', '#10B981', 3, 1),
+(4, 'Loft Urbain', 'LU', '#8B5CF6', 4, 1),
+(5, 'Appartement Panorama', 'AP', '#F59E0B', 5, 1);
 
 /* 3. Sprint initial */
 INSERT INTO `sprints` (`id`, `number`, `name`, `status`, `started_at`, `notes`) VALUES
 (1, 1, 'Sprint 1 — Lancement', 'active', NOW(), 'Sprint initial pour tester le tableau Kanban.');
 
 /* 4. Tâches d''exemple */
-INSERT INTO `tasks` (`id`, `sprint_id`, `title`, `description`, `status`, `assigned_to`, `created_by`, `property_id`, `priority`, `position`, `is_unplanned`) VALUES
-(1, 1, 'Préparation des modèles de contrats pour les nouveaux clients', 'Mettre en forme le document avec les clauses standards.', 'todo', NULL, 1, NULL, 'medium', 1, 0),
-(2, 1, 'Mise à jour du site web et vérification des coordonnées', 'Vérifier le formulaire de contact.', 'todo', NULL, 2, NULL, 'low', 2, 0),
-(3, 1, 'Contrôle des stocks de consommables et fournitures', 'Faire l''inventaire général de fin de mois.', 'in_progress', 4, 4, 1, 'high', 1, 0),
-(4, 1, 'Remplacement des serrures connectées', 'Installation et test d''ouverture par smartphone.', 'in_progress', 4, 4, 2, 'high', 2, 0),
-(5, 1, 'Répondre aux demandes et avis clients de la semaine', 'Traitement des messages en attente.', 'in_progress', 3, 3, NULL, 'medium', 1, 0),
-(6, 1, 'Finaliser le tableau de bord prévisionnel trimestriel', 'Point comptable avant validation finale.', 'in_progress', 2, 2, NULL, 'high', 1, 0),
-(7, 1, 'Configuration et déploiement du tableau Kanban', 'Vérifier la bonne synchronisation avec la base de données.', 'done', 1, 1, NULL, 'high', 1, 0);
+INSERT INTO `tasks` (`id`, `title`, `description`, `created_by`, `property_id`, `priority`) VALUES
+(1, 'Préparation des modèles de contrats pour les nouveaux clients', 'Mettre en forme le document avec les clauses standards.', 1, NULL, 'medium'),
+(2, 'Mise à jour du site web et vérification des coordonnées', 'Vérifier le formulaire de contact.', 2, NULL, 'low'),
+(3, 'Contrôle des stocks de consommables et fournitures', 'Faire l''inventaire général de fin de mois.', 4, 1, 'high'),
+(4, 'Remplacement des serrures connectées', 'Installation et test d''ouverture par smartphone.', 4, 2, 'high'),
+(5, 'Répondre aux demandes et avis clients de la semaine', 'Traitement des messages en attente.', 3, NULL, 'medium'),
+(6, 'Finaliser le tableau de bord prévisionnel trimestriel', 'Point comptable avant validation finale.', 2, NULL, 'high'),
+(7, 'Configuration et déploiement du tableau Kanban', 'Vérifier la bonne synchronisation avec la base de données.', 1, NULL, 'high');
+
+/* 4b. Liaison Sprint <-> Tâches */
+INSERT INTO `sprint_tasks` (`sprint_id`, `task_id`, `status`, `assigned_to`, `position`, `is_unplanned`, `is_starred`) VALUES
+(1, 1, 'pending', NULL, 1, 0, 0),
+(1, 2, 'pending', NULL, 2, 0, 0),
+(1, 3, 'in_progress', 4, 3, 0, 0),
+(1, 4, 'in_progress', 4, 4, 0, 0),
+(1, 5, 'in_progress', 3, 5, 0, 0),
+(1, 6, 'in_progress', 2, 6, 0, 0),
+(1, 7, 'done', 1, 7, 0, 0);
 
 /* 5. Sous-tâches Démo */
 INSERT INTO `subtasks` (`task_id`, `title`, `is_done`, `position`) VALUES

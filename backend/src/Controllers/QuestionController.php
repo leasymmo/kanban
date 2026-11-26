@@ -92,9 +92,24 @@ class QuestionController {
             Response::error('Titre de la question et sprint requis', 400);
         }
 
+        $stmtSprint = $db->prepare("SELECT id, status FROM sprints WHERE id = ? LIMIT 1");
+        $stmtSprint->execute([$sprintId]);
+        $sprint = $stmtSprint->fetch();
+        if (!$sprint) {
+            Response::error('Sprint introuvable', 404);
+        }
+        if ($sprint['status'] === 'closed' && $currentUser['role'] !== 'admin') {
+            Response::error('Sprint clôturé : création interdite en lecture seule', 403);
+        }
+
         $targetUserId = (int)$currentUser['id'];
         if ($currentUser['role'] === 'admin' && !empty($body['user_id'])) {
             $targetUserId = (int)$body['user_id'];
+            $stmtU = $db->prepare("SELECT id FROM users WHERE id = ? LIMIT 1");
+            $stmtU->execute([$targetUserId]);
+            if (!$stmtU->fetch()) {
+                Response::error('Utilisateur concerné introuvable', 400);
+            }
         }
 
         $stmt = $db->prepare("
@@ -117,12 +132,21 @@ class QuestionController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $stmt = $db->prepare("SELECT * FROM questions WHERE id = ?");
+        $stmt = $db->prepare("
+            SELECT q.*, s.status as sprint_status
+            FROM questions q
+            JOIN sprints s ON s.id = q.sprint_id
+            WHERE q.id = ?
+        ");
         $stmt->execute([$id]);
         $question = $stmt->fetch();
 
         if (!$question) {
             Response::error('Question introuvable', 404);
+        }
+
+        if ($question['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
+            Response::error('Sprint clôturé : modification interdite en lecture seule', 403);
         }
 
         $canEdit = ($currentUser['role'] === 'admin')
@@ -140,6 +164,11 @@ class QuestionController {
         $userId = $question['user_id'];
         if ($currentUser['role'] === 'admin' && !empty($body['user_id'])) {
             $userId = (int)$body['user_id'];
+            $stmtU = $db->prepare("SELECT id FROM users WHERE id = ? LIMIT 1");
+            $stmtU->execute([$userId]);
+            if (!$stmtU->fetch()) {
+                Response::error('Utilisateur concerné introuvable', 400);
+            }
         }
 
         $stmtUpdate = $db->prepare("
@@ -159,12 +188,21 @@ class QuestionController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $stmt = $db->prepare("SELECT * FROM questions WHERE id = ?");
+        $stmt = $db->prepare("
+            SELECT q.*, s.status as sprint_status
+            FROM questions q
+            JOIN sprints s ON s.id = q.sprint_id
+            WHERE q.id = ?
+        ");
         $stmt->execute([$id]);
         $question = $stmt->fetch();
 
         if (!$question) {
             Response::error('Question introuvable', 404);
+        }
+
+        if ($question['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
+            Response::error('Sprint clôturé : suppression interdite en lecture seule', 403);
         }
 
         $canDelete = ($currentUser['role'] === 'admin')
@@ -188,10 +226,19 @@ class QuestionController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $stmtQ = $db->prepare("SELECT id FROM questions WHERE id = ?");
+        $stmtQ = $db->prepare("
+            SELECT q.id, s.status as sprint_status
+            FROM questions q
+            JOIN sprints s ON s.id = q.sprint_id
+            WHERE q.id = ?
+        ");
         $stmtQ->execute([$questionId]);
-        if (!$stmtQ->fetch()) {
+        $qRow = $stmtQ->fetch();
+        if (!$qRow) {
             Response::error('Question introuvable', 404);
+        }
+        if ($qRow['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
+            Response::error('Sprint clôturé en lecture seule', 403);
         }
 
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -315,12 +362,21 @@ class QuestionController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $stmt = $db->prepare("SELECT * FROM questions WHERE id = ?");
+        $stmt = $db->prepare("
+            SELECT q.*, s.status as sprint_status
+            FROM questions q
+            JOIN sprints s ON s.id = q.sprint_id
+            WHERE q.id = ?
+        ");
         $stmt->execute([$questionId]);
         $question = $stmt->fetch();
 
         if (!$question) {
             Response::error('Question introuvable', 404);
+        }
+
+        if ($question['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
+            Response::error('Sprint clôturé : arbitrage interdit en lecture seule', 403);
         }
 
         $body = json_decode(file_get_contents('php://input'), true) ?? [];

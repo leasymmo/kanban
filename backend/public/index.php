@@ -66,6 +66,12 @@ $router->add('POST', '/api/users', [UserController::class, 'create']);
 $router->add('PUT', '/api/users/{id}', [UserController::class, 'update']);
 $router->add('DELETE', '/api/users/{id}', [UserController::class, 'delete']);
 $router->add('GET', '/api/properties', [PropertyController::class, 'list']);
+$router->add('POST', '/api/properties', [PropertyController::class, 'create']);
+$router->add('PATCH', '/api/properties/reorder', [PropertyController::class, 'reorder']);
+$router->add('PUT', '/api/properties/{id}', [PropertyController::class, 'update']);
+$router->add('GET', '/api/properties/{id}/pending-tasks', [PropertyController::class, 'pendingTasks']);
+$router->add('POST', '/api/properties/{id}/deactivate', [PropertyController::class, 'deactivate']);
+$router->add('POST', '/api/properties/{id}/reactivate', [PropertyController::class, 'reactivate']);
 
 // --- Sprints ---
 $router->add('GET', '/api/sprints', [SprintController::class, 'list']);
@@ -78,6 +84,7 @@ $router->add('POST', '/api/sprints/{id}/reopen', [SprintController::class, 'reop
 
 // --- Tâches ---
 $router->add('POST', '/api/tasks', [TaskController::class, 'create']);
+$router->add('PATCH', '/api/tasks/reorder', [TaskController::class, 'reorder']);
 $router->add('PUT', '/api/tasks/{id}', [TaskController::class, 'update']);
 $router->add('PATCH', '/api/tasks/{id}', [TaskController::class, 'update']);
 $router->add('PATCH', '/api/tasks/{id}/status', [TaskController::class, 'updateStatus']);

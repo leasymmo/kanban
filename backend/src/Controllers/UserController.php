@@ -60,9 +60,18 @@ class UserController {
             Response::error('Le nom, l\'adresse email et le mot de passe sont obligatoires.', 400);
         }
 
+        if (mb_strlen($password) < 6) {
+            Response::error('Le mot de passe doit contenir au moins 6 caractères.', 400);
+        }
+
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             Response::error('Adresse email invalide.', 400);
         }
+
+        if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $avatarColor)) {
+            $avatarColor = '#2563EB';
+        }
+        $initials = mb_substr($initials, 0, 4);
 
         // Vérification de l'unicité de l'email
         $stmtCheck = $db->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
@@ -132,6 +141,19 @@ class UserController {
         if (empty($name) || empty($email)) {
             Response::error('Le nom et l\'adresse email ne peuvent pas être vides.', 400);
         }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Response::error('Adresse email invalide.', 400);
+        }
+
+        if (!empty($password) && mb_strlen($password) < 6) {
+            Response::error('Le mot de passe doit contenir au moins 6 caractères.', 400);
+        }
+
+        if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $avatarColor)) {
+            $avatarColor = $targetUser['avatar_color'] ?: '#2563EB';
+        }
+        $initials = mb_substr($initials, 0, 4);
 
         // Vérification de l'unicité de l'email
         $stmtCheck = $db->prepare("SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1");
