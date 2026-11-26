@@ -914,10 +914,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               blocked: 2,
               todo: 3
             };
-            const userStarred = userTasks.filter(t => !!t.is_starred);
-            const userUnstarred = userTasks
-              .filter(t => !t.is_starred)
-              .sort((a, b) => (retroStatusOrder[a.status] ?? 4) - (retroStatusOrder[b.status] ?? 4));
+            const sortByRetroStatus = (a: Task, b: Task) =>
+              (retroStatusOrder[a.status] ?? 4) - (retroStatusOrder[b.status] ?? 4);
+            const userStarred = userTasks.filter(t => !!t.is_starred).sort(sortByRetroStatus);
+            const userUnstarred = userTasks.filter(t => !t.is_starred).sort(sortByRetroStatus);
             const canEditThis = !isReadOnly && (isAdmin || (currentUser?.role === 'write' && currentUser?.id === user.id));
             const isAccordionOpen = !!expandedAccordions[user.id];
 
