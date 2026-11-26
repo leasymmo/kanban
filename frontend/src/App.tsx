@@ -42,6 +42,7 @@ export const App: React.FC = () => {
   const [isMeetingQuickModalOpen, setIsMeetingQuickModalOpen] = useState(false);
   const [editingPendingTask, setEditingPendingTask] = useState<Task | null>(null);
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [editingMeetingQuestion, setEditingMeetingQuestion] = useState<Question | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setActionToast(msg);
@@ -244,9 +245,31 @@ export const App: React.FC = () => {
 
   const handleUpdateQuestion = async (id: number, data: Partial<Question>) => {
     const previousQuestions = questions;
-    setQuestions(questions.map(q => (q.id === id ? { ...q, ...data } : q)));
+    const reassignedUser = data.user_id !== undefined
+      ? allUsers.find(u => u.id === data.user_id)
+      : undefined;
+    setQuestions(
+      questions.map(q =>
+        q.id === id
+          ? {
+              ...q,
+              ...data,
+              ...(reassignedUser
+                ? {
+                    user_name: reassignedUser.name,
+                    user_initials: reassignedUser.initials,
+                    user_color: reassignedUser.avatar_color
+                  }
+                : {})
+            }
+          : q
+      )
+    );
     try {
       await api.updateQuestion(id, data);
+      if (data.user_id !== undefined && currentSprintId) {
+        await loadSprintDetails(currentSprintId);
+      }
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
         setQuestions(previousQuestions);
@@ -575,7 +598,14 @@ export const App: React.FC = () => {
                     setEditingPendingTask(pendingTaskToEdit || null);
                     setIsMeetingQuickModalOpen(true);
                   }}
-                  onAddNewQuestion={() => setIsQuestionModalOpen(true)}
+                  onAddNewQuestion={() => {
+                    setEditingMeetingQuestion(null);
+                    setIsQuestionModalOpen(true);
+                  }}
+                  onEditQuestion={(question) => {
+                    setEditingMeetingQuestion(question);
+                    setIsQuestionModalOpen(true);
+                  }}
                   hasOpenModal={
                     isTaskModalOpen ||
                     isCloseSprintModalOpen ||
@@ -635,11 +665,16 @@ export const App: React.FC = () => {
 
       <QuestionModal
         isOpen={isQuestionModalOpen}
-        onClose={() => setIsQuestionModalOpen(false)}
+        onClose={() => {
+          setIsQuestionModalOpen(false);
+          setEditingMeetingQuestion(null);
+        }}
         sprintId={currentSprintId || 1}
         users={allUsers}
         currentUser={currentUser}
+        editingQuestion={editingMeetingQuestion}
         onAddQuestion={handleAddQuestion}
+        onUpdateQuestion={handleUpdateQuestion}
       />
 
       <AdminPanelModal

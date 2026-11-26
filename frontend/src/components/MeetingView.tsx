@@ -27,6 +27,7 @@ interface MeetingViewProps {
   onToggleStar?: (taskId: number) => void;
   onAddNewTask?: (editingPendingTask?: Task | null) => void;
   onAddNewQuestion?: () => void;
+  onEditQuestion?: (question: Question) => void;
   hasOpenModal?: boolean;
   isReadOnly: boolean;
 }
@@ -49,6 +50,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   onToggleStar,
   onAddNewTask,
   onAddNewQuestion,
+  onEditQuestion,
   hasOpenModal = false,
   isReadOnly
 }) => {
@@ -440,7 +442,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     const isEditingDecision = editingDecisionForId === q.id;
     const currentInput = decisionInputs[q.id] !== undefined ? decisionInputs[q.id] : (q.final_answer || '');
     const canArbitrate = !isReadOnly && currentUser?.role !== 'read' && (isAdmin || currentUser?.role === 'write');
-    const canCloseQuestion = !isReadOnly && (q.can_edit !== undefined ? !!q.can_edit : (isAdmin || (currentUser?.role === 'write' && currentUser?.id === q.user_id)));
+    const canModifyQuestion = !isReadOnly && (q.can_edit !== undefined ? !!q.can_edit : (isAdmin || (currentUser?.role === 'write' && currentUser?.id === q.user_id)));
 
     return (
       <div
@@ -485,7 +487,19 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               </button>
             )}
 
-            {canCloseQuestion && (
+            {canModifyQuestion && onEditQuestion && (
+              <button
+                type="button"
+                onClick={() => onEditQuestion(q)}
+                className="p-1 text-slate-500 hover:text-indigo-600 bg-white hover:bg-indigo-50 border border-black/[0.12] hover:border-indigo-300 rounded-lg transition-colors cursor-pointer"
+                title="Modifier la question"
+                aria-label={`Modifier la question : ${q.title}`}
+              >
+                <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
+              </button>
+            )}
+
+            {canModifyQuestion && (
               <button
                 type="button"
                 onClick={() => onUpdateQuestionStatus(q.id, isResolved ? 'open' : 'resolved')}
