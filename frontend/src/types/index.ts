@@ -79,8 +79,6 @@ export interface Sprint {
   total_questions?: number;
 }
 
-export type QuestionStatus = 'open' | 'discussed' | 'resolved';
-
 export interface QuestionAnswer {
   id: number;
   question_id: number;
@@ -105,11 +103,7 @@ export interface Question {
   created_by_name?: string;
   title: string;
   details?: string;
-  status: QuestionStatus;
   final_answer?: string | null;
-  answered_by?: number | null;
-  answered_by_name?: string | null;
-  answered_at?: string | null;
   answers?: QuestionAnswer[];
   can_edit?: boolean;
   can_delete?: boolean;

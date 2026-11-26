@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { User, Sprint, Task, Question, QuestionStatus, Property, TaskStatus } from './types';
+import { User, Sprint, Task, Question, Property, TaskStatus } from './types';
 import { api } from './api/client';
 import { useSprintTasks } from './hooks/useSprintTasks';
 import { getUserPreferences, saveUserPreferences } from './utils/cookies';
@@ -268,7 +268,7 @@ export const App: React.FC = () => {
         created_by: currentUser?.id || 1,
         title: data.title,
         details: data.details,
-        status: 'open',
+        final_answer: null,
         answers: [],
         can_edit: true,
         can_delete: true,
@@ -307,17 +307,7 @@ export const App: React.FC = () => {
       if (data.user_id !== undefined && currentSprintId) {
         await loadSprintDetails(currentSprintId);
       }
-      if (data.status && Object.keys(data).length === 1) {
-        showSuccessToast(
-          data.status === 'resolved'
-            ? 'Question clôturée.'
-            : data.status === 'open'
-            ? 'Question réouverte.'
-            : 'Question passée « En discussion ».'
-        );
-      } else {
-        showSuccessToast('Question mise à jour.');
-      }
+      showSuccessToast('Question mise à jour.');
     } catch (err: any) {
       if (!(err instanceof TypeError)) {
         setQuestions(previousQuestions);
@@ -352,6 +342,9 @@ export const App: React.FC = () => {
       if (currentSprintId) await loadSprintDetails(currentSprintId);
       showSuccessToast('Proposition de réponse ajoutée.');
     } catch (e: any) {
+      if (e?.status === 409 && currentSprintId) {
+        await loadSprintDetails(currentSprintId);
+      }
       showErrorToast(e?.message || "Erreur lors de l'envoi de la proposition.");
       throw e;
     }
@@ -379,14 +372,14 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleSetQuestionDecision = async (questionId: number, finalAnswer: string, status: QuestionStatus = 'resolved') => {
+  const handleSetQuestionDecision = async (questionId: number, finalAnswer: string) => {
     try {
-      await api.setQuestionDecision(questionId, finalAnswer, status);
+      await api.setQuestionDecision(questionId, finalAnswer);
       if (currentSprintId) await loadSprintDetails(currentSprintId);
       showSuccessToast(
         finalAnswer.trim()
-          ? 'Décision finale actée en séance.'
-          : 'Décision supprimée, question réouverte.'
+          ? 'Réponse définitive enregistrée.'
+          : 'Réponse définitive supprimée.'
       );
     } catch (e: any) {
       showErrorToast(e?.message || "Erreur lors de l'enregistrement de la décision.");
@@ -665,7 +658,6 @@ export const App: React.FC = () => {
                   onAssignTask={assignTask}
                   onDeleteTask={deleteTask}
                   onToggleSubtask={toggleSubtask}
-                  onUpdateQuestionStatus={(qId, st) => handleUpdateQuestion(qId, { status: st })}
                   onSetQuestionDecision={handleSetQuestionDecision}
                   onEditTask={(t) => {
                     setEditingTask(t);
@@ -723,6 +715,7 @@ export const App: React.FC = () => {
         onClose={() => setIsCloseSprintModalOpen(false)}
         currentSprint={activeSprint}
         tasks={tasks}
+        questions={questions}
         onConfirmClose={handleConfirmCloseSprint}
       />
 

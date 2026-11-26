@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Question, QuestionStatus, User } from '../types';
+import { Question, User } from '../types';
 import { QuestionModal } from './QuestionModal';
-import { QUESTION_STATUS_META, formatQuestionDate } from '../utils/questions';
+import { formatQuestionDate, hasFinalDecision } from '../utils/questions';
 import {
-  HelpCircle, Plus, Edit3, Trash2, CheckCircle2, Circle, MessageSquare,
-  Send, UserCheck, ChevronDown, Search, X, ChevronsDownUp, ChevronsUpDown
+  HelpCircle, Plus, Edit3, Trash2, CheckCircle2, MessageSquare,
+  Send, UserCheck, ChevronDown, Search, X, ChevronsDownUp, ChevronsUpDown, Sparkles
 } from 'lucide-react';
 
 interface QuestionsViewProps {
@@ -21,7 +21,7 @@ interface QuestionsViewProps {
   isReadOnly: boolean;
 }
 
-type StatusFilter = 'active' | 'to_answer' | 'discussed' | 'resolved' | 'all';
+type ProgressFilter = 'to_decide' | 'to_prepare' | 'decided' | 'all';
 
 export const QuestionsView: React.FC<QuestionsViewProps> = ({
   questions,
@@ -37,7 +37,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   isReadOnly
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<'me' | 'all' | number>('me');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [progressFilter, setProgressFilter] = useState<ProgressFilter>('to_decide');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,10 +46,10 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
 
   // Tiroirs de détails & réponses ouverts à la demande
   const [expandedQuestionIds, setExpandedQuestionIds] = useState<{ [questionId: number]: boolean }>({});
-  const [showResolvedSection, setShowResolvedSection] = useState(false);
-  const [showResolvedInColumns, setShowResolvedInColumns] = useState<{ [key: string]: boolean }>({});
+  const [showDecidedSection, setShowDecidedSection] = useState(false);
+  const [showDecidedInColumns, setShowDecidedInColumns] = useState<{ [key: string]: boolean }>({});
 
-  // Brouillons de réponses collaboratives
+  // Brouillons de proposition indicative (1 max par associé et par question)
   const [newAnswerText, setNewAnswerText] = useState<{ [questionId: number]: string }>({});
   const [editingAnswerId, setEditingAnswerId] = useState<number | null>(null);
   const [editingAnswerText, setEditingAnswerText] = useState('');
@@ -66,9 +66,16 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     setEditingAnswerId(null);
     setEditingAnswerText('');
     setSearchQuery('');
-    setShowResolvedSection(false);
-    setShowResolvedInColumns({});
+    setShowDecidedSection(false);
+    setShowDecidedInColumns({});
   }, [sprintId]);
+
+  // Si l'utilisateur passe en lecture seule alors que le filtre "À préparer" est actif, revenir sur "À trancher"
+  useEffect(() => {
+    if (!canWrite && progressFilter === 'to_prepare') {
+      setProgressFilter('to_decide');
+    }
+  }, [canWrite, progressFilter]);
 
   // Revenir sur "Mes questions" si l'associé filtré a été supprimé
   useEffect(() => {
@@ -128,11 +135,9 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     }
   };
 
-  const needsMyOrAnyResponse = (q: Question) => {
-    if (q.status === 'resolved') return false;
-    const answers = q.answers || [];
-    if (answers.length === 0) return true;
-    return !!currentUser && !answers.some(a => a.user_id === currentUser.id) && q.user_id !== currentUser.id;
+  const needsMyPreparation = (q: Question) => {
+    if (hasFinalDecision(q) || !currentUser) return false;
+    return !(q.answers || []).some(a => a.user_id === currentUser.id);
   };
 
   const matchesSearch = (q: Question, query: string) => {
@@ -146,16 +151,14 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     );
   };
 
-  const matchesStatusFilter = (q: Question, filter: StatusFilter) => {
+  const matchesProgressFilter = (q: Question, filter: ProgressFilter) => {
     switch (filter) {
-      case 'active':
-        return q.status !== 'resolved';
-      case 'to_answer':
-        return needsMyOrAnyResponse(q);
-      case 'discussed':
-        return q.status === 'discussed';
-      case 'resolved':
-        return q.status === 'resolved';
+      case 'to_decide':
+        return !hasFinalDecision(q);
+      case 'to_prepare':
+        return needsMyPreparation(q);
+      case 'decided':
+        return hasFinalDecision(q);
       default:
         return true;
     }
@@ -163,7 +166,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
 
   const cleanSearch = searchQuery.trim();
 
-  // Questions filtrées par personne + recherche (avant filtre statut, pour calculer des compteurs cohérents)
+  // Questions filtrées par personne + recherche (avant filtre binaire de décision, pour calculer des compteurs cohérents)
   const personAndSearchQuestions = questions.filter(q => {
     const matchesAuthor =
       selectedFilter === 'all'
@@ -174,17 +177,16 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     return matchesAuthor && matchesSearch(q, cleanSearch);
   });
 
-  const statusCounts = {
-    active: personAndSearchQuestions.filter(q => q.status !== 'resolved').length,
-    to_answer: personAndSearchQuestions.filter(needsMyOrAnyResponse).length,
-    discussed: personAndSearchQuestions.filter(q => q.status === 'discussed').length,
-    resolved: personAndSearchQuestions.filter(q => q.status === 'resolved').length,
+  const progressCounts = {
+    to_decide: personAndSearchQuestions.filter(q => !hasFinalDecision(q)).length,
+    to_prepare: personAndSearchQuestions.filter(needsMyPreparation).length,
+    decided: personAndSearchQuestions.filter(hasFinalDecision).length,
     all: personAndSearchQuestions.length
   };
 
-  const filteredQuestions = personAndSearchQuestions.filter(q => matchesStatusFilter(q, statusFilter));
-  const activeListQuestions = filteredQuestions.filter(q => q.status !== 'resolved');
-  const resolvedListQuestions = filteredQuestions.filter(q => q.status === 'resolved');
+  const filteredQuestions = personAndSearchQuestions.filter(q => matchesProgressFilter(q, progressFilter));
+  const pendingListQuestions = filteredQuestions.filter(q => !hasFinalDecision(q));
+  const decidedListQuestions = filteredQuestions.filter(hasFinalDecision);
 
   const isSinglePersonFilter = selectedFilter === 'me' || typeof selectedFilter === 'number';
   const areAllExpanded =
@@ -206,17 +208,20 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   const knownUserIds = new Set(users.map(u => u.id));
   const orphanAllQuestions = questions.filter(q => !knownUserIds.has(q.user_id));
 
-  // Ligne/carte question ultra-compacte + tiroir dépliable à la demande
+  // Ligne/carte question ultra-compacte (sans statut) + tiroir dépliable à la demande
   const renderQuestionRow = (q: Question, isFullWidth: boolean) => {
-    const isDone = q.status === 'resolved';
-    const statusMeta = QUESTION_STATUS_META[q.status] || QUESTION_STATUS_META.open;
+    const hasDecision = hasFinalDecision(q);
     const answers = q.answers || [];
+    const myAnswer = currentUser ? answers.find(a => a.user_id === currentUser.id) : undefined;
+    const otherAnswers = myAnswer ? answers.filter(a => a.id !== myAnswer.id) : answers;
+    const orderedAnswers = myAnswer ? [myAnswer, ...otherAnswers] : answers;
+
     const isExpanded = !!expandedQuestionIds[q.id];
     const canModifyQuestion = !isReadOnly && !!q.can_edit && currentUser?.role !== 'read';
     const canDeleteQuestion = !isReadOnly && !!q.can_delete && currentUser?.role !== 'read';
-    const canReply = canWrite && !!onAddAnswer;
+    const canReply = canWrite && !!onAddAnswer && !myAnswer;
 
-    // Avatars uniques des répondants pour aperçu rapide même lorsque le tiroir est fermé
+    // Avatars uniques des répondants pour aperçu rapide lorsque le tiroir est fermé
     const uniqueRespondents = Array.from(
       new Map(
         answers.map(a => [
@@ -230,69 +235,49 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
       ).values()
     ).slice(0, 3);
 
-    const rowWrapperClass = isFullWidth
-      ? `transition-colors ${isDone ? 'bg-emerald-50/15 hover:bg-emerald-50/30' : 'bg-white hover:bg-slate-50/70'}`
-      : `rounded-[14px] border transition-colors overflow-hidden ${
-          isDone
-            ? 'bg-emerald-50/35 border-emerald-200/80'
-            : 'bg-white border-black/[0.12] hover:border-black/[0.20]'
-        }`;
-
     return (
-      <article key={q.id} className={rowWrapperClass}>
+      <article
+        key={q.id}
+        className={`transition-colors ${
+          isFullWidth
+            ? hasDecision
+              ? 'bg-emerald-50/20'
+              : 'bg-white hover:bg-slate-50/50'
+            : `rounded-[14px] border border-black/[0.12] ${
+                hasDecision ? 'bg-emerald-50/35' : 'bg-white'
+              }`
+        }`}
+      >
         {/* Ligne compacte principale */}
-        <div className="px-3 py-2.5 sm:px-3.5 sm:py-2.5 flex items-start gap-2">
-          {/* Bouton bascule rapide résolue / à aborder */}
-          {canModifyQuestion ? (
-            <button
-              type="button"
-              aria-pressed={isDone}
-              aria-label={isDone ? `Réouvrir : ${q.title}` : `Marquer comme résolue : ${q.title}`}
-              title={isDone ? 'Réouvrir cette question' : 'Marquer comme résolue'}
-              onClick={() => onUpdateQuestion(q.id, { status: isDone ? 'open' : 'resolved' })}
-              className="-m-2 p-2.5 sm:-m-1 sm:p-1.5 min-w-[44px] min-h-[44px] sm:min-w-[30px] sm:min-h-[30px] flex items-center justify-center rounded-lg transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            >
-              {isDone ? (
-                <CheckCircle2 className="w-[18px] h-[18px] text-emerald-600" strokeWidth={2.25} />
-              ) : (
-                <Circle className="w-[18px] h-[18px] text-slate-400 hover:text-emerald-600" strokeWidth={1.85} />
-              )}
-            </button>
-          ) : (
-            <span className="mt-0.5 shrink-0" aria-hidden="true">
-              {isDone ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={2.25} />
-              ) : (
-                <Circle className="w-4 h-4 text-slate-300" strokeWidth={1.75} />
-              )}
-            </span>
-          )}
+        <div className="px-3 py-2.5 sm:px-3.5 sm:py-2.5 flex items-start gap-2.5">
+          {/* Indicateur binaire passif (sans statut) */}
+          <span className="shrink-0 mt-1.5" aria-hidden="true">
+            {hasDecision ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 -mt-1" strokeWidth={2.25} />
+            ) : (
+              <span className="block w-2 h-2 rounded-full bg-amber-500 ring-4 ring-amber-500/15" />
+            )}
+          </span>
 
           {/* Contenu texte + actions */}
           <div className="flex-1 min-w-0">
             <div
               className={`flex ${
                 isFullWidth
-                  ? 'flex-col sm:flex-row sm:items-start justify-between gap-1.5 sm:gap-3'
-                  : 'flex-col gap-1.5'
+                  ? 'flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3'
+                  : 'flex-col gap-2'
               }`}
             >
               {/* Titre + aperçu ultra-compact lorsque fermé */}
               <div className="min-w-0 flex-1">
                 <button
                   type="button"
-                  onClick={() => toggleQuestionDrawer(q.id, answers.length === 0 && canReply)}
+                  onClick={() => toggleQuestionDrawer(q.id, !myAnswer && canWrite && !!onAddAnswer)}
                   aria-expanded={isExpanded}
                   aria-controls={`question-drawer-${q.id}`}
                   className="text-left w-full group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-md"
                 >
-                  <h4
-                    className={`text-sm font-semibold leading-snug break-words ${
-                      isDone
-                        ? 'line-through text-slate-500'
-                        : 'text-slate-800 group-hover:text-brand-700'
-                    }`}
-                  >
+                  <h4 className="text-sm font-semibold leading-snug break-words text-slate-900 group-hover:text-brand-700">
                     {q.title}
                   </h4>
                 </button>
@@ -303,50 +288,29 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   </p>
                 )}
 
-                {!isExpanded && q.final_answer && (
-                  <p className="mt-1 inline-flex items-center gap-1.5 max-w-full px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/80 text-xs text-emerald-900 font-medium">
+                {!isExpanded && hasDecision && (
+                  <p className="mt-1 inline-flex items-center gap-1.5 max-w-full px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200/90 text-xs text-emerald-950 font-medium">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2.25} />
-                    <span className="truncate">
-                      {!isDone ? 'Décision précédente : ' : ''}
-                      {q.final_answer}
-                    </span>
+                    <span className="truncate">{q.final_answer}</span>
                   </p>
                 )}
               </div>
 
-              {/* Cluster droit compact : Statut (3 états) + Tiroir réponses + Modifier/Supprimer */}
-              <div className="flex items-center justify-between sm:justify-end gap-1 sm:gap-1.5 shrink-0 flex-wrap">
-                {canModifyQuestion ? (
-                  <select
-                    value={q.status}
-                    aria-label={`Statut de la question : ${q.title}`}
-                    onChange={(e) => onUpdateQuestion(q.id, { status: e.target.value as QuestionStatus })}
-                    className={`text-[11px] font-bold px-1.5 sm:px-2 py-1 min-h-[30px] sm:min-h-[26px] rounded-lg border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${statusMeta.selectClass}`}
-                  >
-                    <option value="open">À aborder</option>
-                    <option value="discussed">En discussion</option>
-                    <option value="resolved">Résolue</option>
-                  </select>
-                ) : (
-                  <span
-                    className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md ${statusMeta.badgeClass}`}
-                  >
-                    {statusMeta.shortLabel}
-                  </span>
-                )}
-
-                {/* Pilule Accordéon Réponses & Saisie */}
+              {/* Cluster droit compact : Pilule Proposition / Ma prop. + Modifier / Supprimer */}
+              <div className="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 flex-wrap">
                 <button
                   type="button"
                   aria-expanded={isExpanded}
                   aria-controls={`question-drawer-${q.id}`}
-                  aria-label={`${isExpanded ? 'Masquer' : 'Afficher'} les détails et réponses (${answers.length}) pour : ${q.title}`}
-                  onClick={() => toggleQuestionDrawer(q.id, answers.length === 0 && canReply)}
-                  className={`inline-flex items-center gap-1 sm:gap-1.5 min-h-[30px] sm:min-h-[28px] px-2 py-1 rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                  aria-label={`${isExpanded ? 'Masquer' : 'Afficher'} les détails et propositions (${answers.length}) pour : ${q.title}`}
+                  onClick={() => toggleQuestionDrawer(q.id, !myAnswer && canWrite && !!onAddAnswer)}
+                  className={`inline-flex items-center gap-1.5 min-h-[34px] sm:min-h-[28px] px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                     isExpanded
                       ? 'bg-indigo-600 text-white border-indigo-600'
-                      : answers.length > 0
-                      ? 'bg-indigo-50 text-indigo-800 border-indigo-200/90 hover:bg-indigo-100'
+                      : myAnswer
+                      ? 'bg-indigo-50 text-indigo-900 border-indigo-200/90 hover:bg-indigo-100'
+                      : canReply
+                      ? 'bg-slate-50 text-slate-700 border-black/[0.12] hover:bg-indigo-50 hover:text-indigo-800 hover:border-indigo-200'
                       : 'bg-slate-50 text-slate-600 border-black/[0.12] hover:bg-slate-100 hover:text-slate-800'
                   }`}
                 >
@@ -364,14 +328,27 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                     </span>
                   )}
                   <MessageSquare className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-                  <span>{answers.length > 0 ? answers.length : canReply ? 'Répondre' : '0'}</span>
+                  <span>
+                    {myAnswer ? (
+                      <>
+                        <span className="sm:hidden">Ma prop. ✓</span>
+                        <span className="hidden sm:inline">{isFullWidth ? 'Ma proposition ✓' : 'Ma prop. ✓'}</span>
+                        {answers.length > 1 ? ` · ${answers.length}` : ''}
+                      </>
+                    ) : canReply ? (
+                      answers.length > 0 ? `Proposer · ${answers.length}` : 'Proposer'
+                    ) : answers.length > 0 ? (
+                      `${answers.length} prop.`
+                    ) : (
+                      'Détails'
+                    )}
+                  </span>
                   <ChevronDown
                     className={`w-3.5 h-3.5 transition-transform duration-150 ${isExpanded ? 'rotate-180' : ''}`}
                     strokeWidth={2}
                   />
                 </button>
 
-                {/* Modifier / Supprimer */}
                 {(canModifyQuestion || canDeleteQuestion) && (
                   <div className="flex items-center gap-0.5">
                     {canModifyQuestion && (
@@ -380,7 +357,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                         onClick={() => openEditModal(q)}
                         aria-label={`Modifier la question : ${q.title}`}
                         title="Modifier la question"
-                        className="min-w-[30px] min-h-[30px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center text-slate-500 hover:text-brand-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                        className="min-w-[34px] min-h-[34px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center text-slate-500 hover:text-brand-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                       >
                         <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
                       </button>
@@ -391,7 +368,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                         onClick={() => onDeleteQuestion(q.id)}
                         aria-label={`Supprimer la question : ${q.title}`}
                         title="Supprimer la question"
-                        className="min-w-[30px] min-h-[30px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center text-slate-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                        className="min-w-[34px] min-h-[34px] sm:min-w-[28px] sm:min-h-[28px] flex items-center justify-center text-slate-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                       >
                         <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
                       </button>
@@ -403,7 +380,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           </div>
         </div>
 
-        {/* Tiroir dépliable à la demande (Détails, Décision, Propositions & Formulaire) */}
+        {/* Tiroir dépliable à la demande (Détails, Décision définitive, Propositions indicatives & Saisie unique) */}
         {isExpanded && (
           <div
             id={`question-drawer-${q.id}`}
@@ -415,28 +392,27 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               </p>
             )}
 
-            {q.final_answer && (
-              <div className="p-2.5 rounded-lg bg-emerald-50/80 border border-emerald-200 text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-emerald-900 flex-wrap">
+            {hasDecision && (
+              <div className="p-2.5 rounded-lg bg-emerald-50/90 border border-emerald-200 border-l-4 border-l-emerald-600 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-950">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2.25} />
-                  <span>{isDone ? 'Décision actée en séance' : 'Décision précédente (à réaborder)'}</span>
-                  {q.answered_by_name && (
-                    <span className="font-normal text-[11px] text-emerald-800">
-                      • {q.answered_by_name}
-                      {q.answered_at ? ` (${formatQuestionDate(q.answered_at)})` : ''}
-                    </span>
-                  )}
+                  <span>Réponse définitive</span>
                 </div>
-                <p className="mt-1 text-slate-800 font-medium pl-5 whitespace-pre-line break-words">
+                <p className="mt-1 text-slate-900 font-medium pl-5 whitespace-pre-line break-words">
                   {q.final_answer}
                 </p>
               </div>
             )}
 
-            {/* Liste compacte des propositions de réponses */}
-            {answers.length > 0 && (
+            {/* Propositions indicatives (1 max par associé, non conservées après clôture du sprint) */}
+            {orderedAnswers.length > 0 && (
               <div className="space-y-1.5">
-                {answers.map((ans) => {
+                <p className="text-[11px] font-semibold text-slate-600">
+                  Propositions indicatives ({orderedAnswers.length}) · temporaires pour la réunion
+                </p>
+
+                {orderedAnswers.map((ans) => {
+                  const isMine = !!currentUser && ans.user_id === currentUser.id;
                   const isEditingThis = editingAnswerId === ans.id;
                   const canEditAns = !isReadOnly && currentUser?.role !== 'read' && !!ans.can_edit;
                   const canDeleteAns = !isReadOnly && currentUser?.role !== 'read' && !!ans.can_delete;
@@ -445,7 +421,11 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                   return (
                     <div
                       key={ans.id}
-                      className="px-2.5 py-1.5 rounded-lg bg-white border border-black/[0.10] text-xs text-slate-700"
+                      className={`px-2.5 py-2 rounded-lg border text-xs ${
+                        isMine
+                          ? 'bg-indigo-50/50 border-indigo-200/90 text-slate-800'
+                          : 'bg-white border-black/[0.10] text-slate-700'
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
@@ -457,6 +437,11 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                               {ans.user_initials || '?'}
                             </span>
                             <span className="font-bold text-slate-800">{ans.user_name || 'Ancien associé'}</span>
+                            {isMine && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-900">
+                                Ma proposition
+                              </span>
+                            )}
                             {ansDate && <span className="text-[10px] text-slate-500">{ansDate}</span>}
                           </div>
 
@@ -496,7 +481,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                               </div>
                             </div>
                           ) : (
-                            <p className="mt-0.5 pl-5 text-slate-700 leading-snug whitespace-pre-line break-words">
+                            <p className="mt-1 pl-5 text-slate-700 leading-snug whitespace-pre-line break-words">
                               {ans.content}
                             </p>
                           )}
@@ -511,9 +496,9 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                                   setEditingAnswerId(ans.id);
                                   setEditingAnswerText(ans.content);
                                 }}
-                                aria-label="Modifier ma proposition"
-                                title="Modifier ma proposition"
-                                className="min-w-[32px] min-h-[32px] sm:min-w-[26px] sm:min-h-[26px] flex items-center justify-center text-slate-500 hover:text-brand-700 hover:bg-slate-100 rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                aria-label="Modifier cette proposition"
+                                title="Modifier cette proposition"
+                                className="min-w-[32px] min-h-[32px] sm:min-w-[26px] sm:min-h-[26px] flex items-center justify-center text-slate-500 hover:text-brand-700 hover:bg-white rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                               >
                                 <Edit3 className="w-3 h-3" strokeWidth={1.75} />
                               </button>
@@ -522,8 +507,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onDeleteAnswer(ans.id)}
-                                aria-label="Supprimer ma proposition"
-                                title="Supprimer ma proposition"
+                                aria-label="Supprimer cette proposition"
+                                title="Supprimer cette proposition"
                                 className="min-w-[32px] min-h-[32px] sm:min-w-[26px] sm:min-h-[26px] flex items-center justify-center text-slate-500 hover:text-red-700 hover:bg-red-50 rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                               >
                                 <Trash2 className="w-3 h-3" strokeWidth={1.75} />
@@ -538,7 +523,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               </div>
             )}
 
-            {/* Formulaire d'ajout de proposition (affiché uniquement lorsque le tiroir est déplié) */}
+            {/* Formulaire d'ajout de proposition indicative (affiché uniquement si l'associé n'a pas encore répondu) */}
             {canReply && (
               <div className="flex items-center gap-1.5 pt-0.5">
                 <input
@@ -546,8 +531,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                     answerInputRefs.current[q.id] = el;
                   }}
                   type="text"
-                  aria-label={`Proposer une réponse à : ${q.title}`}
-                  placeholder="Proposer une réponse..."
+                  aria-label={`Proposer une réponse indicative à : ${q.title}`}
+                  placeholder="Proposer ma réponse indicative (1 max par question)..."
                   value={newAnswerText[q.id] || ''}
                   onChange={(e) => setNewAnswerText(prev => ({ ...prev, [q.id]: e.target.value }))}
                   onKeyDown={(e) => {
@@ -556,19 +541,25 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                       handleSendAnswer(q.id);
                     }
                   }}
-                  className="flex-1 min-w-0 min-h-[40px] sm:min-h-[34px] px-3 py-1.5 border border-black/[0.12] rounded-lg text-xs text-slate-800 placeholder:text-slate-500 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                  className="flex-1 min-w-0 min-h-[38px] sm:min-h-[34px] px-3 py-1.5 border border-black/[0.12] rounded-lg text-xs text-slate-800 placeholder:text-slate-500 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 />
                 <button
                   type="button"
                   disabled={!newAnswerText[q.id]?.trim() || isSubmittingAnswer[q.id]}
                   onClick={() => handleSendAnswer(q.id)}
-                  aria-label="Envoyer la proposition"
-                  className="min-h-[40px] min-w-[40px] sm:min-h-[34px] px-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-xs inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  aria-label="Envoyer ma proposition"
+                  className="min-h-[38px] min-w-[38px] sm:min-h-[34px] px-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-xs inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                   <Send className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
                   {isFullWidth && <span className="hidden sm:inline">Proposer</span>}
                 </button>
               </div>
+            )}
+
+            {isReadOnly && answers.length === 0 && (
+              <p className="text-[11px] text-slate-600 italic">
+                Sprint clôturé : les réponses indicatives préparatoires ne sont pas conservées après la clôture.
+              </p>
             )}
           </div>
         )}
@@ -580,21 +571,21 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   const renderAssociateColumn = (
     groupKey: string,
     person: { id: number | string; name: string; initials: string; color: string; canQuickCreate: boolean; presetId?: number },
-    rawQuestions: Question[]
+    rawGroupQuestions: Question[]
   ) => {
-    const visibleGroupQuestions = rawQuestions
-      .filter(q => matchesSearch(q, cleanSearch))
-      .filter(q => matchesStatusFilter(q, statusFilter));
-    const groupActive = visibleGroupQuestions.filter(q => q.status !== 'resolved');
-    const groupResolved = visibleGroupQuestions.filter(q => q.status === 'resolved');
-    const showGroupResolved = statusFilter === 'resolved' || !!showResolvedInColumns[groupKey];
+    const visibleGroupQuestions = rawGroupQuestions.filter(
+      q => matchesSearch(q, cleanSearch) && matchesProgressFilter(q, progressFilter)
+    );
+    const groupPending = visibleGroupQuestions.filter(q => !hasFinalDecision(q));
+    const groupDecided = visibleGroupQuestions.filter(hasFinalDecision);
+    const showGroupDecided = !!showDecidedInColumns[groupKey] || groupPending.length === 0;
 
     return (
       <section
         key={groupKey}
-        className="bg-slate-200/70 rounded-[24px] p-2.5 sm:p-3 border border-black/[0.12] flex flex-col space-y-2.5"
+        className="bg-slate-200/70 rounded-[24px] p-2.5 sm:p-3 border border-black/[0.12] flex flex-col gap-2.5"
       >
-        {/* Header associé compact */}
+        {/* Header de groupe associé */}
         <div className="flex items-center justify-between gap-2 pb-2 px-1 border-b border-black/[0.12]">
           <div className="flex items-center gap-2 min-w-0">
             <div
@@ -606,8 +597,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
             <div className="min-w-0">
               <h3 className="font-bold text-sm text-slate-800 leading-tight truncate">{person.name}</h3>
               <p className="text-[11px] text-slate-600 font-medium">
-                {groupActive.length} à traiter
-                {groupResolved.length > 0 ? ` · ${groupResolved.length} résolue${groupResolved.length > 1 ? 's' : ''}` : ''}
+                {groupPending.length} à trancher
+                {groupDecided.length > 0 ? ` · ${groupDecided.length} décidée${groupDecided.length > 1 ? 's' : ''}` : ''}
               </p>
             </div>
           </div>
@@ -625,42 +616,42 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           )}
         </div>
 
-        {/* Liste des questions actives (ou résolues si filtre Résolues actif) */}
+        {/* Liste des questions à trancher (ou décidées si filtre Décidées actif) */}
         {visibleGroupQuestions.length === 0 ? (
           <div className="py-2.5 px-3 border border-dashed border-black/[0.12] rounded-[14px] text-center text-xs text-slate-500 font-medium bg-white/40">
-            {cleanSearch || statusFilter !== 'active'
+            {cleanSearch || progressFilter !== 'to_decide'
               ? 'Aucune question pour ce filtre.'
-              : 'Aucune question à traiter.'}
+              : 'Aucune question à trancher.'}
           </div>
         ) : (
           <div className="space-y-1.5">
-            {(statusFilter === 'resolved' ? groupResolved : groupActive).map(q =>
+            {(progressFilter === 'decided' ? groupDecided : groupPending).map(q =>
               renderQuestionRow(q, false)
             )}
 
-            {statusFilter !== 'resolved' && groupResolved.length > 0 && (
+            {progressFilter !== 'decided' && groupDecided.length > 0 && (
               <div className="pt-1">
                 <button
                   type="button"
                   onClick={() =>
-                    setShowResolvedInColumns(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))
+                    setShowDecidedInColumns(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))
                   }
-                  aria-expanded={showGroupResolved}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[12px] bg-white/70 hover:bg-white border border-black/[0.10] text-xs font-semibold text-slate-600 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                  aria-expanded={showGroupDecided}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[12px] bg-white/70 hover:bg-white border border-black/[0.10] text-xs font-semibold text-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 >
                   <span className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
-                    <span>Résolues ({groupResolved.length})</span>
+                    <span>Décidées ({groupDecided.length})</span>
                   </span>
                   <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-150 ${showGroupResolved ? 'rotate-180' : ''}`}
+                    className={`w-3.5 h-3.5 transition-transform duration-150 ${showGroupDecided ? 'rotate-180' : ''}`}
                     strokeWidth={2}
                   />
                 </button>
 
-                {showGroupResolved && (
+                {showGroupDecided && (
                   <div className="mt-1.5 space-y-1.5">
-                    {groupResolved.map(q => renderQuestionRow(q, false))}
+                    {groupDecided.map(q => renderQuestionRow(q, false))}
                   </div>
                 )}
               </div>
@@ -675,6 +666,15 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     selectedFilter === 'me'
       ? currentUser?.name
       : users.find(u => u.id === selectedFilter)?.name;
+
+  const progressPills: { id: ProgressFilter; label: string; count: number; badge?: boolean }[] = [
+    { id: 'to_decide', label: 'À trancher', count: progressCounts.to_decide },
+    ...(canWrite
+      ? [{ id: 'to_prepare' as const, label: 'À préparer', count: progressCounts.to_prepare }]
+      : []),
+    { id: 'decided', label: 'Décidées', count: progressCounts.decided },
+    { id: 'all', label: 'Toutes', count: progressCounts.all }
+  ];
 
   return (
     <div className="space-y-4">
@@ -696,7 +696,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 type="button"
                 aria-pressed={selectedFilter === 'me'}
                 onClick={() => setSelectedFilter('me')}
-                className={`shrink-0 inline-flex items-center gap-1.5 min-h-[40px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                   selectedFilter === 'me'
                     ? 'bg-brand-600 text-white shadow-xs'
                     : 'bg-brand-50 text-brand-800 hover:bg-brand-100'
@@ -711,7 +711,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               type="button"
               aria-pressed={selectedFilter === 'all'}
               onClick={() => setSelectedFilter('all')}
-              className={`shrink-0 inline-flex items-center min-h-[40px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+              className={`shrink-0 inline-flex items-center min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                 selectedFilter === 'all'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -732,7 +732,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                     type="button"
                     aria-pressed={isSelected}
                     onClick={() => setSelectedFilter(u.id)}
-                    className={`shrink-0 inline-flex items-center gap-1.5 min-h-[40px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                    className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                       isSelected
                         ? 'text-white shadow-xs'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -757,7 +757,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               onClick={() =>
                 openCreateModal(typeof selectedFilter === 'number' && isAdmin ? selectedFilter : undefined)
               }
-              className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 min-h-[42px] sm:min-h-[34px] px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+              className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 min-h-[40px] sm:min-h-[34px] px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
             >
               <Plus className="w-4 h-4 shrink-0" strokeWidth={2.25} />
               <span>Poser une question</span>
@@ -765,29 +765,21 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
           )}
         </div>
 
-        {/* Ligne 2 : Filtres par statut + Recherche instantanée + Tout déplier/replier */}
+        {/* Ligne 2 : Filtres binaires (À trancher / À préparer / Décidées / Toutes) + Recherche + Tout déplier */}
         <div className="pt-2.5 border-t border-black/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-2">
           <div
             role="group"
-            aria-label="Filtrer par avancement"
+            aria-label="Filtrer selon la décision finale"
             className="flex items-center gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap pb-0.5 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {(
-              [
-                { id: 'active', label: 'À traiter', count: statusCounts.active },
-                { id: 'to_answer', label: 'Sans réponse', count: statusCounts.to_answer },
-                { id: 'discussed', label: 'En discussion', count: statusCounts.discussed },
-                { id: 'resolved', label: 'Résolues', count: statusCounts.resolved },
-                { id: 'all', label: 'Toutes', count: statusCounts.all }
-              ] as { id: StatusFilter; label: string; count: number }[]
-            ).map((pill) => {
-              const isSelected = statusFilter === pill.id;
+            {progressPills.map((pill) => {
+              const isSelected = progressFilter === pill.id;
               return (
                 <button
                   key={pill.id}
                   type="button"
                   aria-pressed={isSelected}
-                  onClick={() => setStatusFilter(pill.id)}
+                  onClick={() => setProgressFilter(pill.id)}
                   className={`shrink-0 inline-flex items-center gap-1.5 min-h-[34px] sm:min-h-[28px] px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                     isSelected
                       ? 'bg-indigo-600 text-white shadow-2xs'
@@ -812,7 +804,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
               <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" strokeWidth={1.75} />
               <input
                 type="text"
-                aria-label="Rechercher une question ou réponse"
+                aria-label="Rechercher une question ou proposition"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Rechercher..."
@@ -847,62 +839,72 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
             )}
           </div>
         </div>
+
+        {/* Rappel concis de la règle métier */}
+        {canWrite && (
+          <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
+            <Sparkles className="w-3 h-3 text-indigo-500 shrink-0" strokeWidth={2} />
+            <span>
+              Préparez la réunion avec <strong>1 réponse indicative max par question</strong> (non conservée après clôture du sprint).
+            </span>
+          </p>
+        )}
       </div>
 
-      {/* Contenu principal : Vue liste dense (1 personne) ou Grille 2 colonnes sans double scroll (« Toutes ») */}
+      {/* Contenu principal : Vue liste dense (1 personne) ou Grille 2 colonnes (« Toutes ») */}
       {isSinglePersonFilter ? (
         <div className="space-y-3">
           {filteredQuestions.length > 0 ? (
             <>
-              {activeListQuestions.length > 0 && (
-                <section aria-label="Questions à traiter" className="space-y-1.5">
+              {pendingListQuestions.length > 0 && (
+                <section aria-label="Questions à trancher" className="space-y-1.5">
                   <div className="flex items-center justify-between px-1">
                     <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
                       {selectedFilter === 'me'
-                        ? `Mes questions (${activeListQuestions.length})`
-                        : `Questions de ${singleFilterPersonName || 'l’associé'} (${activeListQuestions.length})`}
+                        ? `Mes questions à trancher (${pendingListQuestions.length})`
+                        : `Questions de ${singleFilterPersonName || 'l’associé'} (${pendingListQuestions.length})`}
                     </h3>
                   </div>
 
                   <div className="bg-white rounded-[22px] sm:rounded-[24px] border border-black/[0.12] shadow-xs overflow-hidden divide-y divide-black/[0.08]">
-                    {activeListQuestions.map(q => renderQuestionRow(q, true))}
+                    {pendingListQuestions.map(q => renderQuestionRow(q, true))}
                   </div>
                 </section>
               )}
 
-              {resolvedListQuestions.length > 0 && (
-                statusFilter === 'resolved' ? (
-                  <section aria-label="Questions résolues" className="space-y-1.5">
+              {decidedListQuestions.length > 0 && (
+                progressFilter === 'decided' ? (
+                  <section aria-label="Questions avec réponse définitive" className="space-y-1.5">
                     <h3 className="px-1 text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                      Résolues / Actées ({resolvedListQuestions.length})
+                      Réponses définitives ({decidedListQuestions.length})
                     </h3>
                     <div className="bg-white rounded-[22px] sm:rounded-[24px] border border-emerald-200 shadow-xs overflow-hidden divide-y divide-black/[0.08]">
-                      {resolvedListQuestions.map(q => renderQuestionRow(q, true))}
+                      {decidedListQuestions.map(q => renderQuestionRow(q, true))}
                     </div>
                   </section>
                 ) : (
-                  <section aria-label="Questions résolues" className="space-y-2">
+                  <section aria-label="Questions avec réponse définitive" className="space-y-2">
                     <button
                       type="button"
-                      onClick={() => setShowResolvedSection(prev => !prev)}
-                      aria-expanded={showResolvedSection || activeListQuestions.length === 0}
+                      onClick={() => setShowDecidedSection(prev => !prev)}
+                      aria-expanded={showDecidedSection || pendingListQuestions.length === 0}
                       className="w-full flex items-center justify-between px-4 py-2.5 rounded-[18px] bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-200/90 text-xs font-bold text-emerald-900 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                       <span className="flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={2.25} />
-                        <span>Résolues / Actées ({resolvedListQuestions.length})</span>
+                        <span>Réponses définitives ({decidedListQuestions.length})</span>
                       </span>
                       <ChevronDown
                         className={`w-4 h-4 text-emerald-700 transition-transform duration-150 ${
-                          showResolvedSection || activeListQuestions.length === 0 ? 'rotate-180' : ''
+                          showDecidedSection || pendingListQuestions.length === 0 ? 'rotate-180' : ''
                         }`}
                         strokeWidth={2}
                       />
                     </button>
 
-                    {(showResolvedSection || activeListQuestions.length === 0) && (
+                    {(showDecidedSection || pendingListQuestions.length === 0) && (
                       <div className="bg-white rounded-[22px] sm:rounded-[24px] border border-black/[0.12] shadow-xs overflow-hidden divide-y divide-black/[0.08]">
-                        {resolvedListQuestions.map(q => renderQuestionRow(q, true))}
+                        {decidedListQuestions.map(q => renderQuestionRow(q, true))}
                       </div>
                     )}
                   </section>
@@ -915,25 +917,25 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
                 <HelpCircle className="w-5 h-5" strokeWidth={1.75} />
               </div>
               <h4 className="font-bold text-slate-800 text-sm sm:text-base">
-                {cleanSearch || statusFilter !== 'active'
+                {cleanSearch || progressFilter !== 'to_decide'
                   ? 'Aucune question correspondante'
                   : selectedFilter === 'me'
-                  ? 'Aucune question à traiter'
-                  : `Aucune question ouverte pour ${singleFilterPersonName || 'cet associé'}`}
+                  ? 'Aucune question à trancher'
+                  : `Aucune question en attente de décision pour ${singleFilterPersonName || 'cet associé'}`}
               </h4>
               <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                {cleanSearch || statusFilter !== 'active'
+                {cleanSearch || progressFilter !== 'to_decide'
                   ? 'Modifiez les filtres ou la recherche pour afficher d’autres questions.'
                   : canWrite && (selectedFilter === 'me' || isAdmin)
                   ? 'Cliquez sur « Poser une question » pour ajouter un sujet pour la prochaine réunion.'
                   : 'Aucune question enregistrée sur ce sprint.'}
               </p>
-              {(cleanSearch || statusFilter !== 'active') && (
+              {(cleanSearch || progressFilter !== 'to_decide') && (
                 <button
                   type="button"
                   onClick={() => {
                     setSearchQuery('');
-                    setStatusFilter('all');
+                    setProgressFilter('all');
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl cursor-pointer"
                 >
@@ -975,10 +977,13 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
         </div>
       )}
 
-      {/* Modal Créer / Modifier Question */}
+      {/* Modale d'ajout / édition de question */}
       <QuestionModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingQuestion(null);
+        }}
         sprintId={sprintId}
         users={users}
         currentUser={currentUser}

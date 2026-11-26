@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sprint, Task } from '../types';
+import { Question, Sprint, Task } from '../types';
 import { CheckCircle2, AlertTriangle, AlertCircle, ArrowRight, X, Calendar, RefreshCw, Sparkles, UserPlus } from 'lucide-react';
 
 interface CloseSprintModalProps {
@@ -7,6 +7,7 @@ interface CloseSprintModalProps {
   onClose: () => void;
   currentSprint: Sprint | null;
   tasks: Task[];
+  questions?: Question[];
   onConfirmClose: (nextName: string, notes: string) => Promise<void>;
 }
 
@@ -15,6 +16,7 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
   onClose,
   currentSprint,
   tasks,
+  questions = [],
   onConfirmClose
 }) => {
   const nextNumber = (currentSprint?.number ?? 0) + 1;
@@ -137,9 +139,14 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
 
           <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 flex items-start gap-2 text-xs text-amber-800">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" strokeWidth={1.5} />
-            <span>
-              <strong>Règle de report</strong> : Toutes les tâches parentes non terminées sont reportées en conservant leur statut actuel et leurs sous-tâches (les sous-tâches déjà cochées restent cochées pour garder l'historique du travail accompli).
-            </span>
+            <div className="space-y-1">
+              <p>
+                <strong>Règle de report</strong> : Toutes les tâches parentes non terminées sont reportées en conservant leur statut actuel et leurs sous-tâches (les sous-tâches déjà cochées restent cochées pour garder l'historique du travail accompli).
+              </p>
+              <p>
+                <strong>Questions & réponses</strong> : {questions.filter(q => Boolean(q.final_answer?.trim())).length}/{questions.length} question{questions.length > 1 ? 's' : ''} avec réponse définitive archivée{questions.length > 1 ? 's' : ''}. Les propositions indicatives préparatoires ne sont pas conservées après la clôture.
+              </p>
+            </div>
           </div>
 
           {/* Nom du prochain sprint */}

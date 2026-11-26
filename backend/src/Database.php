@@ -76,7 +76,7 @@ class Database {
                 ");
             }
 
-            if (isset($appliedVersions['v3_sprint_tasks'], $appliedVersions['v4_property_soft_delete'], $appliedVersions['v5_property_position'], $appliedVersions['v6_subtask_sprint_states'], $appliedVersions['v7_sprint_tasks_assigned_to'], $appliedVersions['v8_meeting_pending_tasks'], $appliedVersions['v9_sprint_pending_status'], $appliedVersions['v10_unassigned_tasks_pending'])) {
+            if (isset($appliedVersions['v3_sprint_tasks'], $appliedVersions['v4_property_soft_delete'], $appliedVersions['v5_property_position'], $appliedVersions['v6_subtask_sprint_states'], $appliedVersions['v7_sprint_tasks_assigned_to'], $appliedVersions['v8_meeting_pending_tasks'], $appliedVersions['v9_sprint_pending_status'], $appliedVersions['v10_unassigned_tasks_pending'], $appliedVersions['v11_questions_simplify_unique_answers'])) {
                 return;
             }
 
@@ -386,8 +386,65 @@ class Database {
 
                 $db->prepare("INSERT IGNORE INTO schema_migrations (version) VALUES (?)")->execute(['v10_unassigned_tasks_pending']);
             }
+
+            if (!isset($appliedVersions['v11_questions_simplify_unique_answers'])) {
+                // 1. Supprimer les éventuelles contraintes FK sur questions.answered_by
+                try {
+                    $fkStmt = $db->query("
+                        SELECT CONSTRAINT_NAME
+                        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                        WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = 'questions'
+                          AND COLUMN_NAME = 'answered_by'
+                          AND REFERENCED_TABLE_NAME IS NOT NULL
+                    ");
+                    foreach ($fkStmt->fetchAll(PDO::FETCH_COLUMN) as $fkName) {
+                        $db->exec("ALTER TABLE `questions` DROP FOREIGN KEY `{$fkName}`");
+                    }
+                } catch (\Throwable $t) {
+                    error_log('Migration v11 drop FK answered_by: ' . $t->getMessage());
+                }
+
+                // 2. Supprimer les colonnes obsolètes status, answered_by, answered_at sur questions
+                foreach (['status', 'answered_by', 'answered_at'] as $colToDrop) {
+                    $colExists = $db->query("SHOW COLUMNS FROM questions LIKE '{$colToDrop}'")->fetchAll();
+                    if (!empty($colExists)) {
+                        $db->exec("ALTER TABLE `questions` DROP COLUMN `{$colToDrop}`");
+                    }
+                }
+
+                // 3. Purger les réponses indicatives des sprints déjà clôturés
+                $db->exec("
+                    DELETE qa
+                    FROM question_answers qa
+                    INNER JOIN questions q ON q.id = qa.question_id
+                    INNER JOIN sprints s ON s.id = q.sprint_id
+                    WHERE s.status = 'closed'
+                ");
+
+                // 4. Dédoublonner question_answers avant d'appliquer l'unicité (1 réponse max / associé / question)
+                $db->exec("
+                    DELETE qa1
+                    FROM question_answers qa1
+                    INNER JOIN question_answers qa2
+                      ON qa1.question_id = qa2.question_id
+                     AND qa1.user_id = qa2.user_id
+                     AND (
+                         qa1.updated_at < qa2.updated_at
+                         OR (qa1.updated_at = qa2.updated_at AND qa1.id < qa2.id)
+                     )
+                ");
+
+                // 5. Index unique (question_id, user_id)
+                $idxExists = $db->query("SHOW INDEX FROM question_answers WHERE Key_name = 'uniq_question_user'")->fetchAll();
+                if (empty($idxExists)) {
+                    $db->exec("ALTER TABLE `question_answers` ADD UNIQUE KEY `uniq_question_user` (`question_id`, `user_id`)");
+                }
+
+                $db->prepare("INSERT IGNORE INTO schema_migrations (version) VALUES (?)")->execute(['v11_questions_simplify_unique_answers']);
+            }
         } catch (\Throwable $e) {
-            // Silencieux pour ne pas bloquer les requêtes
+            error_log('Database::migrateSchema error: ' . $e->getMessage());
         }
     }
 }

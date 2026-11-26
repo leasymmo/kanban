@@ -53,8 +53,8 @@ INSERT INTO `subtasks` (`task_id`, `title`, `is_done`, `position`) VALUES
 (7, 'Tester l''API REST', 1, 2);
 
 /* 6. Questions Démo */
-INSERT INTO `questions` (`sprint_id`, `user_id`, `created_by`, `title`, `details`, `status`) VALUES
-(1, 4, 4, 'Organisation des plannings d''intervention pour le mois prochain', 'Définir les créneaux prioritaires avec les prestataires.', 'open'),
-(1, 3, 3, 'Optimisation des messages automatiques d''accueil', 'Harmoniser les consignes d''arrivée envoyées aux voyageurs.', 'open'),
-(1, 2, 2, 'Validation des devis pour les travaux de rénovation', 'Arbitrage sur les deux propositions reçues.', 'open'),
-(1, 1, 1, 'Point sur les nouvelles fonctionnalités souhaitées pour le tableau', 'Recueillir les retours des utilisateurs après la première semaine.', 'open');
+INSERT INTO `questions` (`sprint_id`, `user_id`, `created_by`, `title`, `details`) VALUES
+(1, 4, 4, 'Organisation des plannings d''intervention pour le mois prochain', 'Définir les créneaux prioritaires avec les prestataires.'),
+(1, 3, 3, 'Optimisation des messages automatiques d''accueil', 'Harmoniser les consignes d''arrivée envoyées aux voyageurs.'),
+(1, 2, 2, 'Validation des devis pour les travaux de rénovation', 'Arbitrage sur les deux propositions reçues.'),
+(1, 1, 1, 'Point sur les nouvelles fonctionnalités souhaitées pour le tableau', 'Recueillir les retours des utilisateurs après la première semaine.');

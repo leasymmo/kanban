@@ -1,4 +1,4 @@
-import { Sprint, Task, Question, QuestionAnswer, QuestionStatus, User, Property } from '../types';
+import { Sprint, Task, Question, QuestionAnswer, User, Property } from '../types';
 
 function getStoredToken(): string | null {
   return localStorage.getItem('kanban_token');
@@ -40,7 +40,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const errorMsg = data.error || data.message || `Erreur serveur (${response.status}) sur ${url}`;
-    throw new Error(errorMsg);
+    const err = new Error(errorMsg) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
   }
 
   return data;
@@ -300,7 +302,7 @@ export const api = {
     });
   },
 
-  async updateQuestion(id: number, data: Partial<Question>) {
+  async updateQuestion(id: number, data: Partial<Pick<Question, 'title' | 'details' | 'user_id'>>) {
     return request<{ success: boolean }>(`/questions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data)
@@ -335,18 +337,14 @@ export const api = {
   },
 
   // Questions definitive decision (in meeting)
-  async setQuestionDecision(questionId: number, finalAnswer: string, status: QuestionStatus = 'resolved') {
+  async setQuestionDecision(questionId: number, finalAnswer: string) {
     return request<{
       success: boolean;
       message: string;
       final_answer: string | null;
-      status: QuestionStatus;
-      answered_by?: number | null;
-      answered_by_name?: string | null;
-      answered_at?: string | null;
     }>(`/questions/${questionId}/decision`, {
       method: 'POST',
-      body: JSON.stringify({ final_answer: finalAnswer, status })
+      body: JSON.stringify({ final_answer: finalAnswer })
     });
   }
 };

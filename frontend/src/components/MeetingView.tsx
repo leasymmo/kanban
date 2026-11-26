@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sprint, Task, TaskStatus, Question, QuestionStatus, User, Property } from '../types';
+import { Sprint, Task, TaskStatus, Question, User, Property } from '../types';
 import { buildSubtaskTree, HierarchicalSubtask } from '../utils/subtasks';
-import { QUESTION_STATUS_META, formatQuestionDate } from '../utils/questions';
+import { hasFinalDecision } from '../utils/questions';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import {
   Users, CheckCircle2, UserPlus,
   Shield, CheckSquare, Square,
   Sparkles, Check, Edit3, Trash2, Star,
-  ChevronDown, Plus, AlertTriangle, Keyboard, X
+  ChevronDown, Plus, AlertTriangle, Keyboard, X, Info
 } from 'lucide-react';
 
 interface MeetingViewProps {
@@ -22,8 +22,7 @@ interface MeetingViewProps {
   onAssignTask: (taskId: number, userId: number | null) => void;
   onDeleteTask?: (taskId: number) => void;
   onToggleSubtask: (subtaskId: number) => void;
-  onUpdateQuestionStatus: (questionId: number, status: Question['status']) => void;
-  onSetQuestionDecision?: (questionId: number, finalAnswer: string, status?: QuestionStatus) => Promise<void>;
+  onSetQuestionDecision?: (questionId: number, finalAnswer: string) => Promise<void>;
   onEditTask: (task: Task) => void;
   onToggleStar?: (taskId: number) => void;
   onAddNewTask?: (editingPendingTask?: Task | null) => void;
@@ -45,7 +44,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   onAssignTask,
   onDeleteTask,
   onToggleSubtask,
-  onUpdateQuestionStatus,
   onSetQuestionDecision,
   onEditTask,
   onToggleStar,
@@ -72,7 +70,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     return max ? max.id : (users[1]?.id || users[0]?.id || 1);
   });
 
-  // Accordéons des tâches non mises en avant (par associé)
+  const [openProposalDrawers, setOpenProposalDrawers] = useState<{ [questionId: number]: boolean }>({});
   const [expandedAccordions, setExpandedAccordions] = useState<{ [userId: number]: boolean }>({});
 
   useEffect(() => {
@@ -187,7 +185,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   const activeSprintTasks = tasks.filter(t => t.status !== 'pending');
   const doneTasks = activeSprintTasks.filter(t => t.status === 'done');
   const unfinishedSprintTasks = activeSprintTasks.filter(t => t.status !== 'done');
-  const openQuestions = questions.filter(q => q.status !== 'resolved');
+  const undecidedQuestions = questions.filter(q => !hasFinalDecision(q));
+  const decidedQuestions = questions.filter(hasFinalDecision);
 
   if (!sprint) {
     return (
@@ -351,7 +350,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
     setIsSubmittingDecision(prev => ({ ...prev, [questionId]: true }));
     try {
-      await onSetQuestionDecision(questionId, text, 'resolved');
+      await onSetQuestionDecision(questionId, text);
       setEditingDecisionForId(null);
     } catch {
       // Erreur gérée par la notification globale ; l'éditeur reste ouvert
@@ -437,29 +436,39 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     </section>
   );
 
-  // Carte de question compacte & épurée (utilisée à l'intérieur de la section de l'intervenant)
+  // Carte de question binaire & épurée (sans statut) : En attente de décision vs Décision définitive actée
   const renderQuestionCard = (q: Question) => {
-    const isResolved = q.status === 'resolved';
-    const statusMeta = QUESTION_STATUS_META[q.status] || QUESTION_STATUS_META.open;
     const answers = q.answers || [];
-    const hasFinalAnswer = !!q.final_answer;
+    const hasFinalAnswer = hasFinalDecision(q);
     const isEditingDecision = editingDecisionForId === q.id;
     const currentInput = decisionInputs[q.id] !== undefined ? decisionInputs[q.id] : (q.final_answer || '');
     const canArbitrate = !isReadOnly && (q.can_decide ?? (currentUser?.role !== 'read' && (isAdmin || currentUser?.role === 'write')));
     const canModifyQuestion = !isReadOnly && (q.can_edit !== undefined ? !!q.can_edit : (isAdmin || (currentUser?.role === 'write' && currentUser?.id === q.user_id)));
+    const showProposals = !hasFinalAnswer || !!openProposalDrawers[q.id];
 
     return (
       <div
         key={q.id}
-        className={`p-3 sm:p-3.5 rounded-xl border transition-all space-y-2 ${
-          isResolved ? 'bg-emerald-50/25 border-emerald-200' : 'bg-slate-50/80 border-black/[0.12]'
+        className={`p-3 sm:p-4 rounded-xl border transition-all space-y-2.5 ${
+          hasFinalAnswer ? 'bg-emerald-50/35 border-emerald-300/80' : 'bg-slate-50/75 border-black/[0.12]'
         }`}
       >
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h4 className={`text-sm font-bold break-words leading-snug ${isResolved ? 'text-slate-600' : 'text-slate-800'}`}>
-              {q.title}
-            </h4>
+            <div className="flex items-start gap-2 flex-wrap">
+              <span
+                className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md shrink-0 mt-0.5 ${
+                  hasFinalAnswer
+                    ? 'bg-emerald-100 text-emerald-900'
+                    : 'bg-amber-100 text-amber-900'
+                }`}
+              >
+                {hasFinalAnswer ? 'Décidée' : 'À trancher'}
+              </span>
+              <h4 className="text-sm font-bold break-words leading-snug text-slate-900">
+                {q.title}
+              </h4>
+            </div>
             {q.details && (
               <p className="mt-1 text-xs text-slate-600 leading-relaxed whitespace-pre-line break-words">
                 {q.details}
@@ -468,12 +477,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-            <span
-              className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md ${statusMeta.badgeClass}`}
-            >
-              {statusMeta.shortLabel}
-            </span>
-
             {!hasFinalAnswer && !isEditingDecision && canArbitrate && (
               <button
                 type="button"
@@ -481,11 +484,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   setEditingDecisionForId(q.id);
                   setDecisionInputs(prev => ({ ...prev, [q.id]: q.final_answer || '' }));
                 }}
-                className="text-xs px-2 py-1 rounded-lg font-semibold bg-white hover:bg-indigo-50 text-indigo-700 border border-black/[0.12] hover:border-indigo-300 flex items-center gap-1 transition-colors cursor-pointer"
-                title="Saisir la décision finale en séance"
+                aria-label={`Saisir la réponse définitive pour : ${q.title}`}
+                className="min-h-[36px] sm:min-h-[30px] text-xs px-2.5 py-1 rounded-lg font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Saisir la réponse définitive en séance"
               >
-                <Sparkles className="w-3 h-3 text-indigo-500" strokeWidth={2} />
-                <span>Décision</span>
+                <Sparkles className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                <span className="sm:hidden">Décision</span>
+                <span className="hidden sm:inline">Saisir la décision</span>
               </button>
             )}
 
@@ -493,79 +498,23 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               <button
                 type="button"
                 onClick={() => onEditQuestion(q)}
-                className="p-1 text-slate-500 hover:text-indigo-600 bg-white hover:bg-indigo-50 border border-black/[0.12] hover:border-indigo-300 rounded-lg transition-colors cursor-pointer"
+                className="min-w-[36px] min-h-[36px] sm:min-w-[30px] sm:min-h-[30px] flex items-center justify-center text-slate-600 hover:text-indigo-700 bg-white hover:bg-indigo-50 border border-black/[0.12] hover:border-indigo-300 rounded-lg transition-colors cursor-pointer"
                 title="Modifier la question"
                 aria-label={`Modifier la question : ${q.title}`}
               >
                 <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
               </button>
             )}
-
-            {canModifyQuestion && (
-              <button
-                type="button"
-                onClick={() => onUpdateQuestionStatus(q.id, isResolved ? 'open' : 'resolved')}
-                className={`text-xs px-2 py-1 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                  isResolved
-                    ? 'bg-slate-200/80 text-slate-700 hover:bg-slate-300'
-                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-                }`}
-              >
-                <CheckCircle2 className="w-3 h-3" strokeWidth={2.25} />
-                <span>{isResolved ? 'Réouvrir' : 'Clore'}</span>
-              </button>
-            )}
           </div>
         </div>
 
-        {answers.length > 0 && (
-          <div className="pt-2 border-t border-black/[0.08] space-y-1">
-            {answers.map((ans) => (
-              <div
-                key={ans.id}
-                className="px-2.5 py-1.5 bg-white rounded-lg border border-black/[0.10] text-xs flex items-center justify-between gap-2"
-              >
-                <div className="min-w-0 flex-1 flex items-baseline gap-1.5 flex-wrap">
-                  <span className="inline-flex items-center gap-1 font-semibold text-slate-800 shrink-0">
-                    <span
-                      className="w-4 h-4 rounded-full inline-flex items-center justify-center font-bold text-[8px] text-white shrink-0 translate-y-0.5"
-                      style={{ backgroundColor: ans.user_color || '#4F46E5' }}
-                    >
-                      {ans.user_initials}
-                    </span>
-                    <span>{ans.user_name} :</span>
-                  </span>
-                  <span className="text-slate-600 break-words">{ans.content}</span>
-                </div>
-
-                {canArbitrate && (
-                  <button
-                    type="button"
-                    onClick={() => handleSelectPropositionAsDecision(q.id, ans.content)}
-                    className="px-2 py-0.5 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
-                    title="Retenir cette proposition comme décision finale"
-                  >
-                    <Sparkles className="w-3 h-3 text-indigo-500" strokeWidth={2} />
-                    <span>Retenir</span>
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
+        {/* Réponse définitive actée en séance */}
         {hasFinalAnswer && !isEditingDecision && (
-          <div className="px-3 py-2 rounded-lg bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-300/90 text-xs">
+          <div className="px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 border-l-4 border-l-emerald-600 text-xs">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 font-bold text-emerald-900">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2.25} />
-                <span>Décision</span>
-                {q.answered_by_name && (
-                  <span className="font-normal text-[11px] text-slate-500">
-                    • {q.answered_by_name}
-                    {q.answered_at ? ` (${formatQuestionDate(q.answered_at)})` : ''}
-                  </span>
-                )}
+              <div className="flex items-center gap-1.5 font-bold text-emerald-950">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" strokeWidth={2.25} />
+                <span>Réponse définitive</span>
               </div>
               {canArbitrate && (
                 <button
@@ -574,53 +523,65 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                     setEditingDecisionForId(q.id);
                     setDecisionInputs(prev => ({ ...prev, [q.id]: q.final_answer || '' }));
                   }}
-                  className="text-[11px] font-semibold text-slate-500 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                  aria-label={`Modifier la réponse définitive pour : ${q.title}`}
+                  className="px-2 py-1 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 rounded-md flex items-center gap-1 cursor-pointer transition-colors"
                 >
                   <Edit3 className="w-3 h-3" strokeWidth={2} />
                   Modifier
                 </button>
               )}
             </div>
-            <p className="mt-1 text-slate-800 font-semibold whitespace-pre-line break-words pl-5">
+            <p className="mt-1 text-slate-900 font-semibold whitespace-pre-line break-words pl-5 leading-relaxed">
               {q.final_answer}
             </p>
           </div>
         )}
 
+        {/* Éditeur inline de réponse définitive */}
         {isEditingDecision && canArbitrate && (
-          <div className="p-2.5 rounded-lg bg-white border border-indigo-200 space-y-2">
+          <div className="p-2.5 rounded-lg bg-white border border-indigo-300 shadow-2xs space-y-2">
             <textarea
               rows={2}
               autoFocus
-              placeholder="Saisissez la décision finale actée en séance..."
+              aria-label={`Réponse définitive pour : ${q.title}`}
+              placeholder="Saisissez la réponse définitive actée en séance..."
               value={currentInput}
               onChange={(e) => setDecisionInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setEditingDecisionForId(null);
+                } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSaveDecision(q.id);
+                }
+              }}
               className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
 
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {hasFinalAnswer && (
                 <button
                   type="button"
                   onClick={async () => {
-                    if (window.confirm('Supprimer la décision finale et réouvrir cette question ?')) {
+                    if (window.confirm('Effacer la réponse définitive pour remettre cette question à trancher ?')) {
                       try {
-                        await onSetQuestionDecision?.(q.id, '', 'open');
+                        await onSetQuestionDecision?.(q.id, '');
                         setEditingDecisionForId(null);
                       } catch {
                         // Erreur gérée par la notification globale
                       }
                     }
                   }}
-                  className="px-2.5 py-1 text-red-600 hover:bg-red-50 text-xs font-semibold rounded-lg cursor-pointer mr-auto"
+                  className="px-2.5 py-1 text-red-700 hover:bg-red-50 text-xs font-semibold rounded-lg cursor-pointer mr-auto"
                 >
-                  Supprimer
+                  Effacer la décision
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => setEditingDecisionForId(null)}
-                className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
+                className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-800 cursor-pointer"
               >
                 Annuler
               </button>
@@ -628,12 +589,73 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 type="button"
                 disabled={!currentInput.trim() || isSubmittingDecision[q.id]}
                 onClick={() => handleSaveDecision(q.id)}
-                className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer transition-all"
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <Check className="w-3.5 h-3.5" strokeWidth={2.25} />
-                <span>{isSubmittingDecision[q.id] ? 'Enregistrement...' : 'Acter'}</span>
+                <span>{isSubmittingDecision[q.id] ? 'Enregistrement...' : 'Acter la décision'}</span>
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Propositions indicatives (repliées par défaut si la question est déjà tranchée) */}
+        {answers.length > 0 && (
+          <div className="pt-2 border-t border-black/[0.08] space-y-1.5">
+            {hasFinalAnswer ? (
+              <button
+                type="button"
+                aria-expanded={showProposals}
+                onClick={() => setOpenProposalDrawers(prev => ({ ...prev, [q.id]: !prev[q.id] }))}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-150 ${showProposals ? 'rotate-180' : ''}`}
+                  strokeWidth={2}
+                />
+                <span>Propositions indicatives ({answers.length})</span>
+              </button>
+            ) : (
+              <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+                Propositions indicatives ({answers.length})
+              </p>
+            )}
+
+            {showProposals && (
+              <div className="space-y-1">
+                {answers.map((ans) => (
+                  <div
+                    key={ans.id}
+                    className="px-2.5 py-2 bg-white rounded-lg border border-black/[0.10] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0 flex-1 flex items-baseline gap-1.5 flex-wrap">
+                      <span className="inline-flex items-center gap-1 font-semibold text-slate-800 shrink-0">
+                        <span
+                          className="w-4 h-4 rounded-full inline-flex items-center justify-center font-bold text-[8px] text-white shrink-0 translate-y-0.5"
+                          style={{ backgroundColor: ans.user_color || '#4F46E5' }}
+                        >
+                          {ans.user_initials}
+                        </span>
+                        <span>{ans.user_name} :</span>
+                      </span>
+                      <span className="text-slate-700 break-words">{ans.content}</span>
+                    </div>
+
+                    {canArbitrate && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPropositionAsDecision(q.id, ans.content)}
+                        aria-label={`Retenir la proposition de ${ans.user_name} comme décision finale pour : ${q.title}`}
+                        className="self-end sm:self-auto px-2.5 py-1 text-xs sm:text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80 rounded-lg flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
+                        title="Retenir cette proposition comme réponse définitive"
+                      >
+                        <Sparkles className="w-3 h-3 text-indigo-500" strokeWidth={2} />
+                        <span>Retenir</span>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -807,7 +829,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           <span className="w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px]">2</span>
           <span>Revue des Questions & Décisions</span>
           <span className="text-[10px] opacity-75 font-normal px-1.5 py-0.5 rounded bg-black/20">30 min</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-indigo-500 text-white text-[10px]">{openQuestions.length}</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-indigo-500 text-white text-[10px]">{undecidedQuestions.length}</span>
         </button>
 
         <button
@@ -1034,14 +1056,27 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           <div className="bg-white rounded-[28px] sm:rounded-[32px] px-4 py-3 sm:px-5 sm:py-3.5 border border-black/[0.12] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div>
               <h3 className="font-bold text-base text-slate-800">Revue des Questions & Décisions</h3>
-              <p className="text-xs text-slate-500">
-                Regroupées par associé pour acter les décisions en séance.
+              <p className="text-xs text-slate-600">
+                Regroupées par associé pour acter les réponses définitives en séance.
               </p>
+              {(sprint.status === 'closed' || isReadOnly) && (
+                <p className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-black/[0.08] text-[11px] text-slate-700 font-medium">
+                  <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" strokeWidth={2} />
+                  <span>
+                    Sprint clôturé : les propositions indicatives préparatoires ne sont pas conservées ; seules les réponses définitives sont archivées.
+                  </span>
+                </p>
+              )}
             </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">
-                {openQuestions.length} à traiter
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-900">
+                {undecidedQuestions.length} à trancher
               </span>
+              {decidedQuestions.length > 0 && (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900">
+                  {decidedQuestions.length} décidée{decidedQuestions.length > 1 ? 's' : ''}
+                </span>
+              )}
               {canCreateQuestion && (
                 <button
                   type="button"
@@ -1061,37 +1096,38 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
           {users.map((user) => {
             const userQuestions = questions.filter(q => q.user_id === user.id);
-            const userOpen = userQuestions.filter(q => q.status !== 'resolved');
-            const userResolved = userQuestions.filter(q => q.status === 'resolved');
+            const userUndecided = userQuestions.filter(q => !hasFinalDecision(q));
+            const userDecided = userQuestions.filter(hasFinalDecision);
+            const orderedQuestions = [...userUndecided, ...userDecided];
 
             return renderAssociateSection(
               user,
               userQuestions.length === 0
                 ? 'Aucune question posée'
-                : `${userQuestions.length} question${userQuestions.length > 1 ? 's' : ''} (${userResolved.length} résolue${userResolved.length > 1 ? 's' : ''})`,
+                : `${userQuestions.length} question${userQuestions.length > 1 ? 's' : ''} · ${userDecided.length} décidée${userDecided.length > 1 ? 's' : ''}`,
               <>
-                {userOpen.length > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-800">
-                    {userOpen.length} à aborder
+                {userUndecided.length > 0 && (
+                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900">
+                    {userUndecided.length} à trancher
                   </span>
                 )}
-                {userResolved.length > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800">
-                    {userResolved.length} résolue{userResolved.length > 1 ? 's' : ''}
+                {userDecided.length > 0 && (
+                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-900">
+                    {userDecided.length} décidée{userDecided.length > 1 ? 's' : ''}
                   </span>
                 )}
                 {userQuestions.length === 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-500">
+                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-600">
                     0 question
                   </span>
                 )}
               </>,
               userQuestions.length > 0 ? (
                 <div className="space-y-2">
-                  {userQuestions.map(renderQuestionCard)}
+                  {orderedQuestions.map(renderQuestionCard)}
                 </div>
               ) : (
-                <p className="py-2 text-center text-xs text-slate-400 font-medium">
+                <p className="py-2 text-center text-xs text-slate-600 font-medium">
                   Aucune question à aborder pour {user.name}.
                 </p>
               ),
@@ -1104,15 +1140,26 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             const userIds = new Set(users.map(u => u.id));
             const orphanQuestions = questions.filter(q => !userIds.has(q.user_id));
             if (orphanQuestions.length === 0) return null;
+            const orphanUndecided = orphanQuestions.filter(q => !hasFinalDecision(q));
+            const orphanDecided = orphanQuestions.filter(hasFinalDecision);
 
             return renderAssociateSection(
               { id: 'other-questions', name: 'Autres participants', initials: '?', avatar_color: '#64748B' },
               `${orphanQuestions.length} question${orphanQuestions.length > 1 ? 's' : ''}`,
-              <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-700">
-                {orphanQuestions.filter(q => q.status !== 'resolved').length} à aborder
-              </span>,
-              <div className="space-y-3">
-                {orphanQuestions.map(renderQuestionCard)}
+              <>
+                {orphanUndecided.length > 0 && (
+                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900">
+                    {orphanUndecided.length} à trancher
+                  </span>
+                )}
+                {orphanDecided.length > 0 && (
+                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-900">
+                    {orphanDecided.length} décidée{orphanDecided.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </>,
+              <div className="space-y-2">
+                {[...orphanUndecided, ...orphanDecided].map(renderQuestionCard)}
               </div>
             );
           })()}
@@ -1462,14 +1509,14 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               meetingStep === 'retro'
                 ? activeSprintTasks.filter((t) => t.assigned_to === user.id).length
                 : meetingStep === 'questions'
-                ? questions.filter((q) => q.user_id === user.id && q.status !== 'resolved').length
+                ? questions.filter((q) => q.user_id === user.id && !hasFinalDecision(q)).length
                 : pendingAssigned.filter((t) => t.assigned_to === user.id).length;
 
             const badgeLabel =
               meetingStep === 'retro'
                 ? 'tâches'
                 : meetingStep === 'questions'
-                ? 'à traiter'
+                ? 'à trancher'
                 : 'planifiées';
 
             return (

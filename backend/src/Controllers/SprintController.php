@@ -136,12 +136,10 @@ class SprintController {
                    COALESCE(u.name, 'Ancien associé') as user_name,
                    COALESCE(u.initials, '?') as user_initials,
                    COALESCE(u.avatar_color, '#64748B') as user_color,
-                   COALESCE(uc.name, 'Ancien associé') as created_by_name,
-                   ua.name as answered_by_name
+                   COALESCE(uc.name, 'Ancien associé') as created_by_name
             FROM questions q
             LEFT JOIN users u ON u.id = q.user_id
             LEFT JOIN users uc ON uc.id = q.created_by
-            LEFT JOIN users ua ON ua.id = q.answered_by
             WHERE q.sprint_id = ?
             ORDER BY q.user_id ASC, q.id ASC
         ");
@@ -174,7 +172,6 @@ class SprintController {
             $q['sprint_id'] = (int)$q['sprint_id'];
             $q['user_id'] = $q['user_id'] !== null ? (int)$q['user_id'] : null;
             $q['created_by'] = $q['created_by'] !== null ? (int)$q['created_by'] : null;
-            $q['answered_by'] = $q['answered_by'] !== null ? (int)$q['answered_by'] : null;
 
             $q['can_edit'] = $isAdmin
                 || (!$isSprintClosed && $isWrite && $q['user_id'] !== null && $q['user_id'] === (int)$currentUser['id']);
@@ -186,8 +183,8 @@ class SprintController {
                 $ans['id'] = (int)$ans['id'];
                 $ans['question_id'] = (int)$ans['question_id'];
                 $ans['user_id'] = $ans['user_id'] !== null ? (int)$ans['user_id'] : null;
-                $ans['can_edit'] = $isAdmin
-                    || (!$isSprintClosed && $isWrite && $ans['user_id'] !== null && $ans['user_id'] === (int)$currentUser['id']);
+                $ans['can_edit'] = !$isSprintClosed
+                    && ($isAdmin || ($isWrite && $ans['user_id'] !== null && $ans['user_id'] === (int)$currentUser['id']));
                 $ans['can_delete'] = $ans['can_edit'];
             }
             $q['answers'] = $rawAnswers;
@@ -335,6 +332,14 @@ class SprintController {
                 $rolledOverSubtasksCount += (int)$stmtCountSubtasks->fetchColumn();
             }
 
+            // 4. Purge des réponses indicatives des questions du sprint clôturé (seules les questions et final_answer sont archivées)
+            $stmtPurgeAnswers = $db->prepare("
+                DELETE FROM question_answers
+                WHERE question_id IN (SELECT id FROM questions WHERE sprint_id = ?)
+            ");
+            $stmtPurgeAnswers->execute([$id]);
+            $purgedAnswersCount = $stmtPurgeAnswers->rowCount();
+
             $db->commit();
 
             Response::json([
@@ -345,7 +350,8 @@ class SprintController {
                     'tasks_rolled_over' => $rolledOverTasksCount,
                     'subtasks_rolled_over' => $rolledOverSubtasksCount,
                     'meeting_tasks_activated' => $meetingTasksActivated,
-                    'unassigned_pending_moved' => $unassignedPendingMoved
+                    'unassigned_pending_moved' => $unassignedPendingMoved,
+                    'question_answers_purged' => $purgedAnswersCount
                 ]
             ]);
 

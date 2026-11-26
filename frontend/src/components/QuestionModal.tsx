@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Question, QuestionStatus, User } from '../types';
+import { Question, User } from '../types';
 import { X, AlertCircle } from 'lucide-react';
 
 interface QuestionModalProps {
@@ -31,7 +31,6 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
   const [title, setTitle] = useState('');
   const [details, setDetails] = useState('');
   const [targetUserId, setTargetUserId] = useState<number>(currentUser?.id || users[0]?.id || 0);
-  const [status, setStatus] = useState<QuestionStatus>('open');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,12 +41,10 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
       setTitle(editingQuestion.title);
       setDetails(editingQuestion.details || '');
       setTargetUserId(editingQuestion.user_id);
-      setStatus(editingQuestion.status);
     } else {
       setTitle('');
       setDetails('');
       setTargetUserId(initialUserId || currentUser?.id || users[0]?.id || 0);
-      setStatus('open');
     }
     setError(null);
     // Intentionally omit `users` reference to avoid resetting draft fields mid-typing
@@ -86,7 +83,6 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
         await onUpdateQuestion(editingQuestion.id, {
           title: trimmedTitle,
           details: details.trim(),
-          status,
           user_id: isAdmin ? targetUserId : editingQuestion.user_id
         });
       } else {
@@ -167,46 +163,25 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
               />
             </div>
 
-            {(isAdmin || isEdit) && (
-              <div className={`grid gap-2.5 ${isAdmin && isEdit ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                {isAdmin && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                      Associé concerné
-                    </label>
-                    <select
-                      value={targetUserId}
-                      onChange={(e) => setTargetUserId(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white cursor-pointer focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                    >
-                      {hasOrphanAuthor && editingQuestion && (
-                        <option value={editingQuestion.user_id}>
-                          {editingQuestion.user_name || 'Ancien associé'} (archivé)
-                        </option>
-                      )}
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {isEdit && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                      Statut
-                    </label>
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as QuestionStatus)}
-                      className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white cursor-pointer focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                    >
-                      <option value="open">À aborder</option>
-                      <option value="discussed">En discussion</option>
-                      <option value="resolved">Résolue / Actée</option>
-                    </select>
-                  </div>
-                )}
+            {isAdmin && (
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Associé concerné
+                </label>
+                <select
+                  value={targetUserId}
+                  onChange={(e) => setTargetUserId(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white cursor-pointer focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                >
+                  {hasOrphanAuthor && editingQuestion && (
+                    <option value={editingQuestion.user_id}>
+                      {editingQuestion.user_name || 'Ancien associé'} (archivé)
+                    </option>
+                  )}
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
               </div>
             )}
           </div>

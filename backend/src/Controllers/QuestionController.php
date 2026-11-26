@@ -37,12 +37,10 @@ class QuestionController {
                    COALESCE(u.name, 'Ancien associé') as user_name,
                    COALESCE(u.initials, '?') as user_initials,
                    COALESCE(u.avatar_color, '#64748B') as user_color,
-                   COALESCE(uc.name, 'Ancien associé') as created_by_name,
-                   ua.name as answered_by_name
+                   COALESCE(uc.name, 'Ancien associé') as created_by_name
             FROM questions q
             LEFT JOIN users u ON u.id = q.user_id
             LEFT JOIN users uc ON uc.id = q.created_by
-            LEFT JOIN users ua ON ua.id = q.answered_by
             WHERE q.sprint_id = ?
             ORDER BY q.user_id ASC, q.id ASC
         ");
@@ -80,7 +78,6 @@ class QuestionController {
             $q['sprint_id'] = (int)$q['sprint_id'];
             $q['user_id'] = $q['user_id'] !== null ? (int)$q['user_id'] : null;
             $q['created_by'] = $q['created_by'] !== null ? (int)$q['created_by'] : null;
-            $q['answered_by'] = $q['answered_by'] !== null ? (int)$q['answered_by'] : null;
 
             $q['can_edit'] = $isAdmin
                 || (!$isSprintClosed && $isWrite && $q['user_id'] !== null && $q['user_id'] === (int)$currentUser['id']);
@@ -92,8 +89,8 @@ class QuestionController {
                 $ans['id'] = (int)$ans['id'];
                 $ans['question_id'] = (int)$ans['question_id'];
                 $ans['user_id'] = $ans['user_id'] !== null ? (int)$ans['user_id'] : null;
-                $ans['can_edit'] = $isAdmin
-                    || (!$isSprintClosed && $isWrite && $ans['user_id'] !== null && $ans['user_id'] === (int)$currentUser['id']);
+                $ans['can_edit'] = !$isSprintClosed
+                    && ($isAdmin || ($isWrite && $ans['user_id'] !== null && $ans['user_id'] === (int)$currentUser['id']));
                 $ans['can_delete'] = $ans['can_edit'];
             }
             $q['answers'] = $rawAnswers;
@@ -147,8 +144,8 @@ class QuestionController {
         }
 
         $stmt = $db->prepare("
-            INSERT INTO questions (sprint_id, user_id, created_by, title, details, status)
-            VALUES (?, ?, ?, ?, ?, 'open')
+            INSERT INTO questions (sprint_id, user_id, created_by, title, details)
+            VALUES (?, ?, ?, ?, ?)
         ");
         $stmt->execute([$sprintId, $targetUserId, $currentUser['id'], $title, $details !== '' ? $details : null]);
 
@@ -210,15 +207,6 @@ class QuestionController {
             $details = $question['details'];
         }
 
-        if (array_key_exists('status', $body)) {
-            if (!in_array($body['status'], ['open', 'discussed', 'resolved'], true)) {
-                Response::error('Statut de question invalide', 400);
-            }
-            $status = $body['status'];
-        } else {
-            $status = $question['status'];
-        }
-
         $userId = $question['user_id'];
         if ($currentUser['role'] === 'admin' && !empty($body['user_id'])) {
             $userId = (int)$body['user_id'];
@@ -231,10 +219,10 @@ class QuestionController {
 
         $stmtUpdate = $db->prepare("
             UPDATE questions
-            SET title = ?, details = ?, status = ?, user_id = ?
+            SET title = ?, details = ?, user_id = ?
             WHERE id = ?
         ");
-        $stmtUpdate->execute([$title, $details, $status, $userId, $id]);
+        $stmtUpdate->execute([$title, $details, $userId, $id]);
 
         Response::success(null, 'Question mise à jour');
     }
@@ -295,8 +283,8 @@ class QuestionController {
         if (!$qRow) {
             Response::error('Question introuvable', 404);
         }
-        if ($qRow['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
-            Response::error('Sprint clôturé en lecture seule', 403);
+        if ($qRow['sprint_status'] === 'closed') {
+            Response::error('Sprint clôturé : les réponses indicatives ne sont plus modifiables après clôture', 403);
         }
 
         $body = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -305,12 +293,36 @@ class QuestionController {
             Response::error('Le contenu de la réponse ne peut pas être vide', 400);
         }
 
-        $stmt = $db->prepare("
-            INSERT INTO question_answers (question_id, user_id, content)
-            VALUES (?, ?, ?)
+        // Chaque associé ne peut proposer qu'une et une seule réponse par question
+        $stmtExisting = $db->prepare("
+            SELECT id FROM question_answers
+            WHERE question_id = ? AND user_id = ?
+            LIMIT 1
         ");
-        $stmt->execute([$questionId, $currentUser['id'], $content]);
-        $newAnswerId = (int)$db->lastInsertId();
+        $stmtExisting->execute([$questionId, (int)$currentUser['id']]);
+        if ($stmtExisting->fetch()) {
+            Response::error(
+                'Vous avez déjà proposé une réponse à cette question. Modifiez ou supprimez votre réponse existante.',
+                409
+            );
+        }
+
+        try {
+            $stmt = $db->prepare("
+                INSERT INTO question_answers (question_id, user_id, content)
+                VALUES (?, ?, ?)
+            ");
+            $stmt->execute([$questionId, (int)$currentUser['id'], $content]);
+            $newAnswerId = (int)$db->lastInsertId();
+        } catch (\PDOException $e) {
+            if ($e->getCode() === '23000') {
+                Response::error(
+                    'Vous avez déjà proposé une réponse à cette question. Modifiez ou supprimez votre réponse existante.',
+                    409
+                );
+            }
+            throw $e;
+        }
 
         Response::json([
             'success' => true,
@@ -318,7 +330,7 @@ class QuestionController {
             'answer' => [
                 'id' => $newAnswerId,
                 'question_id' => $questionId,
-                'user_id' => $currentUser['id'],
+                'user_id' => (int)$currentUser['id'],
                 'user_name' => $currentUser['name'],
                 'user_initials' => $currentUser['initials'],
                 'user_color' => $currentUser['avatar_color'],
@@ -352,8 +364,8 @@ class QuestionController {
             Response::error('Réponse introuvable', 404);
         }
 
-        if ($answer['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
-            Response::error('Sprint clôturé en lecture seule', 403);
+        if ($answer['sprint_status'] === 'closed') {
+            Response::error('Sprint clôturé : les réponses indicatives ne sont plus modifiables après clôture', 403);
         }
 
         if ($currentUser['role'] !== 'admin' && $answer['user_id'] != $currentUser['id']) {
@@ -398,8 +410,8 @@ class QuestionController {
             Response::error('Réponse introuvable', 404);
         }
 
-        if ($answer['sprint_status'] === 'closed' && $currentUser['role'] !== 'admin') {
-            Response::error('Sprint clôturé en lecture seule', 403);
+        if ($answer['sprint_status'] === 'closed') {
+            Response::error('Sprint clôturé : les réponses indicatives ne sont plus modifiables après clôture', 403);
         }
 
         if ($currentUser['role'] !== 'admin' && $answer['user_id'] != $currentUser['id']) {
@@ -443,34 +455,17 @@ class QuestionController {
             $finalAnswer = null;
         }
 
-        if (array_key_exists('status', $body) && $body['status'] !== '') {
-            if (!in_array($body['status'], ['open', 'discussed', 'resolved'], true)) {
-                Response::error('Statut de question invalide', 400);
-            }
-            $status = $body['status'];
-        } else {
-            $status = ($finalAnswer !== null) ? 'resolved' : 'open';
-        }
-
-        $answeredBy = $finalAnswer !== null ? (int)$currentUser['id'] : null;
-        $answeredAt = $finalAnswer !== null ? date('Y-m-d H:i:s') : null;
-        $answeredByName = $finalAnswer !== null ? $currentUser['name'] : null;
-
         $stmtUpdate = $db->prepare("
             UPDATE questions
-            SET final_answer = ?, status = ?, answered_by = ?, answered_at = ?
+            SET final_answer = ?
             WHERE id = ?
         ");
-        $stmtUpdate->execute([$finalAnswer, $status, $answeredBy, $answeredAt, $questionId]);
+        $stmtUpdate->execute([$finalAnswer, $questionId]);
 
         Response::json([
             'success' => true,
             'message' => $finalAnswer !== null ? 'Décision enregistrée avec succès' : 'Décision supprimée',
-            'final_answer' => $finalAnswer,
-            'status' => $status,
-            'answered_by' => $answeredBy,
-            'answered_by_name' => $answeredByName,
-            'answered_at' => $answeredAt
+            'final_answer' => $finalAnswer
         ]);
     }
 }

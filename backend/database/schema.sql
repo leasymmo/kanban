@@ -130,18 +130,14 @@ CREATE TABLE `questions` (
   `created_by` INT NOT NULL,
   `title` VARCHAR(255) NOT NULL,
   `details` TEXT NULL,
-  `status` ENUM('open', 'discussed', 'resolved') DEFAULT 'open',
   `final_answer` TEXT NULL DEFAULT NULL,
-  `answered_by` INT NULL DEFAULT NULL,
-  `answered_at` DATETIME NULL DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`sprint_id`) REFERENCES `sprints`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`answered_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+  FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-/* 6b. Réponses collaboratives aux questions */
+/* 6b. Réponses indicatives préparatoires aux questions (1 max par associé, purgées à la clôture du sprint) */
 CREATE TABLE `question_answers` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `question_id` INT NOT NULL,
@@ -149,6 +145,7 @@ CREATE TABLE `question_answers` (
   `content` TEXT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_question_user` (`question_id`, `user_id`),
   FOREIGN KEY (`question_id`) REFERENCES `questions`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
