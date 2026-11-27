@@ -908,7 +908,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
               aria-keyshortcuts={item.shortcut}
               className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3.5 py-2 min-h-[44px] sm:min-h-[40px] rounded-cdh-md text-[12px] font-semibold transition-all duration-150 active:scale-[0.99] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
                 isActive
-                  ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-cdh-card'
+                  ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-md ring-1 ring-[var(--cdh-accent)]/40'
                   : 'text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)]'
               }`}
             >
