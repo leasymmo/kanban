@@ -58,6 +58,51 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     setHideEmptyProperties(prefs.hideEmptyProperties ?? true);
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      const absX = Math.abs(e.deltaX);
+      const absY = Math.abs(e.deltaY);
+
+      // 1. Trackpad horizontal swipe (2 doigts gauche/droite) : toujours scroller le rail
+      if (absX > absY && absX > 0) {
+        rail.scrollLeft += e.deltaX;
+        e.preventDefault();
+        return;
+      }
+
+      // 2. Shift + molette : scroll horizontal
+      if (e.shiftKey && absY > 0) {
+        rail.scrollLeft += e.deltaY;
+        e.preventDefault();
+        return;
+      }
+
+      // 3. Molette souris verticale : si la colonne survolée n'a pas de scroll vertical utile,
+      //    scroller le rail horizontalement
+      if (absY > 0) {
+        const target = e.target as HTMLElement | null;
+        const vList = target?.closest('.cdh-prop-scroll') as HTMLElement | null;
+        if (vList && vList.scrollHeight > vList.clientHeight + 1) {
+          const atTop = vList.scrollTop <= 0;
+          const atBottom = vList.scrollTop + vList.clientHeight >= vList.scrollHeight - 1;
+          if (!((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0))) {
+            return; // Laisser la colonne scroller verticalement
+          }
+        }
+        if (rail.scrollWidth > rail.clientWidth) {
+          rail.scrollLeft += e.deltaY;
+          e.preventDefault();
+        }
+      }
+    };
+
+    rail.addEventListener('wheel', handleWheel, { passive: false });
+    return () => rail.removeEventListener('wheel', handleWheel);
+  }, [hideEmptyProperties, properties.length, tasks.length]);
+
   const handleToggleHideEmpty = () => {
     setHideEmptyProperties(prev => {
       const next = !prev;
@@ -206,12 +251,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
       ) : (
         <div
           ref={railRef}
-          onWheel={(e) => {
-            if (e.shiftKey && Math.abs(e.deltaY) > 0 && railRef.current) {
-              railRef.current.scrollLeft += e.deltaY;
-            }
-          }}
-          className="flex-1 min-h-0 min-w-0 w-full flex gap-3.5 sm:gap-4 items-stretch overflow-x-auto overscroll-x-contain snap-x snap-mandatory sm:snap-none pb-2 -mx-3 px-3 sm:mx-0 sm:px-0"
+          className="flex-1 min-h-0 min-w-0 flex gap-3.5 sm:gap-4 items-stretch overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory sm:snap-none pb-2 -mx-3 px-3 sm:mx-0 sm:px-0"
         >
           {sections.map((section) => {
             const total = section.tasks.length;
@@ -271,8 +311,8 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   <ProgressBar value={percent} label={`Progression ${section.name}`} className="mb-2.5" />
                 </div>
 
-                {/* Liste des cartes avec scroll interne unique */}
-                <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overscroll-contain pr-0.5">
+                {/* Liste des cartes avec scroll vertical interne uniquement */}
+                <div className="cdh-prop-scroll space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain pr-0.5">
                   {section.tasks.length > 0 ? (
                     section.tasks.map((task) => {
                       const indicator =
