@@ -85,6 +85,52 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
       }
     });
 
+    let focusScrollTimer: number | null = null;
+
+    const scrollFocusedFieldInModal = () => {
+      const dialogEl = dialogRef.current;
+      const activeEl = document.activeElement;
+      if (
+        !dialogEl ||
+        !(activeEl instanceof HTMLElement) ||
+        !dialogEl.contains(activeEl) ||
+        !activeEl.matches('input, textarea, select')
+      ) {
+        return;
+      }
+
+      let scrollParent: HTMLElement | null = activeEl.parentElement;
+      while (scrollParent && scrollParent !== dialogEl) {
+        const style = window.getComputedStyle(scrollParent);
+        const isScrollableY =
+          (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+          scrollParent.scrollHeight > scrollParent.clientHeight + 2;
+        if (isScrollableY) break;
+        scrollParent = scrollParent.parentElement;
+      }
+
+      if (!scrollParent || scrollParent === dialogEl) return;
+
+      const containerRect = scrollParent.getBoundingClientRect();
+      const fieldRect = activeEl.getBoundingClientRect();
+      const isOutOfComfortZone =
+        fieldRect.top < containerRect.top + 12 ||
+        fieldRect.bottom > containerRect.bottom - 16;
+
+      if (!isOutOfComfortZone) return;
+
+      const offsetInContainer = fieldRect.top - containerRect.top + scrollParent.scrollTop;
+      const targetTop = Math.max(
+        0,
+        offsetInContainer - (containerRect.height - fieldRect.height) / 2
+      );
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      scrollParent.scrollTo({
+        top: targetTop,
+        behavior: reduceMotion ? 'auto' : 'smooth',
+      });
+    };
+
     const syncVisualViewport = () => {
       const vv = window.visualViewport;
       if (!vv) return;
@@ -93,23 +139,26 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
       document.documentElement.style.setProperty('--cdh-vv-height', `${Math.round(vv.height)}px`);
 
       if (keyboardBottom > 40) {
-        const dialogEl = dialogRef.current;
-        const activeEl = document.activeElement;
-        if (
-          dialogEl &&
-          activeEl instanceof HTMLElement &&
-          dialogEl.contains(activeEl) &&
-          activeEl.matches('input, textarea, select')
-        ) {
-          activeEl.scrollIntoView({ block: 'nearest' });
-        }
+        window.requestAnimationFrame(scrollFocusedFieldInModal);
       }
+    };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement) || !target.matches('input, textarea, select')) return;
+      window.requestAnimationFrame(scrollFocusedFieldInModal);
+      if (focusScrollTimer !== null) {
+        window.clearTimeout(focusScrollTimer);
+      }
+      // Re-vérifier après la fin de l'animation d'ouverture du clavier virtuel iOS/Android
+      focusScrollTimer = window.setTimeout(scrollFocusedFieldInModal, 280);
     };
 
     syncVisualViewport();
     const vv = window.visualViewport;
     vv?.addEventListener('resize', syncVisualViewport);
     vv?.addEventListener('scroll', syncVisualViewport);
+    dialogRef.current?.addEventListener('focusin', handleFocusIn);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -165,8 +214,12 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
 
     return () => {
       window.cancelAnimationFrame(rafId);
+      if (focusScrollTimer !== null) {
+        window.clearTimeout(focusScrollTimer);
+      }
       vv?.removeEventListener('resize', syncVisualViewport);
       vv?.removeEventListener('scroll', syncVisualViewport);
+      dialogRef.current?.removeEventListener('focusin', handleFocusIn);
       document.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('wheel', handleBackgroundScroll);
       document.removeEventListener('touchmove', handleBackgroundScroll);
