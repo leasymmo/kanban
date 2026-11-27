@@ -48,6 +48,8 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   });
   const [activePropertyId, setActivePropertyId] = useState<number | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
+  const pillBarRef = useRef<HTMLDivElement>(null);
+  const isProgrammaticScrollRef = useRef(false);
 
   useEffect(() => {
     if (!currentUser) {
@@ -136,6 +138,55 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     ? allSections.filter(s => s.tasks.length > 0)
     : allSections;
 
+  useEffect(() => {
+    if (sections.length === 0) {
+      setActivePropertyId(null);
+      return;
+    }
+    if (activePropertyId === null || !sections.some(s => s.id === activePropertyId)) {
+      setActivePropertyId(sections[0].id);
+    }
+  }, [sections, activePropertyId]);
+
+  useEffect(() => {
+    if (activePropertyId === null || !pillBarRef.current) return;
+    const pill = document.getElementById(`property-pill-${activePropertyId}`);
+    if (pill) {
+      pill.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    }
+  }, [activePropertyId]);
+
+  const handleRailScroll = () => {
+    if (isProgrammaticScrollRef.current) return;
+    const rail = railRef.current;
+    if (!rail || sections.length === 0) return;
+
+    // Si on est tout au bout à droite, activer le dernier logement
+    if (rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 8) {
+      const lastId = sections[sections.length - 1].id;
+      if (lastId !== activePropertyId) setActivePropertyId(lastId);
+      return;
+    }
+
+    const anchorX = rail.scrollLeft + Math.min(rail.clientWidth * 0.35, 220);
+    let closestId: number | null = null;
+    let closestDistance = Infinity;
+
+    for (const s of sections) {
+      const el = document.getElementById(`property-col-${s.id}`);
+      if (!el) continue;
+      const dist = Math.abs(el.offsetLeft - anchorX);
+      if (dist < closestDistance) {
+        closestDistance = dist;
+        closestId = s.id;
+      }
+    }
+
+    if (closestId !== null && closestId !== activePropertyId) {
+      setActivePropertyId(closestId);
+    }
+  };
+
   const {
     draggedTaskId,
     activeDropContainer,
@@ -164,8 +215,12 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     const el = document.getElementById(`property-col-${propertyId}`);
     const container = railRef.current;
     if (el && container) {
+      isProgrammaticScrollRef.current = true;
       const targetLeft = el.offsetLeft - (container.clientWidth - el.clientWidth) / 2;
       container.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+      window.setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 450);
     }
   };
 
@@ -183,7 +238,10 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     <div className="flex-1 min-h-0 min-w-0 w-full flex flex-col gap-2.5">
       {/* Barre d'accès rapide par logement + toggle masquer vides */}
       <div className="shrink-0 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
+        <div
+          ref={pillBarRef}
+          className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0"
+        >
           {sections.map((section) => {
             const isActive = activePropertyId === section.id;
             const remaining = section.tasks.filter(t => t.status !== 'done').length;
@@ -191,6 +249,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
             return (
               <button
                 key={section.id}
+                id={`property-pill-${section.id}`}
                 type="button"
                 onClick={() => scrollToProperty(section.id)}
                 className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-full text-[11.5px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
@@ -251,6 +310,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
       ) : (
         <div
           ref={railRef}
+          onScroll={handleRailScroll}
           className="flex-1 min-h-0 min-w-0 flex gap-3.5 sm:gap-4 items-stretch overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory sm:snap-none pb-2 -mx-3 px-3 sm:mx-0 sm:px-0"
         >
           {sections.map((section) => {
