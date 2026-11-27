@@ -37,3 +37,6 @@ export type { TaskMetaBarProps } from './TaskMetaBar';
 
 export { PropertyMultiSelect } from './PropertyMultiSelect';
 export type { PropertyMultiSelectProps } from './PropertyMultiSelect';
+
+export { StatusIconPicker } from './StatusIconPicker';
+export type { StatusIconPickerProps } from './StatusIconPicker';

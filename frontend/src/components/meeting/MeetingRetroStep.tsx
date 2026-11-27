@@ -3,7 +3,7 @@ import { Task, TaskStatus, User } from '../../types';
 import { buildSubtaskTree, HierarchicalSubtask, isTaskOverdue, parseLocalDate } from '../../utils/subtasks';
 import { hexToSoftTint } from '../../utils/color';
 import { BlurredIconSwap } from '../BlurredIconSwap';
-import { Badge, TaskPriorityIcon, TaskStatusIcon } from '../ui';
+import { Badge, StatusIconPicker, TaskPriorityIcon, TaskStatusIcon } from '../ui';
 import { MeetingSectionShell } from './MeetingSectionShell';
 import {
   CheckCircle2,
@@ -223,17 +223,10 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
 
             {canEditTask && (
               <>
-                <select
-                  aria-label={`Statut de ${t.title}`}
-                  value={t.status}
-                  onChange={(e) => onUpdateTaskStatus(t.id, e.target.value as TaskStatus)}
-                  className="text-[12px] font-semibold border border-[var(--cdh-border-hairline)] rounded-cdh-md px-2.5 py-1.5 bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--cdh-accent-soft)]"
-                >
-                  <option value="todo" className="bg-[var(--cdh-bg-canvas)]">À faire</option>
-                  <option value="in_progress" className="bg-[var(--cdh-bg-canvas)]">En cours</option>
-                  <option value="blocked" className="bg-[var(--cdh-bg-canvas)]">Bloqué</option>
-                  <option value="done" className="bg-[var(--cdh-bg-canvas)]">Terminé</option>
-                </select>
+                <StatusIconPicker
+                  status={t.status === 'pending' ? 'todo' : t.status}
+                  onChange={(nextStatus) => onUpdateTaskStatus(t.id, nextStatus)}
+                />
 
                 <button
                   type="button"

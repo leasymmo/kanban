@@ -4,15 +4,14 @@ import { Check, Star, UserPlus } from 'lucide-react';
 import { TaskPriority, TaskStatus, User } from '../../types';
 import { Avatar } from './Avatar';
 import { DatePicker } from './DatePicker';
+import { StatusIconPicker } from './StatusIconPicker';
 import { computePopoverPosition, PopoverStylePosition, toPopoverStyle } from './popoverPosition';
 import {
   TASK_PRIORITY_META,
-  TASK_STATUS_META,
   TaskPriorityIcon,
-  TaskStatusIcon,
 } from './TaskIcons';
 
-type ActivePopover = 'assignee' | 'status' | 'priority' | null;
+type ActivePopover = 'assignee' | 'priority' | null;
 
 export interface TaskMetaBarProps {
   users: User[];
@@ -74,7 +73,6 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
   const [menuPos, setMenuPos] = useState<PopoverStylePosition>({ bottom: 0, left: 0, maxHeight: 300 });
 
   const assigneeBtnRef = useRef<HTMLButtonElement>(null);
-  const statusBtnRef = useRef<HTMLButtonElement>(null);
   const priorityBtnRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -93,7 +91,6 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
         }
       : null;
 
-  const statusMeta = TASK_STATUS_META[status] ?? TASK_STATUS_META.todo;
   const priorityMeta = TASK_PRIORITY_META[priority] ?? TASK_PRIORITY_META.medium;
   const pillSizeClass = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
   const canEditAssigneeBtn = assigneeEditable && !disabled;
@@ -125,9 +122,7 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
       const activeBtn =
         openMenu === 'assignee'
           ? assigneeBtnRef.current
-          : openMenu === 'status'
-            ? statusBtnRef.current
-            : priorityBtnRef.current;
+          : priorityBtnRef.current;
       if (activeBtn) {
         setMenuPos(computeMenuPosition(activeBtn));
       }
@@ -138,7 +133,6 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
       if (
         popoverRef.current?.contains(target) ||
         assigneeBtnRef.current?.contains(target) ||
-        statusBtnRef.current?.contains(target) ||
         priorityBtnRef.current?.contains(target)
       ) {
         return;
@@ -204,21 +198,12 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
 
       {/* 2. Statut */}
       {showStatus && (
-        <button
-          ref={statusBtnRef}
-          type="button"
+        <StatusIconPicker
+          status={status}
+          onChange={onChangeStatus}
+          size={size}
           disabled={disabled}
-          aria-expanded={!disabled ? openMenu === 'status' : undefined}
-          aria-label={`Statut : ${statusMeta.label}`}
-          title={`Statut : ${statusMeta.label}`}
-          onClick={() => !disabled && openPopoverFor('status', statusBtnRef.current)}
-          className={`${pillSizeClass} rounded-full flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
-            disabled ? 'cursor-default' : 'active:scale-95 cursor-pointer hover:opacity-85'
-          }`}
-          style={{ backgroundColor: statusMeta.bgSoft }}
-        >
-          <TaskStatusIcon status={status} className="w-3.5 h-3.5" />
-        </button>
+        />
       )}
 
       {/* 3. Priorité */}
@@ -352,41 +337,6 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
                     );
                   })}
                 </div>
-              </>
-            )}
-
-            {openMenu === 'status' && (
-              <>
-                <div className="px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--cdh-text-tertiary)]">
-                  Statut
-                </div>
-                {(Object.keys(TASK_STATUS_META) as TaskStatus[]).map((st) => {
-                  const meta = TASK_STATUS_META[st];
-                  const isSelected = status === st;
-                  return (
-                    <button
-                      key={st}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => {
-                        onChangeStatus(st);
-                        setOpenMenu(null);
-                      }}
-                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-cdh-sm text-[12.5px] transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] font-semibold'
-                          : 'text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)]'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <TaskStatusIcon status={st} className="w-3.5 h-3.5 shrink-0" />
-                        <span>{meta.label}</span>
-                      </span>
-                      {isSelected && <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />}
-                    </button>
-                  );
-                })}
               </>
             )}
 
