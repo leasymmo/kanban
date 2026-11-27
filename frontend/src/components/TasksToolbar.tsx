@@ -76,7 +76,7 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
   }));
 
   return (
-    <div className="cdh-glass-chrome p-3 sm:p-4 rounded-cdh-xl space-y-3">
+    <div className="relative z-20 cdh-glass-chrome p-3 sm:p-4 rounded-cdh-xl space-y-3">
       {/* Ligne 1 : Filtres par associé / pool */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-nowrap sm:flex-wrap overflow-x-auto no-scrollbar sm:overflow-visible pb-0.5 sm:pb-0 flex-1 min-w-0">
