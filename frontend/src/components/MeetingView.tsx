@@ -859,66 +859,84 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
       </div>
 
-      {/* Barre d'étapes de la réunion (Liquid Glass) */}
-      <div className="flex items-center gap-2 cdh-glass-chrome p-2 rounded-cdh-xl overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setMeetingStep('retro')}
-          aria-keyshortcuts="1"
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-colors shrink-0 cursor-pointer ${
-            meetingStep === 'retro'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] tabular-nums ${
-            meetingStep === 'retro' ? 'bg-white/20 text-white' : 'bg-slate-800 text-white'
-          }`}>1</span>
-          <span>Rétrospective par Associé</span>
-          <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded tabular-nums ${
-            meetingStep === 'retro' ? 'bg-white/15 text-slate-100' : 'bg-slate-200/80 text-slate-700'
-          }`}>15 min</span>
-        </button>
-
-        <button
-          onClick={() => setMeetingStep('questions')}
-          aria-keyshortcuts="2"
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-colors shrink-0 cursor-pointer ${
-            meetingStep === 'questions'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] tabular-nums ${
-            meetingStep === 'questions' ? 'bg-white/20 text-white' : 'bg-slate-800 text-white'
-          }`}>2</span>
-          <span>Revue des Questions & Décisions</span>
-          <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded tabular-nums ${
-            meetingStep === 'questions' ? 'bg-white/15 text-slate-100' : 'bg-slate-200/80 text-slate-700'
-          }`}>30 min</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-brand-700 text-white text-[11px] leading-none tabular-nums">{undecidedQuestions.length}</span>
-        </button>
-
-        <button
-          onClick={() => setMeetingStep('unassigned')}
-          aria-keyshortcuts="3"
-          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-colors shrink-0 cursor-pointer ${
-            meetingStep === 'unassigned'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] tabular-nums ${
-            meetingStep === 'unassigned' ? 'bg-white/20 text-white' : 'bg-slate-800 text-white'
-          }`}>3</span>
-          <span>Plan d'Action & Tâches orphelines</span>
-          <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded tabular-nums ${
-            meetingStep === 'unassigned' ? 'bg-white/15 text-slate-100' : 'bg-slate-200/80 text-slate-700'
-          }`}>10 min</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-amber-700 text-white text-[11px] leading-none tabular-nums">
-            {pendingUnassigned.length + pendingAssigned.length}
-          </span>
-        </button>
-      </div>
+      {/* Barre d'étapes de la réunion — Segmented Control Liquid Glass (Mobile-first & Dark Mode) */}
+      <nav
+        aria-label="Étapes de la réunion"
+        className="cdh-glass-chrome p-1.5 rounded-cdh-xl grid grid-cols-3 gap-1.5"
+      >
+        {(
+          [
+            {
+              id: 'retro' as const,
+              step: 1,
+              shortcut: '1',
+              mobileLabel: 'Rétro',
+              label: 'Rétrospective par Associé',
+              duration: '15 min',
+              badgeCount: null,
+              badgeClass: '',
+            },
+            {
+              id: 'questions' as const,
+              step: 2,
+              shortcut: '2',
+              mobileLabel: 'Questions',
+              label: 'Questions & Décisions',
+              duration: '30 min',
+              badgeCount: undecidedQuestions.length,
+              badgeClass: 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]',
+            },
+            {
+              id: 'unassigned' as const,
+              step: 3,
+              shortcut: '3',
+              mobileLabel: 'Plan',
+              label: "Plan d'Action & Orphelines",
+              duration: '10 min',
+              badgeCount: pendingUnassigned.length + pendingAssigned.length,
+              badgeClass: 'bg-[var(--cdh-warning-soft)] text-[var(--cdh-warning)]',
+            },
+          ] as const
+        ).map((item) => {
+          const isActive = meetingStep === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setMeetingStep(item.id)}
+              aria-current={isActive ? 'step' : undefined}
+              aria-keyshortcuts={item.shortcut}
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3.5 py-2 min-h-[44px] sm:min-h-[40px] rounded-cdh-md text-[12px] font-semibold transition-all duration-150 active:scale-[0.99] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
+                isActive
+                  ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-cdh-card'
+                  : 'text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)]'
+              }`}
+            >
+              <span
+                className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold tabular-nums shrink-0 transition-colors ${
+                  isActive
+                    ? 'bg-[var(--cdh-accent)] text-white'
+                    : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)]'
+                }`}
+              >
+                {item.step}
+              </span>
+              <span className="sm:hidden truncate">{item.mobileLabel}</span>
+              <span className="hidden sm:inline truncate">{item.label}</span>
+              <span className="hidden lg:inline-flex text-[11px] font-medium px-1.5 py-0.5 rounded-cdh-xs bg-[var(--cdh-surface-control)] text-[var(--cdh-text-tertiary)] tabular-nums shrink-0">
+                {item.duration}
+              </span>
+              {item.badgeCount !== null && (
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold leading-none tabular-nums shrink-0 ${item.badgeClass}`}
+                >
+                  {item.badgeCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
 
       {/* Contenu de l'étape active */}
 
