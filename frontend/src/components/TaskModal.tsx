@@ -746,6 +746,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               <input
                 type="text"
                 autoFocus={!isEdit}
+                enterKeyHint="done"
                 required
                 placeholder="Ex: Vérifier le détecteur de fumée..."
                 value={title}

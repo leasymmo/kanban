@@ -51,6 +51,10 @@ export const App: React.FC = () => {
     if (themeColorMeta) {
       themeColorMeta.setAttribute('content', theme === 'dark' ? '#0B0F17' : '#F2F4F8');
     }
+    const appleStatusMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (appleStatusMeta) {
+      appleStatusMeta.setAttribute('content', theme === 'dark' ? 'black-translucent' : 'default');
+    }
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

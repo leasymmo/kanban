@@ -69,6 +69,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         <input
           ref={ref}
           type="search"
+          enterKeyHint="search"
           value={value}
           placeholder={placeholder}
           className="w-full min-h-[36px] pl-8 pr-8 py-1.5 rounded-cdh-md bg-[var(--cdh-surface-control)] border border-transparent text-[13px] text-[var(--cdh-text-primary)] placeholder:text-[var(--cdh-text-tertiary)] transition-all duration-150 focus:outline-none focus:bg-[var(--cdh-surface-input)] focus:border-[var(--cdh-border-focus)] focus:ring-[3px] focus:ring-[var(--cdh-accent-soft)]"

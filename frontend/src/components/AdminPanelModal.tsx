@@ -127,7 +127,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 pb-[var(--cdh-vv-bottom,0px)] sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !actionLoading) {
           onClose();
@@ -140,7 +140,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         aria-modal="true"
         aria-labelledby="admin-panel-title"
         tabIndex={-1}
-        className="cdh-glass-overlay w-full max-w-4xl h-[92dvh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-cdh-2xl sm:rounded-cdh-2xl overflow-hidden animate-sheet-up sm:animate-modal-in focus:outline-none"
+        className="cdh-glass-overlay w-full max-w-4xl h-[min(92dvh,calc(var(--cdh-vv-height,100dvh)-16px))] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-cdh-2xl sm:rounded-cdh-2xl overflow-hidden animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
         {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--cdh-border-hairline)] flex items-center justify-between gap-3 shrink-0">
@@ -294,7 +294,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-[var(--cdh-border-hairline)] bg-[var(--cdh-surface-control)] flex items-center justify-between gap-3 text-[12px] text-[var(--cdh-text-secondary)] shrink-0">
+        <div className="px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 border-t border-[var(--cdh-border-hairline)] bg-[var(--cdh-surface-control)] flex items-center justify-between gap-3 text-[12px] text-[var(--cdh-text-secondary)] shrink-0">
           <span className="truncate">
             Administrateur :{' '}
             <strong className="text-[var(--cdh-text-primary)]">{currentUser?.name}</strong>

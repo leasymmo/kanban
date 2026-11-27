@@ -79,7 +79,7 @@ export const Modal: React.FC<ModalProps> = ({
         <div className="p-5 max-h-[75dvh] overflow-y-auto">{children}</div>
 
         {footer && (
-          <div className="px-5 py-3.5 border-t border-[var(--cdh-border-hairline)] flex items-center justify-end gap-2">
+          <div className="px-5 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:py-3.5 border-t border-[var(--cdh-border-hairline)] flex items-center justify-end gap-2">
             {footer}
           </div>
         )}

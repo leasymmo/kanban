@@ -159,6 +159,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
               <input
                 type="text"
                 autoFocus
+                enterKeyHint="done"
                 required
                 maxLength={255}
                 placeholder="Ex: Choix du prestataire serrurerie, point propriétaire..."

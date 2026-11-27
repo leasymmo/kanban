@@ -63,7 +63,7 @@ export const ConfirmProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       {state?.isOpen && (
         <div
-          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
+          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 pb-[var(--cdh-vv-bottom,0px)] sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
               closeWith(false);
@@ -117,7 +117,7 @@ export const ConfirmProvider: React.FC<{ children: React.ReactNode }> = ({ child
               </button>
             </div>
 
-            <div className="px-5 py-3.5 border-t border-[var(--cdh-border-hairline)] flex items-center justify-end gap-2">
+            <div className="px-5 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:py-3.5 border-t border-[var(--cdh-border-hairline)] flex items-center justify-end gap-2">
               <Button variant="secondary" size="md" onClick={() => closeWith(false)}>
                 {state.cancelLabel || 'Annuler'}
               </Button>

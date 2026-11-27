@@ -72,7 +72,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
   };
 
   return (
-    <div className="min-h-dvh cdh-canvas-bg flex flex-col items-center justify-center p-4 sm:p-6">
+    <div className="min-h-dvh cdh-canvas-bg flex flex-col items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <div className="w-full max-w-md cdh-glass-overlay rounded-cdh-2xl overflow-hidden animate-modal-in">
         {/* En-tête Apple-style lumineux */}
         <div className="px-6 pt-8 pb-6 text-center border-b border-[var(--cdh-border-hairline)]">
@@ -169,6 +169,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                   <Mail className="w-4 h-4 text-[var(--cdh-text-tertiary)] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
                   <input
                     type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    enterKeyHint="next"
                     value={customEmail}
                     onChange={(e) => setCustomEmail(e.target.value)}
                     placeholder="nom@carredhotes.fr"
@@ -187,6 +190,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                 <Lock className="w-4 h-4 text-[var(--cdh-text-tertiary)] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  enterKeyHint="go"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Votre mot de passe"

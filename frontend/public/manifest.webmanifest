@@ -1,4 +1,5 @@
 {
+  "id": "./",
   "name": "Carré d'Hôtes — Kanban Hebdo",
   "short_name": "Kanban CdH",
   "description": "Tableau Kanban hebdomadaire, questions et suivi de réunion Carré d'Hôtes.",
@@ -6,8 +7,8 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "theme_color": "#0f172a",
-  "background_color": "#f1f5f9",
+  "theme_color": "#F2F4F8",
+  "background_color": "#F2F4F8",
   "lang": "fr",
   "icons": [
     {
