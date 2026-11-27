@@ -191,9 +191,17 @@ export function scheduleTaskMotionFeedback(options: {
   mode: TaskTransitionMode;
   snapshot?: TaskDepartureSnapshot | null;
   fallbackSelector?: string | null;
+  scrollIfOffscreen?: boolean;
 }): void {
   if (typeof window === 'undefined') return;
-  const { taskId, tone = 'accent', mode, snapshot = null, fallbackSelector = null } = options;
+  const {
+    taskId,
+    tone = 'accent',
+    mode,
+    snapshot = null,
+    fallbackSelector = null,
+    scrollIfOffscreen = mode === 'appear',
+  } = options;
 
   window.requestAnimationFrame(() => {
     const el = document.querySelector<HTMLElement>(`[data-task-card-id="${taskId}"]`);
@@ -212,6 +220,43 @@ export function scheduleTaskMotionFeedback(options: {
     }
 
     if (mode === 'appear') {
+      const rect = el.getBoundingClientRect();
+      if (scrollIfOffscreen && !isVisibleInScrollAncestors(el, rect)) {
+        el.scrollIntoView({
+          behavior: getScrollBehavior(),
+          block: 'nearest',
+          inline: 'nearest',
+        });
+
+        if (prefersReducedMotion()) {
+          triggerHaloOnElement(el, tone);
+          return;
+        }
+
+        const start = performance.now();
+        const waitUntilVisibleAndPlay = () => {
+          if (!el.isConnected) return;
+          const elapsed = performance.now() - start;
+          const currentRect = el.getBoundingClientRect();
+          if (isVisibleInScrollAncestors(el, currentRect) && elapsed >= 140) {
+            window.setTimeout(() => {
+              if (!el.isConnected) return;
+              triggerEnterOnElement(el);
+              triggerHaloOnElement(el, tone);
+            }, 70);
+            return;
+          }
+          if (elapsed >= 450) {
+            triggerEnterOnElement(el);
+            triggerHaloOnElement(el, tone);
+            return;
+          }
+          window.requestAnimationFrame(waitUntilVisibleAndPlay);
+        };
+        window.requestAnimationFrame(waitUntilVisibleAndPlay);
+        return;
+      }
+
       triggerEnterOnElement(el);
       triggerHaloOnElement(el, tone);
       return;

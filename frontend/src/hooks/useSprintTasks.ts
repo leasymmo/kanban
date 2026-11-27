@@ -77,11 +77,12 @@ export function useSprintTasks({
             : res?.task_id
             ? [res.task_id]
             : [];
-        createdIds.forEach((createdId) => {
+        createdIds.forEach((createdId, idx) => {
           scheduleTaskMotionFeedback({
             taskId: createdId,
             tone: 'accent',
-            mode: 'appear'
+            mode: 'appear',
+            scrollIfOffscreen: idx === 0
           });
         });
       }
@@ -154,11 +155,12 @@ export function useSprintTasks({
           };
         });
         setTasks(prev => [...prev, ...createdTasks]);
-        createdTasks.forEach((created) => {
+        createdTasks.forEach((created, idx) => {
           scheduleTaskMotionFeedback({
             taskId: created.id,
-            tone: getToneForStatus(created.status),
-            mode: 'appear'
+            tone: 'accent',
+            mode: 'appear',
+            scrollIfOffscreen: idx === 0
           });
         });
         notifySuccess(createdTasks.length > 1 ? `${createdTasks.length} tâches créées localement.` : 'Tâche créée localement.');
