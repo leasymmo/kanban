@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 export interface DatePickerProps {
@@ -165,11 +166,11 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         )}
       </div>
 
-      {isOpen && (
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={popoverRef}
           style={{ top: popoverPos.top, left: popoverPos.left, width: 280 }}
-          className="fixed z-[75] cdh-glass-overlay rounded-cdh-xl p-3 animate-fade-in select-none"
+          className="fixed z-[80] cdh-glass-overlay rounded-cdh-xl p-3 animate-fade-in select-none"
         >
           {/* En-tête Mois / Année */}
           <div className="flex items-center justify-between mb-2.5 px-1">
@@ -269,7 +270,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
