@@ -57,16 +57,16 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
   onAddNewTask
 }) => {
   const propertyOptions: MultiFilterOption<number>[] = [
+    {
+      id: 0,
+      label: 'Sans logement',
+      dotClass: 'bg-slate-500'
+    },
     ...properties.map(p => ({
       id: p.id,
       label: Number(p.is_active) === 0 ? `${p.name} (désactivé)` : p.name,
       dotColor: p.color || '#007AFF'
-    })),
-    {
-      id: 0,
-      label: 'Général / Sans logement',
-      dotClass: 'bg-slate-500'
-    }
+    }))
   ];
 
   const statusOptions: MultiFilterOption<TaskStatus>[] = TASK_STATUS_OPTIONS.map(s => ({

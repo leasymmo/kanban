@@ -73,12 +73,12 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     }));
     const generalSection = {
       id: 0,
-      name: 'Général / Sans logement',
+      name: 'Sans logement',
       color: '#64748B',
       isDeactivated: false,
       tasks: tasks.filter(t => !t.property_id)
     };
-    return [...propertySections, generalSection].filter(
+    return [generalSection, ...propertySections].filter(
       section => !hiddenPropertyIds.includes(section.id)
     );
   }, [properties, tasks, hiddenPropertyIds]);
