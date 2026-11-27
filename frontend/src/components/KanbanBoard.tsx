@@ -30,7 +30,7 @@ interface ColumnConfig {
 const COLUMNS: ColumnConfig[] = [
   { id: 'todo', title: 'À faire', dotColor: 'var(--cdh-status-todo-dot)' },
   { id: 'in_progress', title: 'En cours', dotColor: 'var(--cdh-status-progress-dot)' },
-  { id: 'blocked', title: 'Bloqué / Litige', dotColor: 'var(--cdh-status-blocked-dot)' },
+  { id: 'blocked', title: 'Bloqué', dotColor: 'var(--cdh-status-blocked-dot)' },
   { id: 'done', title: 'Terminé', dotColor: 'var(--cdh-status-done-dot)' }
 ];
 

@@ -35,7 +35,7 @@ export const TASK_STATUS_META: Record<TaskStatus, StatusMeta> = {
   },
   blocked: {
     id: 'blocked',
-    label: 'Bloqué / Litige',
+    label: 'Bloqué',
     shortLabel: 'Bloqué',
     color: 'var(--cdh-danger)',
     bgSoft: 'var(--cdh-danger-soft)',

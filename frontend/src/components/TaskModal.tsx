@@ -767,6 +767,50 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               />
             </div>
 
+            {/* Sous-tâches hiérarchiques compactes */}
+            <div className="pt-2.5 border-t border-black/[0.12] space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Sous-tâches
+                </label>
+                {totalSubtasksCount > 0 && (
+                  <span className="text-[11px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">
+                    {doneSubtasksCount}/{totalSubtasksCount} validées
+                  </span>
+                )}
+              </div>
+
+              {subtaskTree.length > 0 && (
+                <div ref={subtasksContainerRef} className="max-h-52 overflow-y-auto pr-1 py-0.5">
+                  {renderSubtaskNodes(subtaskTree, 'root', 0)}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Ajouter une étape..."
+                  value={newRootTitle}
+                  onChange={(e) => setNewRootTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddRootSubtask();
+                    }
+                  }}
+                  className="flex-1 px-3 py-1.5 border border-black/[0.12] rounded-lg text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddRootSubtask}
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                  Ajouter
+                </button>
+              </div>
+            </div>
+
             {/* Logement concerné (Multi-sélection en création / Simple en édition) */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -850,50 +894,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   </p>
                 </div>
               )}
-            </div>
-
-            {/* Sous-tâches hiérarchiques compactes */}
-            <div className="pt-2.5 border-t border-black/[0.12] space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  Sous-tâches
-                </label>
-                {totalSubtasksCount > 0 && (
-                  <span className="text-[11px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">
-                    {doneSubtasksCount}/{totalSubtasksCount} validées
-                  </span>
-                )}
-              </div>
-
-              {subtaskTree.length > 0 && (
-                <div ref={subtasksContainerRef} className="max-h-52 overflow-y-auto pr-1 py-0.5">
-                  {renderSubtaskNodes(subtaskTree, 'root', 0)}
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Ajouter une étape..."
-                  value={newRootTitle}
-                  onChange={(e) => setNewRootTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddRootSubtask();
-                    }
-                  }}
-                  className="flex-1 px-3 py-1.5 border border-black/[0.12] rounded-lg text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddRootSubtask}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-                  Ajouter
-                </button>
-              </div>
             </div>
 
           </div>

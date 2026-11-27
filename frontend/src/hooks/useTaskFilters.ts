@@ -7,7 +7,7 @@ export type AssigneeFilter = 'all' | 'me' | number;
 export const TASK_STATUS_OPTIONS: { id: TaskStatus; label: string; dotClass: string }[] = [
   { id: 'todo', label: 'À faire', dotClass: 'bg-slate-400' },
   { id: 'in_progress', label: 'En cours', dotClass: 'bg-amber-500' },
-  { id: 'blocked', label: 'Bloqué / Litige', dotClass: 'bg-red-500' },
+  { id: 'blocked', label: 'Bloqué', dotClass: 'bg-red-500' },
   { id: 'done', label: 'Terminé', dotClass: 'bg-emerald-500' }
 ];
 
