@@ -1,0 +1,220 @@
+/* ==========================================================================
+   Carré d'Hôtes — Design System Tokens (Direction A : Apple Liquid Glass)
+   Light Mode par défaut · Dark Mode via [data-theme="dark"] ou .dark
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* --- Typographie --- */
+  --cdh-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Plus Jakarta Sans", system-ui, sans-serif;
+  --cdh-font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* --- Couleurs principales & Accents --- */
+  --cdh-accent: #007AFF;
+  --cdh-accent-hover: #0066D6;
+  --cdh-accent-active: #0055B3;
+  --cdh-accent-soft: rgba(0, 122, 255, 0.12);
+  --cdh-on-accent: #FFFFFF;
+
+  --cdh-secondary: #5856D6;
+  --cdh-secondary-soft: rgba(88, 86, 214, 0.12);
+
+  /* --- Texte --- */
+  --cdh-text-primary: #1D1D1F;
+  --cdh-text-secondary: #5E626B;
+  --cdh-text-tertiary: #7E8490;
+  --cdh-text-inverted: #FFFFFF;
+
+  /* --- Arrière-plans (Couche 0) --- */
+  --cdh-bg-canvas: #F2F4F8;
+  --cdh-bg-aurora-1: rgba(0, 122, 255, 0.10);
+  --cdh-bg-aurora-2: rgba(52, 199, 89, 0.08);
+  --cdh-bg-aurora-3: rgba(88, 86, 214, 0.07);
+
+  /* --- Surfaces hiérarchisées (Couches 1 à 4) --- */
+  --cdh-surface-column: rgba(255, 255, 255, 0.58);
+  --cdh-surface-card: rgba(255, 255, 255, 0.94);
+  --cdh-surface-card-hover: #FFFFFF;
+  --cdh-surface-chrome: rgba(255, 255, 255, 0.74);
+  --cdh-surface-overlay: rgba(255, 255, 255, 0.88);
+  --cdh-surface-control: rgba(118, 118, 128, 0.11);
+  --cdh-surface-control-hover: rgba(118, 118, 128, 0.17);
+  --cdh-surface-input: rgba(255, 255, 255, 0.92);
+  --cdh-backdrop-scrim: rgba(15, 23, 42, 0.28);
+
+  /* --- Bordures & Reflets --- */
+  --cdh-border-hairline: rgba(15, 23, 42, 0.08);
+  --cdh-border-subtle: rgba(15, 23, 42, 0.12);
+  --cdh-border-glass: rgba(255, 255, 255, 0.70);
+  --cdh-border-highlight: rgba(255, 255, 255, 0.88);
+  --cdh-border-focus: #007AFF;
+
+  /* --- États sémantiques --- */
+  --cdh-success: #1B7A37;
+  --cdh-success-accent: #34C759;
+  --cdh-success-soft: rgba(52, 199, 89, 0.14);
+
+  --cdh-warning: #B25E00;
+  --cdh-warning-accent: #FF9500;
+  --cdh-warning-soft: rgba(255, 149, 0, 0.15);
+
+  --cdh-danger: #C81E1E;
+  --cdh-danger-accent: #FF3B30;
+  --cdh-danger-soft: rgba(255, 59, 48, 0.12);
+
+  --cdh-info: #0055B3;
+  --cdh-info-accent: #007AFF;
+  --cdh-info-soft: rgba(0, 122, 255, 0.12);
+
+  /* --- Statuts Kanban --- */
+  --cdh-status-todo-dot: #8E8E93;
+  --cdh-status-progress-dot: #FF9500;
+  --cdh-status-blocked-dot: #FF3B30;
+  --cdh-status-done-dot: #34C759;
+
+  /* --- Flous & Saturation (Liquid Glass) --- */
+  --cdh-blur-sm: 10px;
+  --cdh-blur-md: 16px;
+  --cdh-blur-lg: 24px;
+  --cdh-blur-xl: 32px;
+  --cdh-glass-saturate: 180%;
+
+  /* --- Ombres naturelles --- */
+  --cdh-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.03);
+  --cdh-shadow-card-hover: 0 4px 10px rgba(15, 23, 42, 0.06), 0 12px 28px rgba(15, 23, 42, 0.06);
+  --cdh-shadow-glass: 0 8px 30px rgba(15, 23, 42, 0.05), inset 0 1px 0 var(--cdh-border-highlight);
+  --cdh-shadow-overlay: 0 16px 48px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06), inset 0 1px 0 var(--cdh-border-highlight);
+
+  /* --- Rayons concentriques --- */
+  --cdh-radius-xs: 6px;
+  --cdh-radius-sm: 8px;
+  --cdh-radius-md: 10px;
+  --cdh-radius-lg: 14px;
+  --cdh-radius-xl: 18px;
+  --cdh-radius-2xl: 22px;
+  --cdh-radius-pill: 9999px;
+
+  /* --- Mouvement & Transitions --- */
+  --cdh-ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --cdh-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --cdh-duration-fast: 140ms;
+  --cdh-duration-base: 200ms;
+  --cdh-duration-slow: 280ms;
+}
+
+/* ==========================================================================
+   Dark Mode — Liquid Glass Nocturne
+   ========================================================================== */
+[data-theme="dark"],
+.dark {
+  color-scheme: dark;
+
+  --cdh-accent: #0A84FF;
+  --cdh-accent-hover: #409CFF;
+  --cdh-accent-active: #0070E0;
+  --cdh-accent-soft: rgba(10, 132, 255, 0.20);
+  --cdh-on-accent: #FFFFFF;
+
+  --cdh-secondary: #5E5CE6;
+  --cdh-secondary-soft: rgba(94, 92, 230, 0.22);
+
+  --cdh-text-primary: #F5F5F7;
+  --cdh-text-secondary: #A1A7B3;
+  --cdh-text-tertiary: #717886;
+  --cdh-text-inverted: #1D1D1F;
+
+  --cdh-bg-canvas: #0B0F17;
+  --cdh-bg-aurora-1: rgba(10, 132, 255, 0.16);
+  --cdh-bg-aurora-2: rgba(48, 209, 88, 0.10);
+  --cdh-bg-aurora-3: rgba(94, 92, 230, 0.14);
+
+  --cdh-surface-column: rgba(24, 30, 42, 0.56);
+  --cdh-surface-card: rgba(30, 36, 50, 0.92);
+  --cdh-surface-card-hover: rgba(38, 46, 63, 0.98);
+  --cdh-surface-chrome: rgba(20, 25, 36, 0.74);
+  --cdh-surface-overlay: rgba(26, 32, 46, 0.88);
+  --cdh-surface-control: rgba(255, 255, 255, 0.09);
+  --cdh-surface-control-hover: rgba(255, 255, 255, 0.15);
+  --cdh-surface-input: rgba(255, 255, 255, 0.07);
+  --cdh-backdrop-scrim: rgba(0, 0, 0, 0.55);
+
+  --cdh-border-hairline: rgba(255, 255, 255, 0.09);
+  --cdh-border-subtle: rgba(255, 255, 255, 0.14);
+  --cdh-border-glass: rgba(255, 255, 255, 0.14);
+  --cdh-border-highlight: rgba(255, 255, 255, 0.16);
+  --cdh-border-focus: #0A84FF;
+
+  --cdh-success: #30D158;
+  --cdh-success-accent: #30D158;
+  --cdh-success-soft: rgba(48, 209, 88, 0.18);
+
+  --cdh-warning: #FF9F0A;
+  --cdh-warning-accent: #FF9F0A;
+  --cdh-warning-soft: rgba(255, 159, 10, 0.18);
+
+  --cdh-danger: #FF6961;
+  --cdh-danger-accent: #FF453A;
+  --cdh-danger-soft: rgba(255, 69, 58, 0.20);
+
+  --cdh-info: #64D2FF;
+  --cdh-info-accent: #0A84FF;
+  --cdh-info-soft: rgba(10, 132, 255, 0.20);
+
+  --cdh-shadow-card: 0 2px 6px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.20);
+  --cdh-shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --cdh-shadow-glass: 0 12px 32px rgba(0, 0, 0, 0.36), inset 0 1px 0 var(--cdh-border-highlight);
+  --cdh-shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 var(--cdh-border-highlight);
+}
+
+/* ==========================================================================
+   Classes utilitaires de surfaces Liquid Glass (Couches 0 à 4)
+   ========================================================================== */
+
+.cdh-canvas-bg {
+  background-color: var(--cdh-bg-canvas);
+  background-image:
+    radial-gradient(circle at 12% 8%, var(--cdh-bg-aurora-1) 0%, transparent 42%),
+    radial-gradient(circle at 88% 16%, var(--cdh-bg-aurora-2) 0%, transparent 38%),
+    radial-gradient(circle at 52% 94%, var(--cdh-bg-aurora-3) 0%, transparent 46%);
+  background-attachment: fixed;
+}
+
+.cdh-glass-column {
+  background: var(--cdh-surface-column);
+  backdrop-filter: blur(var(--cdh-blur-md)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--cdh-blur-md)) saturate(160%);
+  border: 1px solid var(--cdh-border-glass);
+  box-shadow: var(--cdh-shadow-glass);
+}
+
+.cdh-surface-card {
+  background: var(--cdh-surface-card);
+  border: 1px solid var(--cdh-border-hairline);
+  box-shadow: var(--cdh-shadow-card);
+  transition:
+    transform var(--cdh-duration-base) var(--cdh-ease-spring),
+    box-shadow var(--cdh-duration-base) var(--cdh-ease-out),
+    background-color var(--cdh-duration-fast) ease;
+}
+
+.cdh-surface-card:hover {
+  background: var(--cdh-surface-card-hover);
+  box-shadow: var(--cdh-shadow-card-hover);
+}
+
+.cdh-glass-chrome {
+  background: var(--cdh-surface-chrome);
+  backdrop-filter: blur(var(--cdh-blur-lg)) saturate(var(--cdh-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--cdh-blur-lg)) saturate(var(--cdh-glass-saturate));
+  border: 1px solid var(--cdh-border-glass);
+  box-shadow: var(--cdh-shadow-glass);
+}
+
+.cdh-glass-overlay {
+  background: var(--cdh-surface-overlay);
+  backdrop-filter: blur(var(--cdh-blur-xl)) saturate(190%);
+  -webkit-backdrop-filter: blur(var(--cdh-blur-xl)) saturate(190%);
+  border: 1px solid var(--cdh-border-glass);
+  box-shadow: var(--cdh-shadow-overlay);
+}

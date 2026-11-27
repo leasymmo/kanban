@@ -9,7 +9,22 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+        sans: ['var(--cdh-font-sans)'],
+        mono: ['var(--cdh-font-mono)'],
+      },
+      borderRadius: {
+        'cdh-xs': 'var(--cdh-radius-xs)',
+        'cdh-sm': 'var(--cdh-radius-sm)',
+        'cdh-md': 'var(--cdh-radius-md)',
+        'cdh-lg': 'var(--cdh-radius-lg)',
+        'cdh-xl': 'var(--cdh-radius-xl)',
+        'cdh-2xl': 'var(--cdh-radius-2xl)',
+      },
+      boxShadow: {
+        'cdh-card': 'var(--cdh-shadow-card)',
+        'cdh-card-hover': 'var(--cdh-shadow-card-hover)',
+        'cdh-glass': 'var(--cdh-shadow-glass)',
+        'cdh-overlay': 'var(--cdh-shadow-overlay)',
       },
       screens: {
         'xs': '480px',
@@ -55,6 +70,20 @@ export default {
         'gradient-to-tr': 'linear-gradient(to top right in oklch, var(--tw-gradient-stops))',
       },
       colors: {
+        cdh: {
+          accent: 'var(--cdh-accent)',
+          'accent-hover': 'var(--cdh-accent-hover)',
+          'accent-soft': 'var(--cdh-accent-soft)',
+          secondary: 'var(--cdh-secondary)',
+          canvas: 'var(--cdh-bg-canvas)',
+          primary: 'var(--cdh-text-primary)',
+          muted: 'var(--cdh-text-secondary)',
+          tertiary: 'var(--cdh-text-tertiary)',
+          hairline: 'var(--cdh-border-hairline)',
+          success: 'var(--cdh-success)',
+          warning: 'var(--cdh-warning)',
+          danger: 'var(--cdh-danger)',
+        },
         brand: {
           50: 'oklch(0.97 0.015 255)',
           100: 'oklch(0.93 0.035 255)',
