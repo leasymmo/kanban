@@ -66,9 +66,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case 'high':
-        return <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">Urgent</span>;
+        return <span className="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-red-100 text-red-800">Urgent</span>;
       case 'low':
-        return <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-white/10 text-slate-300 border border-white/10">Basse</span>;
+        return <span className="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">Basse</span>;
       default:
         return null;
     }
@@ -191,16 +191,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         onDragEnd={() => onDragEnd && onDragEnd()}
         onDragOver={(e) => onDragOverCard && onDragOverCard(e, task)}
         onDrop={(e) => onDropOnCard && onDropOnCard(e, task)}
-        className={`glass-card rounded-2xl p-3.5 transition-all duration-200 group ${
+        className={`bg-white rounded-xl p-3.5 shadow-xs border transition-all duration-150 group hover:shadow-md ${
           canModify && onDragStart ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
         } ${
-          isDragging ? 'opacity-40 scale-[0.98] rotate-1' : ''
+          isDragging ? 'opacity-45 scale-[0.98]' : ''
         } ${
           task.is_starred
-            ? 'border-amber-400/50 bg-amber-500/10 shadow-lg shadow-amber-500/10'
+            ? 'border-amber-300 ring-1 ring-amber-300/70 bg-amber-50/15'
             : task.status === 'blocked'
-            ? 'border-rose-500/50 bg-rose-500/10 shadow-lg shadow-rose-500/10'
-            : ''
+            ? 'border-red-300 bg-red-50/20'
+            : 'border-black/[0.12] hover:border-black/[0.22]'
         }`}
       >
       {/* Top Badges (Logement & Priorité) */}
@@ -208,16 +208,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         <div className="flex items-center gap-1.5 flex-wrap">
           {task.property_name && (
             <span
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md text-white border shadow-xs"
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md text-slate-900 border"
               style={{
-                backgroundColor: hexToSoftTint(task.property_color, 0.22),
-                borderColor: hexToSoftTint(task.property_color, 0.45)
+                backgroundColor: hexToSoftTint(task.property_color, 0.12),
+                borderColor: hexToSoftTint(task.property_color, 0.30)
               }}
             >
               <span
                 aria-hidden="true"
-                className="w-2 h-2 rounded-full shrink-0 shadow-xs"
-                style={{ backgroundColor: task.property_color || '#38BDF8' }}
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: task.property_color || '#2563EB' }}
               />
               {task.property_name}
             </span>
@@ -226,15 +226,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           {getPriorityBadge(task.priority)}
 
           {task.is_new ? (
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              <Sparkles className="w-3 h-3 text-cyan-400" strokeWidth={2} />
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 text-violet-900 border border-violet-200/80">
+              <Sparkles className="w-3 h-3 text-violet-700" strokeWidth={2} />
               Nouveau
             </span>
           ) : null}
 
           {task.is_unplanned ? (
-            <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              <Zap className="w-3 h-3 text-purple-400" strokeWidth={2} />
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900">
+              <Zap className="w-3 h-3 text-emerald-700" strokeWidth={2} />
               Complémentaire
             </span>
           ) : null}
@@ -257,12 +257,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   ? (canStar ? 'Retirer la mise en avant' : 'Mise en avant pour la réunion')
                   : 'Mettre en avant pour la réunion'
               }
-              className={`min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 rounded-lg sm:rounded-md transition-all active:scale-95 ${
+              className={`min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 rounded-lg sm:rounded-md transition-all active:scale-95 ${
                 task.is_starred
-                  ? `text-amber-400 bg-amber-500/20 border border-amber-400/40 shadow-xs ${canStar ? 'hover:text-amber-300 cursor-pointer' : 'cursor-default'}`
+                  ? `text-amber-500 bg-amber-50 shadow-2xs ${canStar ? 'hover:text-amber-600 cursor-pointer' : 'cursor-default'}`
                   : canStar
-                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 text-slate-400 hover:text-amber-400 hover:bg-white/10 cursor-pointer'
-                  : 'text-slate-600 cursor-not-allowed hidden'
+                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 text-slate-400 hover:text-amber-500 hover:bg-slate-100 cursor-pointer'
+                  : 'text-slate-200 cursor-not-allowed hidden'
               }`}
               title={
                 task.is_starred
@@ -272,7 +272,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             >
               <Star
                 className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${
-                  task.is_starred ? 'fill-amber-400 text-amber-400' : 'text-slate-400'
+                  task.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'
                 }`}
                 strokeWidth={1.75}
               />
@@ -287,7 +287,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   type="button"
                   onClick={() => onEdit(task)}
                   aria-label="Modifier la tâche"
-                  className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-slate-400 hover:text-cyan-300 rounded-lg sm:rounded-md hover:bg-white/10 active:scale-95 cursor-pointer transition-colors"
+                  className="min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-slate-400 hover:text-brand-600 rounded-lg sm:rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
                   title="Modifier la tâche"
                 >
                   <Edit3 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
@@ -299,7 +299,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   type="button"
                   onClick={() => onDelete(task.id)}
                   aria-label="Supprimer la tâche"
-                  className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-slate-400 hover:text-rose-400 rounded-lg sm:rounded-md hover:bg-white/10 active:scale-95 cursor-pointer transition-colors"
+                  className="min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-slate-400 hover:text-red-600 rounded-lg sm:rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
                   title="Supprimer la tâche"
                 >
                   <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
@@ -313,10 +313,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       {/* Titre de la tâche */}
       <h4
         onClick={() => canModify && onEdit(task)}
-        className={`font-semibold text-sm text-slate-100 leading-snug [text-wrap:balance] transition-colors break-words ${
-          canModify ? 'hover:text-cyan-300 cursor-pointer' : ''
+        className={`font-semibold text-sm text-slate-900 leading-snug [text-wrap:balance] transition-colors break-words ${
+          canModify ? 'hover:text-brand-600 cursor-pointer' : ''
         } ${
-          task.status === 'done' ? 'line-through text-slate-400 opacity-75' : ''
+          task.status === 'done' ? 'line-through text-slate-500' : ''
         }`}
       >
         {task.title}
@@ -324,18 +324,18 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Description / Remarques */}
       {task.description && (
-        <p className="mt-2 pt-2 border-t border-white/[0.08] text-xs text-slate-300 leading-relaxed font-normal break-words">
-          <span className="text-cyan-400 font-bold mr-1">→</span>
+        <p className="mt-2 pt-2 border-t border-black/[0.08] text-xs text-slate-700 leading-relaxed font-normal break-words">
+          <span className="text-brand-600 font-bold mr-1">→</span>
           {task.description}
         </p>
       )}
 
       {/* Sous-tâches Checklist hiérarchique */}
       {totalSubtasks > 0 && (
-        <div className="mt-3 pt-2.5 border-t border-white/[0.08]">
+        <div className="mt-3 pt-2.5 border-t border-black/[0.10]">
           <button
             onClick={() => setShowSubtasks(!showSubtasks)}
-            className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-slate-200 font-medium cursor-pointer"
+            className="w-full flex items-center justify-between text-xs text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
           >
             <span className="flex items-center gap-1.5 tabular-nums">
               <CheckSquare className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />

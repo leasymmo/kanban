@@ -93,10 +93,10 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
 
   if (sections.length === 0) {
     return (
-      <div className="glass-panel rounded-2xl border border-white/[0.08] p-10 text-center text-slate-400">
-        <EyeOff className="w-8 h-8 mx-auto mb-2 text-slate-500" strokeWidth={1.75} />
-        <p className="text-sm font-semibold text-slate-200">Tous les logements sont actuellement masqués.</p>
-        <p className="text-xs text-slate-400 mt-1">Sélectionnez au moins un logement dans le filtre « Logements » ci-dessus.</p>
+      <div className="bg-white rounded-2xl border border-black/[0.12] p-10 text-center text-slate-500">
+        <EyeOff className="w-8 h-8 mx-auto mb-2 text-slate-300" strokeWidth={1.75} />
+        <p className="text-sm font-semibold text-slate-700">Tous les logements sont actuellement masqués.</p>
+        <p className="text-xs text-slate-500 mt-1">Sélectionnez au moins un logement dans le filtre « Logements » ci-dessus.</p>
       </div>
     );
   }
@@ -116,33 +116,33 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
               onDragOver={(e) => handleDragOverContainer(e, section.id)}
               onDragLeave={handleDragLeaveContainer}
               onDrop={(e) => handleDropOnContainer(e, section.id)}
-              className={`rounded-2xl sm:rounded-[28px] p-3 sm:p-4 border flex flex-col min-h-[160px] md:min-h-[340px] transition-all duration-200 glass-panel shadow-glass ${
+              className={`rounded-2xl sm:rounded-[28px] p-3 sm:p-4 border flex flex-col min-h-[160px] md:min-h-[340px] transition-all duration-200 ${
                 isHovered
-                  ? 'bg-cyan-950/30 border-cyan-400 ring-2 ring-cyan-400/40'
-                  : 'border-white/[0.08]'
+                  ? 'bg-brand-50/40 border-brand-500 ring-2 ring-brand-400/30'
+                  : 'bg-slate-200/70 border-black/[0.12]'
               }`}
             >
               {/* Entête du Logement */}
-              <div className="flex items-center justify-between pb-3 border-b border-white/[0.08] mb-3">
+              <div className="flex items-center justify-between pb-3 border-b border-black/[0.12] mb-3">
                 <div className="flex items-center gap-2">
                   <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-xs shrink-0 ring-1 ring-white/20"
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-xs shrink-0"
                     style={{ backgroundColor: ensureWhiteTextContrast(section.color) }}
                   >
                     <Home className="w-4 h-4" strokeWidth={2} />
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="font-bold text-sm text-slate-100 leading-tight">
+                      <h3 className="font-bold text-sm text-slate-900 leading-tight">
                         {section.name}
                       </h3>
                       {section.isDeactivated && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-white/10">
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-300/80 text-slate-800">
                           Désactivé
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 font-medium tabular-nums">
+                    <p className="text-xs text-slate-700 font-medium tabular-nums">
                       {doneCount}/{total} terminées ({percent}%)
                     </p>
                   </div>
@@ -152,7 +152,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   <button
                     onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
                     aria-label={`Ajouter une tâche pour ${section.name}`}
-                    className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
                     title={`Ajouter une tâche pour ${section.name}`}
                   >
                     <Plus className="w-4 h-4" strokeWidth={1.75} />
@@ -161,10 +161,10 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
               </div>
 
               {/* Mini barre de progression */}
-              <div className="w-full bg-slate-800/80 h-1.5 rounded-full mb-3 overflow-hidden border border-white/5">
+              <div className="w-full bg-slate-300/80 h-1 rounded-full mb-3 overflow-hidden">
                 <div
                   className={`h-full transition-all duration-300 ${
-                    percent === 100 ? 'bg-emerald-400' : 'bg-gradient-to-r from-cyan-400 to-indigo-500'
+                    percent === 100 ? 'bg-emerald-500' : 'bg-brand-500'
                   }`}
                   style={{ width: `${percent}%` }}
                 />

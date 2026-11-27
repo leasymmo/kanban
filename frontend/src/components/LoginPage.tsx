@@ -72,42 +72,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
   };
 
   return (
-    <div className="min-h-dvh bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+    <div className="min-h-dvh bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6">
       
-      {/* Halos ambiants Frosted Glass */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
-
       {/* Carte Centrale */}
-      <div className="w-full max-w-md glass-panel rounded-3xl shadow-glass-modal border border-white/[0.12] overflow-hidden relative z-10">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-black/[0.12] overflow-hidden">
         
         {/* En-tête avec branding */}
-        <div className="bg-slate-950/60 border-b border-white/[0.08] px-6 py-8 text-white text-center relative overflow-hidden backdrop-blur-md">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 text-white font-black text-2xl shadow-lg shadow-cyan-900/30 ring-1 ring-white/20 mb-3">
+        <div className="bg-slate-900 px-6 py-8 text-white text-center relative overflow-hidden">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-600 text-white font-black text-2xl shadow-sm ring-1 ring-white/15 mb-3">
             C
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center justify-center gap-1.5">
-            Carré d'Hôtes
-            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              Studio
-            </span>
-          </h1>
-          <p className="text-xs text-slate-400 font-medium mt-1">Dashboard Kanban & Réunions Hebdomadaires</p>
+          <h1 className="text-xl font-bold tracking-tight text-white">Carré d'Hôtes</h1>
+          <p className="text-xs text-slate-300 font-medium mt-1">Dashboard Kanban & Réunions Hebdomadaires</p>
         </div>
 
         {/* Corps du formulaire */}
         <div className="p-6 sm:p-8">
           
           <div className="mb-6">
-            <h2 className="text-base font-bold text-white">Connexion sécurisée</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h2 className="text-base font-bold text-slate-900">Connexion sécurisée</h2>
+            <p className="text-xs text-slate-600 mt-0.5">
               Sélectionnez votre compte associé ou connectez-vous par email.
             </p>
           </div>
 
           {error && (
-            <div className="mb-5 p-3.5 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 flex items-start gap-2.5 text-xs animate-shake">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" strokeWidth={1.75} />
+            <div className="mb-5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-2.5 text-xs animate-shake">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" strokeWidth={1.75} />
               <div className="flex-1 font-medium">{error}</div>
             </div>
           )}
@@ -117,7 +108,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
             {!isManualMode ? (
               /* Sélecteur visuel d'associé */
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
                   Choisissez votre compte :
                 </label>
                 <div className="grid grid-cols-1 xs:grid-cols-2 gap-2.5">
@@ -133,18 +124,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                         }}
                         className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                           isSelected
-                            ? 'border-cyan-400 bg-cyan-500/20 shadow-md ring-2 ring-cyan-400/30'
-                            : 'border-white/[0.1] hover:border-white/[0.2] hover:bg-white/[0.08] bg-slate-900/60'
+                            ? 'border-brand-600 bg-brand-50/70 shadow-xs ring-2 ring-brand-500/20'
+                            : 'border-black/[0.12] hover:border-black/[0.22] hover:bg-slate-50/80 bg-white'
                         }`}
                       >
                         <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0 ring-1 ring-white/20"
+                          className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0"
                           style={{ backgroundColor: ensureWhiteTextContrast(u.avatar_color) }}
                         >
                           {u.initials}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-white truncate leading-tight">{u.name}</p>
+                          <p className="text-xs font-bold text-slate-900 truncate leading-tight">{u.name}</p>
                           <div className="mt-0.5">{getRoleBadge(u.role)}</div>
                         </div>
                       </button>
@@ -159,7 +150,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                       setIsManualMode(true);
                       setSelectedUser(null);
                     }}
-                    className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer transition-colors"
+                    className="text-xs text-brand-700 hover:text-brand-800 font-semibold cursor-pointer"
                   >
                     Se connecter avec une autre adresse email →
                   </button>
@@ -169,7 +160,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
               /* Champ Email manuel */
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Adresse email :
                   </label>
                   <button
@@ -178,20 +169,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                       setIsManualMode(false);
                       if (users.length > 0) setSelectedUser(users[0]);
                     }}
-                    className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer transition-colors"
+                    className="text-xs text-brand-700 hover:text-brand-800 font-semibold cursor-pointer"
                   >
                     ← Choisir un associé
                   </button>
                 </div>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
                   <input
                     type="email"
                     value={customEmail}
                     onChange={(e) => setCustomEmail(e.target.value)}
                     placeholder="nom@carredhotes.fr"
                     required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/[0.12] bg-slate-900/60 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-black/[0.15] text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
               </div>
@@ -199,11 +190,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
 
             {/* Champ Mot de passe */}
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Mot de passe :
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -211,13 +202,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                   placeholder="Votre mot de passe"
                   required
                   autoFocus
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-white/[0.12] bg-slate-900/60 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-black/[0.15] text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
                 <button
                   type="button"
                   aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1.5 rounded-lg cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 p-1.5 rounded-lg cursor-pointer"
                 >
                   <BlurredIconSwap
                     active={showPassword}
@@ -232,7 +223,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 active:scale-[0.99] transition-all shadow-lg shadow-cyan-500/25 border border-white/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              className="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-brand-600 hover:bg-brand-700 active:scale-[0.99] transition-all shadow-md shadow-brand-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
               {isLoading ? (
                 <>
@@ -254,7 +245,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
       </div>
 
       {/* Footer discret */}
-      <p className="text-center text-xs text-slate-500 mt-6 relative z-10">
+      <p className="text-center text-xs text-slate-300 mt-6">
         Carré d'Hôtes &copy; {new Date().getFullYear()} &mdash; Espace réservé aux associés
       </p>
 

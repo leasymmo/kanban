@@ -20,23 +20,23 @@ const TOAST_STYLES: Record<
   { wrapper: string; iconWrap: string; closeBtn: string; icon: React.ReactNode; role: 'status' | 'alert' }
 > = {
   success: {
-    wrapper: 'bg-slate-900/85 border-emerald-500/40 text-slate-100 shadow-xl shadow-emerald-950/30',
-    iconWrap: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-    closeBtn: 'text-slate-400 hover:text-slate-200 hover:bg-white/10',
+    wrapper: 'bg-white/95 border-emerald-300/90 text-slate-800 shadow-lg shadow-emerald-950/10',
+    iconWrap: 'bg-emerald-100 text-emerald-700',
+    closeBtn: 'text-slate-400 hover:text-slate-700 hover:bg-slate-100',
     icon: <CheckCircle2 className="w-4 h-4" strokeWidth={2.25} />,
     role: 'status'
   },
   error: {
-    wrapper: 'bg-slate-900/85 border-rose-500/40 text-slate-100 shadow-xl shadow-rose-950/30',
-    iconWrap: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
-    closeBtn: 'text-rose-400 hover:text-rose-200 hover:bg-rose-500/20',
+    wrapper: 'bg-red-50/95 border-red-300 text-red-900 shadow-lg shadow-red-950/15',
+    iconWrap: 'bg-red-100 text-red-700',
+    closeBtn: 'text-red-500 hover:text-red-800 hover:bg-red-100',
     icon: <AlertCircle className="w-4 h-4" strokeWidth={2.25} />,
     role: 'alert'
   },
   info: {
-    wrapper: 'bg-slate-900/85 border-cyan-500/40 text-slate-100 shadow-xl shadow-cyan-950/30',
-    iconWrap: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
-    closeBtn: 'text-slate-400 hover:text-slate-200 hover:bg-white/10',
+    wrapper: 'bg-white/95 border-indigo-200 text-slate-800 shadow-lg shadow-slate-900/10',
+    iconWrap: 'bg-indigo-100 text-indigo-700',
+    closeBtn: 'text-slate-400 hover:text-slate-700 hover:bg-slate-100',
     icon: <Info className="w-4 h-4" strokeWidth={2.25} />,
     role: 'status'
   }

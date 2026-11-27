@@ -70,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="bg-slate-900/70 backdrop-blur-xl border-b border-white/[0.08] text-white sticky top-0 z-30 shadow-glass-sm pt-[env(safe-area-inset-top)]">
+    <header className="bg-slate-900/95 backdrop-blur-md border-b border-white/[0.08] text-white sticky top-0 z-30 shadow-md pt-[env(safe-area-inset-top)]">
       <div className="max-w-7xl mx-auto px-3 sm:px-5 lg:px-8">
 
         {/* Ligne principale */}
@@ -79,21 +79,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo & Sélecteur de Sprint */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="flex items-center gap-2.5 shrink-0">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-900/30 font-black text-white text-base sm:text-lg ring-1 ring-white/20">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-600 flex items-center justify-center shadow-sm shadow-brand-900/30 font-black text-white text-base sm:text-lg ring-1 ring-white/15">
                 C
               </div>
               <div className="hidden lg:block leading-tight">
-                <h1 className="font-bold text-sm sm:text-base tracking-tight text-white flex items-center gap-1.5">
-                  Carré d'Hôtes
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                    Studio
-                  </span>
-                </h1>
-                <p className="text-[11px] text-slate-400 font-medium">Sprint & Pilotage Conciergerie</p>
+                <h1 className="font-bold text-sm sm:text-base tracking-tight text-white">Kanban Board</h1>
+                <p className="text-[11px] text-slate-400 font-medium">Carré d'Hôtes</p>
               </div>
             </div>
 
-            <span aria-hidden="true" className="hidden sm:block h-6 w-px bg-white/10 shrink-0" />
+            <span aria-hidden="true" className="hidden sm:block h-6 w-px bg-slate-800 shrink-0" />
 
             <SprintSelector
               sprints={sprints}
@@ -106,16 +101,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Navigation principale (Tablette md+ & Desktop) */}
           <nav
             aria-label="Navigation principale"
-            className="hidden md:flex items-center gap-1 bg-slate-950/50 p-1 rounded-xl border border-white/[0.1] backdrop-blur-md shrink-0 shadow-inner"
+            className="hidden md:flex items-center gap-1 bg-slate-800/75 p-1 rounded-xl border border-white/[0.08] shrink-0"
           >
             <button
               type="button"
               onClick={() => onChangeTab('tasks')}
               aria-current={activeTab === 'tasks' ? 'page' : undefined}
-              className={`flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+              className={`flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
                 activeTab === 'tasks'
-                  ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-md shadow-cyan-500/25 ring-1 ring-white/20'
-                  : 'text-slate-300 hover:text-white hover:bg-white/[0.08]'
+                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
               <CheckSquare className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
@@ -126,10 +121,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => onChangeTab('questions')}
               aria-current={activeTab === 'questions' ? 'page' : undefined}
-              className={`flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+              className={`flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
                 activeTab === 'questions'
-                  ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-md shadow-cyan-500/25 ring-1 ring-white/20'
-                  : 'text-slate-300 hover:text-white hover:bg-white/[0.08]'
+                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
               <HelpCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
@@ -140,19 +135,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => onChangeTab('meeting')}
               aria-current={activeTab === 'meeting' ? 'page' : undefined}
-              className={`flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+              className={`flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                 activeTab === 'meeting'
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20'
-                  : 'text-amber-300 hover:text-white hover:bg-amber-400/10'
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
               <Users className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
               <span className="lg:hidden">Réunion</span>
-              <span className="hidden lg:inline">Mode Réunion</span>
+              <span className="hidden lg:inline">Vue Réunion</span>
             </button>
           </nav>
 
-          {/* Profil Associé & Menu Popover */}
+          {/* Profil Associé & Menu Popover (avec Panneau d'administration & Déconnexion) */}
           <div className="relative shrink-0" ref={menuRef}>
             {currentUser && (
               <button
@@ -160,12 +155,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 aria-expanded={isMenuOpen}
                 aria-haspopup="menu"
-                className="flex items-center gap-2 bg-slate-900/60 hover:bg-slate-800/80 py-1 pl-1 pr-2 sm:py-1 sm:pl-1.5 sm:pr-3 rounded-full border border-white/[0.12] hover:border-cyan-400/40 backdrop-blur-md transition-all text-xs cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 shadow-glass-sm"
+                className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-800 py-1 pl-1 pr-2 sm:py-1 sm:pl-1.5 sm:pr-3 rounded-full border border-white/[0.1] hover:border-white/[0.2] transition-all text-xs cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
                 title="Options du compte"
               >
                 <div
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0 ring-2 ring-white/20 group-hover:ring-cyan-400/50 transition-all"
-                  style={{ backgroundColor: currentUser.avatar_color || '#0284C7' }}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0 ring-2 ring-white/15 group-hover:ring-white/30 transition-all"
+                  style={{ backgroundColor: currentUser.avatar_color || '#2563EB' }}
                 >
                   {currentUser.initials}
                 </div>
@@ -174,7 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {currentUser.name}
                 </span>
                 <ChevronDown
-                  className={`w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-300 transition-transform duration-150 ${
+                  className={`w-3.5 h-3.5 text-slate-400 group-hover:text-white transition-transform duration-150 ${
                     isMenuOpen ? 'rotate-180' : ''
                   }`}
                   strokeWidth={2}
@@ -186,13 +181,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isMenuOpen && currentUser && (
               <div
                 role="menu"
-                className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] bg-slate-900/90 backdrop-blur-2xl border border-white/[0.12] rounded-2xl shadow-glass-modal py-2 z-50 text-white animate-fade-in"
+                className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] bg-slate-800 border border-slate-700/90 rounded-2xl shadow-2xl py-2 z-50 text-white animate-fade-in"
               >
                 {/* En-tête profil */}
-                <div className="px-4 py-3 border-b border-white/[0.08] flex items-center gap-3">
+                <div className="px-4 py-3 border-b border-slate-700/80 flex items-center gap-3">
                   <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0 ring-1 ring-white/20"
-                    style={{ backgroundColor: currentUser.avatar_color || '#0284C7' }}
+                    className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0"
+                    style={{ backgroundColor: currentUser.avatar_color || '#2563EB' }}
                   >
                     {currentUser.initials}
                   </div>
@@ -219,7 +214,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Shield className="w-4 h-4 text-purple-400 shrink-0" />
                       <div className="min-w-0">
                         <p className="leading-tight">Panneau d'Administration</p>
-                        <p className="text-[11px] font-normal text-slate-400">Sprints, associés & logements</p>
+                        <p className="text-[11px] font-normal text-slate-300">Sprints, associés & logements</p>
                       </div>
                     </button>
                   )}
@@ -231,9 +226,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setIsMenuOpen(false);
                       onLogout();
                     }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer text-left"
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer text-left"
                   >
-                    <LogOut className="w-4 h-4 text-rose-400 shrink-0" />
+                    <LogOut className="w-4 h-4 text-red-400 shrink-0" />
                     <span>Se déconnecter</span>
                   </button>
                 </div>
@@ -246,19 +241,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Barre de navigation mobile (<md) intégrée */}
         <nav
           aria-label="Navigation mobile"
-          className="md:hidden flex items-center gap-1 py-1.5 border-t border-white/[0.08] -mx-3 sm:-mx-5 px-3 sm:px-5 bg-slate-900/90 backdrop-blur-lg"
+          className="md:hidden flex items-center gap-1 py-1.5 border-t border-white/[0.08] -mx-3 sm:-mx-5 px-3 sm:px-5 bg-slate-900/95"
         >
           <button
             type="button"
             onClick={() => onChangeTab('tasks')}
             aria-current={activeTab === 'tasks' ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 min-h-[40px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
               activeTab === 'tasks'
-                ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
+                ? 'bg-brand-600 text-white shadow-xs'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
-            <CheckSquare className="w-3.5 h-3.5" strokeWidth={2} />
+            <CheckSquare className="w-3.5 h-3.5" strokeWidth={2.25} />
             <span>Tâches</span>
           </button>
 
@@ -266,13 +261,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => onChangeTab('questions')}
             aria-current={activeTab === 'questions' ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 min-h-[40px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
               activeTab === 'questions'
-                ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
+                ? 'bg-brand-600 text-white shadow-xs'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
-            <HelpCircle className="w-3.5 h-3.5" strokeWidth={2} />
+            <HelpCircle className="w-3.5 h-3.5" strokeWidth={2.25} />
             <span>Questions</span>
           </button>
 
@@ -280,13 +275,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => onChangeTab('meeting')}
             aria-current={activeTab === 'meeting' ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 min-h-[40px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
               activeTab === 'meeting'
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
-                : 'text-amber-300 hover:text-white hover:bg-amber-400/10'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
-            <Users className="w-3.5 h-3.5" strokeWidth={2} />
+            <Users className="w-3.5 h-3.5" strokeWidth={2.25} />
             <span>Réunion</span>
           </button>
         </nav>
