@@ -4,7 +4,6 @@ import { ensureWhiteTextContrast, hexToSoftTint } from '../../utils/color';
 import { parseLocalDate } from '../../utils/subtasks';
 import { Avatar, Badge, TaskPriorityIcon } from '../ui';
 import { MeetingSectionShell } from './MeetingSectionShell';
-import { MeetingFocusKey } from './MeetingHeader';
 import {
   Clock,
   Edit3,
@@ -18,7 +17,6 @@ interface MeetingActionPlanStepProps {
   users: User[];
   pendingUnassigned: Task[];
   pendingAssigned: Task[];
-  focusedKey: MeetingFocusKey;
   isAdmin: boolean;
   isReadOnly: boolean;
   onAssignTask: (taskId: number, userId: number | null) => void;
@@ -29,27 +27,19 @@ interface MeetingActionPlanStepProps {
 /**
  * Étape 3 de la Vue Réunion :
  * - Pool « À attribuer » (en 1 clic par associé)
- * - Plan d'action du prochain sprint (Point N+1), focalisé sur l'associé sélectionné
+ * - Plan d'action du prochain sprint (Point N+1) par associé
  */
 export const MeetingActionPlanStep: React.FC<MeetingActionPlanStepProps> = ({
   sprint,
   users,
   pendingUnassigned,
   pendingAssigned,
-  focusedKey,
   isAdmin,
   isReadOnly,
   onAssignTask,
   onEditPendingTask,
   onDeleteTask,
 }) => {
-  const showPool = focusedKey === 'all' || focusedKey === 'pool';
-  const visibleUsers =
-    focusedKey === 'all'
-      ? users
-      : focusedKey === 'pool'
-      ? []
-      : users.filter((u) => u.id === focusedKey);
 
   const renderTaskHeaderBadges = (t: Task, kind: 'pool' | 'assigned') => {
     const parsedDue = parseLocalDate(t.due_date);
@@ -131,8 +121,7 @@ export const MeetingActionPlanStep: React.FC<MeetingActionPlanStepProps> = ({
   return (
     <div className="space-y-4">
       {/* Sous-section 1 : Pool des tâches non-attribuées */}
-      {showPool && (
-        <MeetingSectionShell
+      <MeetingSectionShell
           sectionId="meeting-section-unassigned-pool"
           dataAnchor="pool"
           customIcon={
@@ -208,11 +197,10 @@ export const MeetingActionPlanStep: React.FC<MeetingActionPlanStepProps> = ({
               Aucune tâche non attribuée en attente.
             </div>
           )}
-        </MeetingSectionShell>
-      )}
+      </MeetingSectionShell>
 
       {/* Sous-section 2 : Tâches attribuées par associé (Plan d'action Point N+1) */}
-      {visibleUsers.map((u) => {
+      {users.map((u) => {
         const userPending = pendingAssigned.filter((t) => t.assigned_to === u.id);
 
         return (

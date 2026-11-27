@@ -1,29 +1,16 @@
 import React from 'react';
 import { Sprint, User } from '../../types';
-import { Avatar, Button } from '../ui';
-import { ensureWhiteTextContrast } from '../../utils/color';
+import { Button } from '../ui';
 import {
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Keyboard,
   Lock,
   Plus,
   Shield,
-  UserPlus,
   Users,
 } from 'lucide-react';
 
 export type MeetingStepId = 'retro' | 'questions' | 'unassigned';
-export type MeetingFocusKey = 'all' | 'pool' | number;
-
-export interface MeetingParticipantTab {
-  key: MeetingFocusKey;
-  label: string;
-  count: number;
-  user?: User;
-  isPool?: boolean;
-}
 
 interface MeetingHeaderProps {
   sprint: Sprint;
@@ -44,10 +31,6 @@ interface MeetingHeaderProps {
   };
   undecidedQuestionsCount: number;
   pendingTotalCount: number;
-  participantTabs: MeetingParticipantTab[];
-  focusedKey: MeetingFocusKey;
-  onSelectFocus: (key: MeetingFocusKey) => void;
-  onStepSpeaker: (direction: -1 | 1) => void;
   showAddPendingTask: boolean;
   onAddPendingTask: () => void;
   canCreateQuestion: boolean;
@@ -58,8 +41,7 @@ interface MeetingHeaderProps {
 
 /**
  * En-tête compact Liquid Glass de la Vue Réunion :
- * regroupe en un minimum de hauteur les chiffres clés, les rôles, le sélecteur d'étapes
- * et le sélecteur d'intervenant pour afficher un maximum de contenu en partage d'écran.
+ * regroupe les chiffres clés, les rôles, le sélecteur d'étapes et les actions contextuelles.
  */
 export const MeetingHeader: React.FC<MeetingHeaderProps> = ({
   sprint,
@@ -75,10 +57,6 @@ export const MeetingHeader: React.FC<MeetingHeaderProps> = ({
   stats,
   undecidedQuestionsCount,
   pendingTotalCount,
-  participantTabs,
-  focusedKey,
-  onSelectFocus,
-  onStepSpeaker,
   showAddPendingTask,
   onAddPendingTask,
   canCreateQuestion,
@@ -325,91 +303,6 @@ export const MeetingHeader: React.FC<MeetingHeaderProps> = ({
             )}
           </div>
         )}
-      </div>
-
-      {/* Ligne 3 : Barre de tour de parole (1 intervenant à la fois + bascule Précédent/Suivant & Tous) */}
-      <div className="flex items-center justify-between gap-2 pt-2 border-t border-[var(--cdh-border-hairline)]">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
-          {participantTabs.map((tab) => {
-            const isSelected = focusedKey === tab.key;
-            const avatarBg = tab.user ? ensureWhiteTextContrast(tab.user.avatar_color) : undefined;
-            return (
-              <button
-                key={String(tab.key)}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => onSelectFocus(tab.key)}
-                className={`shrink-0 flex items-center gap-1.5 py-1 min-h-[32px] rounded-full text-[12px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
-                  tab.user ? 'pl-1 pr-2.5' : 'px-2.5'
-                } ${
-                  isSelected
-                    ? tab.isPool
-                      ? 'bg-[var(--cdh-warning-accent)] text-white shadow-sm'
-                      : tab.user
-                      ? 'text-white shadow-sm'
-                      : 'bg-[var(--cdh-accent)] text-white shadow-sm'
-                    : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
-                }`}
-                style={isSelected && avatarBg ? { backgroundColor: avatarBg } : undefined}
-              >
-                {tab.isPool && <UserPlus className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />}
-                {tab.user && (
-                  <Avatar
-                    initials={tab.user.initials}
-                    color={avatarBg}
-                    size="xs"
-                    className={isSelected ? 'ring-white/40' : ''}
-                  />
-                )}
-                <span>{tab.label}</span>
-                <span
-                  className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-bold leading-none ${
-                    isSelected
-                      ? 'bg-white/20 text-white'
-                      : 'bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)]'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Boutons Précédent / Suivant + Vue globale discrète */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={() => onStepSpeaker(-1)}
-            aria-label="Intervenant précédent (K)"
-            title="Intervenant précédent (K)"
-            className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] transition-colors cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4" strokeWidth={2} />
-          </button>
-          <button
-            type="button"
-            onClick={() => onStepSpeaker(1)}
-            aria-label="Intervenant suivant (J)"
-            title="Intervenant suivant (J)"
-            className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] transition-colors cursor-pointer"
-          >
-            <ChevronRight className="w-4 h-4" strokeWidth={2} />
-          </button>
-          <button
-            type="button"
-            aria-pressed={focusedKey === 'all'}
-            onClick={() => onSelectFocus(focusedKey === 'all' ? (participantTabs[0]?.key ?? 'all') : 'all')}
-            title="Afficher tous les intervenants en liste continue"
-            className={`px-2.5 h-8 rounded-full text-[11.5px] font-semibold transition-colors cursor-pointer ${
-              focusedKey === 'all'
-                ? 'bg-[var(--cdh-accent)] text-white shadow-sm'
-                : 'bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
-            }`}
-          >
-            Tous
-          </button>
-        </div>
       </div>
     </div>
   );

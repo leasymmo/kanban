@@ -3,12 +3,7 @@ import { Sprint, Task, TaskStatus, Question, User, Property } from '../types';
 import { hasFinalDecision } from '../utils/questions';
 import { MeetingControlDock } from './MeetingControlDock';
 import { useConfirm } from './ui';
-import {
-  MeetingFocusKey,
-  MeetingHeader,
-  MeetingParticipantTab,
-  MeetingStepId,
-} from './meeting/MeetingHeader';
+import { MeetingHeader, MeetingStepId } from './meeting/MeetingHeader';
 import { MeetingRetroStep } from './meeting/MeetingRetroStep';
 import { MeetingQuestionsStep } from './meeting/MeetingQuestionsStep';
 import { MeetingActionPlanStep } from './meeting/MeetingActionPlanStep';
@@ -38,8 +33,8 @@ interface MeetingViewProps {
 
 /**
  * Vue Réunion hebdomadaire unifiée (Apple Liquid Glass) :
- * - En-tête compact + étapes + sélecteur d'intervenant pour maximiser l'espace utile en partage d'écran Teams / Meet
- * - Focus sur un associé à la fois par défaut selon son tour de parole (avec vue globale « Tous » optionnelle)
+ * - En-tête compact + étapes pour maximiser l'espace utile en partage d'écran Teams / Meet
+ * - Liste complète avec scroll-spy et navigation directe par associé via le dock flottant à gauche
  */
 export const MeetingView: React.FC<MeetingViewProps> = ({
   sprint,
@@ -65,9 +60,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   const confirm = useConfirm();
   const [meetingStep, setMeetingStep] = useState<MeetingStepId>('retro');
 
-  // Focus par intervenant : 1 personne affichée à la fois pour suivre son tour de parole (ou 'all' / 'pool')
-  const [focusedKey, setFocusedKey] = useState<MeetingFocusKey>(() => users[0]?.id ?? 'all');
-
   // Rôles de la réunion (Animateur & Rédacteur)
   const [animatorId, setAnimatorId] = useState<number>(() => {
     const stored = localStorage.getItem('meeting_animator_id');
@@ -88,8 +80,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   const [isSubmittingDecision, setIsSubmittingDecision] = useState<Record<number, boolean>>({});
   const decisionInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
-  // Scroll-spy utilisé uniquement lorsque l'utilisateur active le mode « Tous »
-  const [scrollSpyAnchor, setScrollSpyAnchor] = useState<number | 'pool' | null>(null);
+  // Scroll-spy & navigation directe via la barre flottante gauche
+  const [activeAnchor, setActiveAnchor] = useState<number | 'pool' | null>(null);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const lockSpyRef = useRef(false);
   const scrollLockTimerRef = useRef<number | null>(null);
@@ -106,45 +98,17 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     }
   }, [users, animatorId, scribeId]);
 
-  // Ajuster le focus par défaut lorsqu'on change d'étape ou que la liste des associés charge
-  useEffect(() => {
-    if (meetingStep === 'unassigned') {
-      setFocusedKey((prev) => {
-        if (prev === 'all' || prev === 'pool') return prev;
-        return users.some((u) => u.id === prev) ? prev : 'pool';
-      });
-      return;
-    }
-    setFocusedKey((prev) => {
-      if (prev === 'all') return prev;
-      if (typeof prev === 'number' && users.some((u) => u.id === prev)) return prev;
-      return users[0]?.id ?? 'all';
-    });
-  }, [meetingStep, users]);
-
-  const handleChangeStep = useCallback(
-    (nextStep: MeetingStepId) => {
-      setMeetingStep(nextStep);
-      if (nextStep === 'unassigned') {
-        setFocusedKey('pool');
-      } else {
-        setFocusedKey((prev) =>
-          typeof prev === 'number' && users.some((u) => u.id === prev)
-            ? prev
-            : users[0]?.id ?? 'all'
-        );
-      }
-      window.scrollTo({ top: 0, behavior: 'auto' });
-    },
-    [users]
-  );
+  const handleChangeStep = useCallback((nextStep: MeetingStepId) => {
+    setMeetingStep(nextStep);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, []);
 
   useEffect(() => {
-    if (!sprint || focusedKey !== 'all') return;
+    if (!sprint) return;
 
     const initialKey: number | 'pool' | null =
       meetingStep === 'unassigned' ? 'pool' : users[0]?.id ?? null;
-    setScrollSpyAnchor(initialKey);
+    setActiveAnchor(initialKey);
 
     const anchorElements = Array.from(
       document.querySelectorAll<HTMLElement>('[data-meeting-anchor]')
@@ -160,20 +124,55 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
         const rawKey = visible[0].target.getAttribute('data-meeting-anchor');
         if (!rawKey) return;
-        setScrollSpyAnchor(rawKey === 'pool' ? 'pool' : Number(rawKey));
+        setActiveAnchor(rawKey === 'pool' ? 'pool' : Number(rawKey));
       },
       { rootMargin: '-20% 0px -65% 0px', threshold: 0 }
     );
 
     anchorElements.forEach((el) => observer.observe(el));
 
+    const handleScroll = () => {
+      if (lockSpyRef.current) return;
+      if (window.scrollY < 40) {
+        setActiveAnchor(meetingStep === 'unassigned' ? 'pool' : users[0]?.id ?? null);
+        return;
+      }
+      const nearBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 24;
+      if (nearBottom && users.length > 0) {
+        setActiveAnchor(users[users.length - 1].id);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
     return () => {
       observer.disconnect();
+      window.removeEventListener('scroll', handleScroll);
       if (scrollLockTimerRef.current !== null) {
         window.clearTimeout(scrollLockTimerRef.current);
       }
     };
-  }, [meetingStep, users, sprint?.id, focusedKey]);
+  }, [meetingStep, users, sprint?.id]);
+
+  const scrollToSection = useCallback((elementId: string, anchorKey: number | 'pool') => {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    if (scrollLockTimerRef.current !== null) {
+      window.clearTimeout(scrollLockTimerRef.current);
+    }
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    lockSpyRef.current = true;
+    setActiveAnchor(anchorKey);
+
+    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+
+    scrollLockTimerRef.current = window.setTimeout(() => {
+      lockSpyRef.current = false;
+    }, reduceMotion ? 50 : 650);
+  }, []);
 
   const toggleAccordion = useCallback((userId: number) => {
     setExpandedAccordions((prev) => ({ ...prev, [userId]: !prev[userId] }));
@@ -200,74 +199,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   const undecidedQuestions = useMemo(
     () => questions.filter((q) => !hasFinalDecision(q)),
     [questions]
-  );
-
-  // Onglets d'intervenants selon l'étape active
-  const participantTabs: MeetingParticipantTab[] = useMemo(() => {
-    const base: MeetingParticipantTab[] = [];
-    if (meetingStep === 'unassigned') {
-      base.push({
-        key: 'pool',
-        label: 'À attribuer',
-        count: pendingUnassigned.length,
-        isPool: true,
-      });
-    }
-    for (const u of users) {
-      const count =
-        meetingStep === 'retro'
-          ? activeSprintTasks.filter((t) => t.assigned_to === u.id).length
-          : meetingStep === 'questions'
-          ? questions.filter((q) => q.user_id === u.id && !hasFinalDecision(q)).length
-          : pendingAssigned.filter((t) => t.assigned_to === u.id).length;
-      base.push({
-        key: u.id,
-        label: u.name.split(' ')[0],
-        count,
-        user: u,
-      });
-    }
-    return base;
-  }, [meetingStep, users, activeSprintTasks, questions, pendingUnassigned.length, pendingAssigned]);
-
-  const handleSelectFocus = useCallback((key: MeetingFocusKey) => {
-    setFocusedKey(key);
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  }, []);
-
-  const handleStepSpeaker = useCallback(
-    (direction: -1 | 1) => {
-      if (participantTabs.length === 0) return;
-      const currentIdx = participantTabs.findIndex((t) => t.key === focusedKey);
-      const nextIdx =
-        currentIdx === -1
-          ? 0
-          : Math.max(0, Math.min(participantTabs.length - 1, currentIdx + direction));
-      handleSelectFocus(participantTabs[nextIdx].key);
-    },
-    [participantTabs, focusedKey, handleSelectFocus]
-  );
-
-  const handleDockSelectParticipant = useCallback(
-    (elementId: string, anchorKey: number | 'pool') => {
-      if (focusedKey === 'all') {
-        const el = document.getElementById(elementId);
-        if (!el) return;
-        if (scrollLockTimerRef.current !== null) {
-          window.clearTimeout(scrollLockTimerRef.current);
-        }
-        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        lockSpyRef.current = true;
-        setScrollSpyAnchor(anchorKey);
-        el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-        scrollLockTimerRef.current = window.setTimeout(() => {
-          lockSpyRef.current = false;
-        }, reduceMotion ? 50 : 650);
-      } else {
-        handleSelectFocus(anchorKey);
-      }
-    },
-    [focusedKey, handleSelectFocus]
   );
 
   const showFab =
@@ -323,23 +254,37 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
       if (meetingStep === 'unassigned' && (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
         e.preventDefault();
-        handleDockSelectParticipant('meeting-section-unassigned-pool', 'pool');
+        scrollToSection('meeting-section-unassigned-pool', 'pool');
         return;
       }
 
       if (keyLower === 'j' || keyLower === 'k') {
+        const anchors: { elementId: string; key: number | 'pool' }[] = [
+          ...(meetingStep === 'unassigned'
+            ? [{ elementId: 'meeting-section-unassigned-pool', key: 'pool' as const }]
+            : []),
+          ...users.map((u) => ({
+            elementId: `meeting-section-${meetingStep}-${u.id}`,
+            key: u.id,
+          })),
+        ];
+        if (anchors.length === 0) return;
+
         e.preventDefault();
-        handleStepSpeaker(keyLower === 'j' ? 1 : -1);
+        const currentIdx = anchors.findIndex((a) => a.key === activeAnchor);
+        const targetAnchor =
+          keyLower === 'j'
+            ? anchors[currentIdx === -1 ? 0 : Math.min(currentIdx + 1, anchors.length - 1)]
+            : anchors[currentIdx === -1 ? 0 : Math.max(currentIdx - 1, 0)];
+
+        if (targetAnchor) {
+          scrollToSection(targetAnchor.elementId, targetAnchor.key);
+        }
         return;
       }
 
       if (keyLower === 'e' && meetingStep === 'retro') {
-        const targetUserId =
-          typeof focusedKey === 'number'
-            ? focusedKey
-            : typeof scrollSpyAnchor === 'number'
-            ? scrollSpyAnchor
-            : users[0]?.id;
+        const targetUserId = typeof activeAnchor === 'number' ? activeAnchor : users[0]?.id;
         if (targetUserId) {
           e.preventDefault();
           toggleAccordion(targetUserId);
@@ -371,15 +316,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     hasOpenModal,
     isShortcutsModalOpen,
     meetingStep,
-    focusedKey,
-    scrollSpyAnchor,
+    activeAnchor,
     users,
     showFab,
     canCreateQuestion,
     canCloseSprint,
     handleChangeStep,
-    handleStepSpeaker,
-    handleDockSelectParticipant,
+    scrollToSection,
     toggleAccordion,
     onAddNewTask,
     onAddNewQuestion,
@@ -394,20 +337,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     );
   }
 
-  // Questions ordonnées pour le passage automatique au champ suivant via Entrée
   const userIdsSet = new Set(users.map((u) => u.id));
-  const orderedVisibleQuestions: Question[] =
-    typeof focusedKey === 'number'
-      ? questions.filter((q) => q.user_id === focusedKey)
-      : [
-          ...users.flatMap((u) => questions.filter((q) => q.user_id === u.id)),
-          ...questions.filter((q) => !userIdsSet.has(q.user_id)),
-        ];
+  const orderedMeetingQuestions: Question[] = [
+    ...users.flatMap((u) => questions.filter((q) => q.user_id === u.id)),
+    ...questions.filter((q) => !userIdsSet.has(q.user_id)),
+  ];
 
   const focusNextDecisionInput = (currentQuestionId: number) => {
-    const idx = orderedVisibleQuestions.findIndex((q) => q.id === currentQuestionId);
+    const idx = orderedMeetingQuestions.findIndex((q) => q.id === currentQuestionId);
     if (idx === -1) return;
-    const nextQ = orderedVisibleQuestions[idx + 1];
+    const nextQ = orderedMeetingQuestions[idx + 1];
     if (!nextQ) return;
     window.setTimeout(() => {
       const nextEl = decisionInputRefs.current[nextQ.id];
@@ -467,8 +406,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     }
   };
 
-  const dockActiveKey = focusedKey === 'all' ? scrollSpyAnchor : focusedKey;
-
   return (
     <div
       className={`space-y-4 ${
@@ -502,10 +439,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         }}
         undecidedQuestionsCount={undecidedQuestions.length}
         pendingTotalCount={pendingUnassigned.length + pendingAssigned.length}
-        participantTabs={participantTabs}
-        focusedKey={focusedKey}
-        onSelectFocus={handleSelectFocus}
-        onStepSpeaker={handleStepSpeaker}
         showAddPendingTask={showFab}
         onAddPendingTask={() => onAddNewTask?.(null)}
         canCreateQuestion={canCreateQuestion}
@@ -517,7 +450,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       {meetingStep === 'retro' && (
         <MeetingRetroStep
           users={users}
-          focusedKey={focusedKey}
           activeSprintTasks={activeSprintTasks}
           currentUser={currentUser}
           isAdmin={isAdmin}
@@ -536,7 +468,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           sprint={sprint}
           users={users}
           questions={questions}
-          focusedKey={focusedKey}
           currentUser={currentUser}
           isAdmin={isAdmin}
           isReadOnly={isReadOnly}
@@ -573,7 +504,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           users={users}
           pendingUnassigned={pendingUnassigned}
           pendingAssigned={pendingAssigned}
-          focusedKey={focusedKey}
           isAdmin={isAdmin}
           isReadOnly={isReadOnly}
           onAssignTask={onAssignTask}
@@ -587,10 +517,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         tasks={tasks}
         questions={questions}
         meetingStep={meetingStep}
-        activeAnchor={dockActiveKey}
+        activeAnchor={activeAnchor}
         pendingUnassignedCount={pendingUnassigned.length}
         showAddPendingTask={showFab}
-        onSelectParticipant={handleDockSelectParticipant}
+        onSelectParticipant={scrollToSection}
         onAddPendingTask={() => onAddNewTask?.(null)}
       />
 

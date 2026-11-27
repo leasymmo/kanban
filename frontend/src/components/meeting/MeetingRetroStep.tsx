@@ -5,7 +5,6 @@ import { hexToSoftTint } from '../../utils/color';
 import { BlurredIconSwap } from '../BlurredIconSwap';
 import { Badge, TaskPriorityIcon, TaskStatusIcon } from '../ui';
 import { MeetingSectionShell } from './MeetingSectionShell';
-import { MeetingFocusKey } from './MeetingHeader';
 import {
   CheckCircle2,
   ChevronDown,
@@ -17,7 +16,6 @@ import {
 
 interface MeetingRetroStepProps {
   users: User[];
-  focusedKey: MeetingFocusKey;
   activeSprintTasks: Task[];
   currentUser: User | null;
   isAdmin: boolean;
@@ -41,12 +39,10 @@ const sortByRetroStatus = (a: Task, b: Task) =>
   (RETRO_STATUS_ORDER[a.status] ?? 4) - (RETRO_STATUS_ORDER[b.status] ?? 4);
 
 /**
- * Étape 1 de la Vue Réunion : Rétrospective par associé, affichée pour l'intervenant actif
- * (ou en liste complète si le mode « Tous » est choisi), en cartes haute lisibilité Liquid Glass.
+ * Étape 1 de la Vue Réunion : Rétrospective par associé, en cartes haute lisibilité Liquid Glass.
  */
 export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
   users,
-  focusedKey,
   activeSprintTasks,
   currentUser,
   isAdmin,
@@ -58,10 +54,6 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
   onToggleStar,
   onEditTask,
 }) => {
-  const visibleUsers =
-    focusedKey === 'all'
-      ? users
-      : users.filter((u) => u.id === focusedKey);
 
   const renderRetroSubtasks = (nodes: HierarchicalSubtask[], canEditThis: boolean) => (
     <div className="space-y-1">
@@ -262,7 +254,7 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
 
   return (
     <div className="space-y-4">
-      {visibleUsers.map((user) => {
+      {users.map((user) => {
         const userTasks = activeSprintTasks.filter((t) => t.assigned_to === user.id);
         const userDone = userTasks.filter((t) => t.status === 'done');
         const userPending = userTasks.filter((t) => t.status !== 'done');

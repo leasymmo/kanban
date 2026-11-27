@@ -4,7 +4,6 @@ import { hasFinalDecision } from '../../utils/questions';
 import { ensureWhiteTextContrast } from '../../utils/color';
 import { Avatar, Badge } from '../ui';
 import { MeetingSectionShell } from './MeetingSectionShell';
-import { MeetingFocusKey } from './MeetingHeader';
 import {
   Check,
   CheckCircle2,
@@ -18,7 +17,6 @@ interface MeetingQuestionsStepProps {
   sprint: Sprint;
   users: User[];
   questions: Question[];
-  focusedKey: MeetingFocusKey;
   currentUser: User | null;
   isAdmin: boolean;
   isReadOnly: boolean;
@@ -43,7 +41,6 @@ export const MeetingQuestionsStep: React.FC<MeetingQuestionsStepProps> = ({
   sprint,
   users,
   questions,
-  focusedKey,
   currentUser,
   isAdmin,
   isReadOnly,
@@ -61,11 +58,6 @@ export const MeetingQuestionsStep: React.FC<MeetingQuestionsStepProps> = ({
 }) => {
   const userIdsSet = new Set(users.map((u) => u.id));
   const orphanQuestions = questions.filter((q) => !userIdsSet.has(q.user_id));
-
-  const visibleUsers =
-    focusedKey === 'all'
-      ? users
-      : users.filter((u) => u.id === focusedKey);
 
   const renderQuestionCard = (q: Question) => {
     const answers = q.answers || [];
@@ -300,7 +292,7 @@ export const MeetingQuestionsStep: React.FC<MeetingQuestionsStepProps> = ({
         </div>
       )}
 
-      {visibleUsers.map((user) => {
+      {users.map((user) => {
         const userQuestions = questions.filter((q) => q.user_id === user.id);
         const userUndecided = userQuestions.filter((q) => !hasFinalDecision(q));
         const userDecided = userQuestions.filter(hasFinalDecision);
@@ -346,7 +338,7 @@ export const MeetingQuestionsStep: React.FC<MeetingQuestionsStepProps> = ({
         );
       })}
 
-      {focusedKey === 'all' && orphanQuestions.length > 0 && (
+      {orphanQuestions.length > 0 && (
         <MeetingSectionShell
           avatar={{ name: 'Autres participants', initials: '?', color: '#64748B' }}
           title="Autres participants"
