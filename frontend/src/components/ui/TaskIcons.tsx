@@ -81,8 +81,9 @@ export const TaskStatusIcon: React.FC<{
   status: TaskStatus | 'pending';
   className?: string;
 }> = ({ status, className = 'w-4 h-4' }) => {
-  const normalized: TaskStatus = status === 'pending' ? 'todo' : status;
-  const color = TASK_STATUS_META[normalized].color;
+  const normalized: TaskStatus =
+    status && status !== 'pending' && status in TASK_STATUS_META ? status : 'todo';
+  const color = (TASK_STATUS_META[normalized] ?? TASK_STATUS_META.todo).color;
   const props = { className, strokeWidth: 2, style: { color }, 'aria-hidden': true as const };
 
   switch (normalized) {
@@ -101,10 +102,12 @@ export const TaskPriorityIcon: React.FC<{
   priority: TaskPriority;
   className?: string;
 }> = ({ priority, className = 'w-4 h-4' }) => {
-  const color = TASK_PRIORITY_META[priority].color;
+  const normalized: TaskPriority =
+    priority && priority in TASK_PRIORITY_META ? priority : 'medium';
+  const color = (TASK_PRIORITY_META[normalized] ?? TASK_PRIORITY_META.medium).color;
   const props = { className, strokeWidth: 2, style: { color }, 'aria-hidden': true as const };
 
-  switch (priority) {
+  switch (normalized) {
     case 'high':
       return <Flame {...props} />;
     case 'low':

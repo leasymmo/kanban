@@ -93,8 +93,8 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
         }
       : null;
 
-  const statusMeta = TASK_STATUS_META[status];
-  const priorityMeta = TASK_PRIORITY_META[priority];
+  const statusMeta = TASK_STATUS_META[status] ?? TASK_STATUS_META.todo;
+  const priorityMeta = TASK_PRIORITY_META[priority] ?? TASK_PRIORITY_META.medium;
   const pillSizeClass = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
   const canEditAssigneeBtn = assigneeEditable && !disabled;
 

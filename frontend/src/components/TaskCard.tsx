@@ -347,7 +347,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           }}
           status={task.status === 'pending' ? 'todo' : task.status}
           onChangeStatus={(nextStatus) => onUpdateStatus?.(task.id, nextStatus)}
-          priority={task.priority}
+          priority={task.priority || 'medium'}
           onChangePriority={(nextPriority) => onQuickUpdateTask?.(task.id, { priority: nextPriority })}
           dueDate={task.due_date || ''}
           onChangeDueDate={(nextDate) => onQuickUpdateTask?.(task.id, { due_date: nextDate || null })}
