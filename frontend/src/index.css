@@ -54,6 +54,15 @@
   }
 }
 
+/* iOS 26+ PWA standalone : fournir un header opaque à top: 0 pour désactiver le flou de bord système */
+@media (display-mode: standalone) {
+  .cdh-pwa-header {
+    background-color: var(--cdh-bg-canvas);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0.375rem);
+    padding-bottom: 0.25rem;
+  }
+}
+
 @layer utilities {
   .no-scrollbar {
     -ms-overflow-style: none;
