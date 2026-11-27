@@ -135,7 +135,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   }
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-2.5">
+    <div className="flex-1 min-h-0 min-w-0 w-full flex flex-col gap-2.5">
       {/* Barre d'accès rapide par logement + toggle masquer vides */}
       <div className="shrink-0 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
@@ -206,7 +206,12 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
       ) : (
         <div
           ref={railRef}
-          className="flex-1 min-h-0 flex gap-3.5 sm:gap-4 items-stretch overflow-x-auto snap-x snap-mandatory pb-1 -mx-3 px-3 sm:mx-0 sm:px-0"
+          onWheel={(e) => {
+            if (e.shiftKey && Math.abs(e.deltaY) > 0 && railRef.current) {
+              railRef.current.scrollLeft += e.deltaY;
+            }
+          }}
+          className="flex-1 min-h-0 min-w-0 w-full flex gap-3.5 sm:gap-4 items-stretch overflow-x-auto overscroll-x-contain snap-x snap-mandatory sm:snap-none pb-2 -mx-3 px-3 sm:mx-0 sm:px-0"
         >
           {sections.map((section) => {
             const total = section.tasks.length;

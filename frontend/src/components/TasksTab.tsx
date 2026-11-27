@@ -98,7 +98,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
       : null;
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-2.5 sm:gap-3">
+    <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-2.5 sm:gap-3">
       <h2 className="sr-only">Gestion des tâches du sprint</h2>
       <TasksToolbar
         currentUser={currentUser}
