@@ -47,22 +47,28 @@ export const SUBTASK_DEPTH_THEME = [
 export function buildSubtaskTree(
   subtasks: Subtask[],
   parentId: number | null = null,
-  depth: number = 0
+  depth: number = 0,
+  visited: Set<number> = new Set()
 ): HierarchicalSubtask[] {
-  if (!subtasks || subtasks.length === 0) return [];
+  if (!Array.isArray(subtasks) || subtasks.length === 0 || depth > 10) return [];
 
   const directChildren = subtasks.filter(s => {
+    if (!s || visited.has(s.id)) return false;
     if (parentId === null) {
       return s.parent_id === null || s.parent_id === undefined || s.parent_id === 0;
     }
     return s.parent_id === parentId;
   });
 
-  return directChildren.map(s => ({
-    ...s,
-    depth,
-    children: buildSubtaskTree(subtasks, s.id, depth + 1)
-  }));
+  return directChildren.map(s => {
+    const nextVisited = new Set(visited);
+    nextVisited.add(s.id);
+    return {
+      ...s,
+      depth,
+      children: buildSubtaskTree(subtasks, s.id, depth + 1, nextVisited)
+    };
+  });
 }
 
 /**
@@ -103,7 +109,7 @@ export function calculateSubtaskStats(subtasks: Subtask[]): { total: number; don
  * Parse une date SQL YYYY-MM-DD en Date locale sans décalage UTC
  */
 export function parseLocalDate(dateStr?: string | null): Date | null {
-  if (!dateStr) return null;
+  if (!dateStr || typeof dateStr !== 'string') return null;
   const clean = dateStr.substring(0, 10);
   const parts = clean.split('-').map(Number);
   if (parts.length !== 3 || parts.some(isNaN)) return null;

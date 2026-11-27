@@ -99,7 +99,7 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
   );
 
   const renderRetroTask = (t: Task, isHighlighted: boolean, fallbackCanEdit: boolean) => {
-    const hierarchicalSubtasks = buildSubtaskTree(t.subtasks || []);
+    const hierarchicalSubtasks = buildSubtaskTree(Array.isArray(t.subtasks) ? t.subtasks : []);
     const canEditTask = !isReadOnly && (t.can_edit !== undefined ? !!t.can_edit : fallbackCanEdit);
     const canStarTask = !isReadOnly && !!t.can_star;
     const parsedDue = parseLocalDate(t.due_date);
