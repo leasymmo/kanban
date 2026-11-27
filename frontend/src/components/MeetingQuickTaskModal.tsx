@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, User, Property, TaskPriority } from '../types';
+import { ensureWhiteTextContrast } from '../utils/color';
 import { useModalDialog } from '../hooks/useModalDialog';
-import { PropertyMultiSelect, TaskMetaBar } from './ui';
+import { Avatar, PropertyMultiSelect, TaskMetaBar } from './ui';
 import {
   X, Sparkles, Plus, Trash2, AlertCircle
 } from 'lucide-react';
@@ -239,6 +240,48 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
               />
             </div>
 
+            {/* 2. Responsable */}
+            <div className="pt-2.5 border-t border-black/[0.12]">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                Responsable
+              </label>
+              {!isAdmin && isEdit && editingTask?.assigned_to && editingTask.assigned_to !== currentUser?.id ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-black/[0.12] bg-slate-100 text-slate-700">
+                  <span>Attribuée à {editingTask.assigned_to_name || `#${editingTask.assigned_to}`} (lecture seule)</span>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {assignableUsers.map((u) => {
+                    const isSelected = assignedTo === u.id;
+                    const avatarBg = ensureWhiteTextContrast(u.avatar_color);
+                    const firstName = u.name.split(' ')[0];
+                    return (
+                      <button
+                        type="button"
+                        key={u.id}
+                        aria-pressed={isSelected}
+                        onClick={() => setAssignedTo(isSelected ? '' : u.id)}
+                        className={`inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[32px] rounded-full text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
+                          isSelected
+                            ? 'text-white border-transparent shadow-xs'
+                            : 'bg-white text-slate-700 border-black/[0.12] hover:bg-slate-50'
+                        }`}
+                        style={isSelected ? { backgroundColor: avatarBg } : undefined}
+                      >
+                        <Avatar
+                          initials={u.initials}
+                          color={avatarBg}
+                          size="xs"
+                          className={isSelected ? 'ring-white/40' : ''}
+                        />
+                        <span>{firstName}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* 2. Notes */}
             <div className="pt-2.5 border-t border-black/[0.12]">
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
@@ -377,8 +420,7 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
               users={assignableUsers}
               assignedTo={assignedTo}
               onChangeAssignee={setAssignedTo}
-              showAssignee={isAdmin}
-              allowUnassign={true}
+              showAssignee={false}
               status="todo"
               onChangeStatus={() => {}}
               showStatus={false}
