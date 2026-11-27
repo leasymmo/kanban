@@ -112,7 +112,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const activeNavItem = navItems.find((item) => item.id === activeTab) || navItems[0];
 
   return (
-    <header className="sticky top-0 z-30 px-2 sm:px-5 lg:px-8 pt-[max(0.5rem,env(safe-area-inset-top))]">
+    <header className="sticky top-0 z-30 px-2 sm:px-5 lg:px-8 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]">
       <div className="max-w-7xl mx-auto cdh-glass-chrome rounded-cdh-xl px-2.5 sm:px-4 transition-colors">
         {/* Barre mobile ultra-compacte (<md) — 1 seule ligne pour maximiser l'espace des tâches */}
         <div className="md:hidden flex items-center justify-between h-11 gap-2">
@@ -334,7 +334,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 md:hidden flex flex-col items-center px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[10px] animate-backdrop-in"
+            className="fixed inset-0 z-50 md:hidden flex flex-col items-center px-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] pb-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[10px] animate-backdrop-in"
             onClick={() => setIsMobileCenterOpen(false)}
           >
             <div

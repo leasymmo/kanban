@@ -45,6 +45,10 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
     document.documentElement.classList.toggle('dark', theme === 'dark');
     window.localStorage.setItem('cdh-theme', theme);
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) {
+      themeColorMeta.setAttribute('content', theme === 'dark' ? '#0B0F17' : '#F2F4F8');
+    }
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
