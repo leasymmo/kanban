@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Sprint, Task, TaskStatus, Question, User, Property } from '../types';
-import { buildSubtaskTree, HierarchicalSubtask } from '../utils/subtasks';
 import { hasFinalDecision } from '../utils/questions';
-import { ensureWhiteTextContrast, hexToSoftTint } from '../utils/color';
-import { BlurredIconSwap } from './BlurredIconSwap';
 import { MeetingControlDock } from './MeetingControlDock';
-import { useModalDialog } from '../hooks/useModalDialog';
-import { TaskStatusIcon, useConfirm } from './ui';
+import { useConfirm } from './ui';
 import {
-  Users, CheckCircle2, UserPlus,
-  Shield, CheckSquare, Square,
-  Sparkles, Check, Edit3, Trash2, Star,
-  ChevronDown, Plus, Keyboard, X, Info
-} from 'lucide-react';
+  MeetingFocusKey,
+  MeetingHeader,
+  MeetingParticipantTab,
+  MeetingStepId,
+} from './meeting/MeetingHeader';
+import { MeetingRetroStep } from './meeting/MeetingRetroStep';
+import { MeetingQuestionsStep } from './meeting/MeetingQuestionsStep';
+import { MeetingActionPlanStep } from './meeting/MeetingActionPlanStep';
+import { MeetingShortcutsModal } from './meeting/MeetingShortcutsModal';
 
 interface MeetingViewProps {
   sprint?: Sprint | null;
@@ -36,13 +36,17 @@ interface MeetingViewProps {
   isReadOnly: boolean;
 }
 
+/**
+ * Vue Réunion hebdomadaire unifiée (Apple Liquid Glass) :
+ * - En-tête compact + étapes + sélecteur d'intervenant pour maximiser l'espace utile en partage d'écran Teams / Meet
+ * - Focus sur un associé à la fois par défaut selon son tour de parole (avec vue globale « Tous » optionnelle)
+ */
 export const MeetingView: React.FC<MeetingViewProps> = ({
   sprint,
   tasks,
   questions,
   users,
   currentUser,
-  properties,
   onOpenCloseSprintModal,
   onUpdateTaskStatus,
   onAssignTask,
@@ -55,69 +59,92 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   onAddNewQuestion,
   onEditQuestion,
   hasOpenModal = false,
-  isReadOnly
+  isReadOnly,
 }) => {
   const isAdmin = currentUser?.role === 'admin';
   const confirm = useConfirm();
-  const [meetingStep, setMeetingStep] = useState<'retro' | 'questions' | 'unassigned'>('retro');
+  const [meetingStep, setMeetingStep] = useState<MeetingStepId>('retro');
 
-  // Rôles de la réunion (Animateur & Rédacteur) - fidélité au process Carré d'Hôtes
+  // Focus par intervenant : 1 personne affichée à la fois pour suivre son tour de parole (ou 'all' / 'pool')
+  const [focusedKey, setFocusedKey] = useState<MeetingFocusKey>(() => users[0]?.id ?? 'all');
+
+  // Rôles de la réunion (Animateur & Rédacteur)
   const [animatorId, setAnimatorId] = useState<number>(() => {
     const stored = localStorage.getItem('meeting_animator_id');
     if (stored) return Number(stored);
-    const chris = users.find(u => u.name.toLowerCase().includes('chris'));
-    return chris ? chris.id : (users[0]?.id || 1);
+    const chris = users.find((u) => u.name.toLowerCase().includes('chris'));
+    return chris ? chris.id : users[0]?.id || 1;
   });
   const [scribeId, setScribeId] = useState<number>(() => {
     const stored = localStorage.getItem('meeting_scribe_id');
     if (stored) return Number(stored);
-    const max = users.find(u => u.name.toLowerCase().includes('max'));
-    return max ? max.id : (users[1]?.id || users[0]?.id || 1);
+    const max = users.find((u) => u.name.toLowerCase().includes('max'));
+    return max ? max.id : users[1]?.id || users[0]?.id || 1;
   });
 
-  const [openProposalDrawers, setOpenProposalDrawers] = useState<{ [questionId: number]: boolean }>({});
-  const [expandedAccordions, setExpandedAccordions] = useState<{ [userId: number]: boolean }>({});
+  const [openProposalDrawers, setOpenProposalDrawers] = useState<Record<number, boolean>>({});
+  const [expandedAccordions, setExpandedAccordions] = useState<Record<number, boolean>>({});
+  const [decisionInputs, setDecisionInputs] = useState<Record<number, string>>({});
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState<Record<number, boolean>>({});
+  const decisionInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
-  useEffect(() => {
-    if (users.length === 0) return;
-    if (!users.some(u => u.id === animatorId)) {
-      const chris = users.find(u => u.name.toLowerCase().includes('chris'));
-      setAnimatorId(chris ? chris.id : users[0].id);
-    }
-    if (!users.some(u => u.id === scribeId)) {
-      const max = users.find(u => u.name.toLowerCase().includes('max'));
-      setScribeId(max ? max.id : (users[1]?.id || users[0].id));
-    }
-  }, [users, animatorId, scribeId]);
-
-  const toggleAccordion = (userId: number) => {
-    setExpandedAccordions(prev => ({
-      ...prev,
-      [userId]: !prev[userId]
-    }));
-  };
-
-  // Gestion des décisions de réunion (par question — champs texte directs validés via Entrée)
-  const [decisionInputs, setDecisionInputs] = useState<{ [questionId: number]: string }>({});
-  const [isSubmittingDecision, setIsSubmittingDecision] = useState<{ [questionId: number]: boolean }>({});
-  const decisionInputRefs = useRef<{ [questionId: number]: HTMLInputElement | null }>({});
-
-  // Navigation flottante par associé (scroll-spy + ancre directe)
-  const [activeAnchor, setActiveAnchor] = useState<number | 'pool' | null>(null);
+  // Scroll-spy utilisé uniquement lorsque l'utilisateur active le mode « Tous »
+  const [scrollSpyAnchor, setScrollSpyAnchor] = useState<number | 'pool' | null>(null);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
-  const shortcutsDialogRef = useModalDialog<HTMLDivElement>({
-    isOpen: isShortcutsModalOpen,
-    onClose: () => setIsShortcutsModalOpen(false),
-  });
   const lockSpyRef = useRef(false);
   const scrollLockTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!sprint) return;
+    if (users.length === 0) return;
+    if (!users.some((u) => u.id === animatorId)) {
+      const chris = users.find((u) => u.name.toLowerCase().includes('chris'));
+      setAnimatorId(chris ? chris.id : users[0].id);
+    }
+    if (!users.some((u) => u.id === scribeId)) {
+      const max = users.find((u) => u.name.toLowerCase().includes('max'));
+      setScribeId(max ? max.id : users[1]?.id || users[0].id);
+    }
+  }, [users, animatorId, scribeId]);
+
+  // Ajuster le focus par défaut lorsqu'on change d'étape ou que la liste des associés charge
+  useEffect(() => {
+    if (meetingStep === 'unassigned') {
+      setFocusedKey((prev) => {
+        if (prev === 'all' || prev === 'pool') return prev;
+        return users.some((u) => u.id === prev) ? prev : 'pool';
+      });
+      return;
+    }
+    setFocusedKey((prev) => {
+      if (prev === 'all') return prev;
+      if (typeof prev === 'number' && users.some((u) => u.id === prev)) return prev;
+      return users[0]?.id ?? 'all';
+    });
+  }, [meetingStep, users]);
+
+  const handleChangeStep = useCallback(
+    (nextStep: MeetingStepId) => {
+      setMeetingStep(nextStep);
+      if (nextStep === 'unassigned') {
+        setFocusedKey('pool');
+      } else {
+        setFocusedKey((prev) =>
+          typeof prev === 'number' && users.some((u) => u.id === prev)
+            ? prev
+            : users[0]?.id ?? 'all'
+        );
+      }
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    },
+    [users]
+  );
+
+  useEffect(() => {
+    if (!sprint || focusedKey !== 'all') return;
 
     const initialKey: number | 'pool' | null =
-      meetingStep === 'unassigned' ? 'pool' : (users[0]?.id ?? null);
-    setActiveAnchor(initialKey);
+      meetingStep === 'unassigned' ? 'pool' : users[0]?.id ?? null;
+    setScrollSpyAnchor(initialKey);
 
     const anchorElements = Array.from(
       document.querySelectorAll<HTMLElement>('[data-meeting-anchor]')
@@ -133,81 +160,121 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
         const rawKey = visible[0].target.getAttribute('data-meeting-anchor');
         if (!rawKey) return;
-        setActiveAnchor(rawKey === 'pool' ? 'pool' : Number(rawKey));
+        setScrollSpyAnchor(rawKey === 'pool' ? 'pool' : Number(rawKey));
       },
       { rootMargin: '-20% 0px -65% 0px', threshold: 0 }
     );
 
     anchorElements.forEach((el) => observer.observe(el));
 
-    const handleScroll = () => {
-      if (lockSpyRef.current) return;
-      if (window.scrollY < 40) {
-        setActiveAnchor(meetingStep === 'unassigned' ? 'pool' : (users[0]?.id ?? null));
-        return;
-      }
-      const nearBottom =
-        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 24;
-      if (nearBottom && users.length > 0) {
-        setActiveAnchor(users[users.length - 1].id);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-
     return () => {
       observer.disconnect();
-      window.removeEventListener('scroll', handleScroll);
       if (scrollLockTimerRef.current !== null) {
         window.clearTimeout(scrollLockTimerRef.current);
       }
     };
-  }, [meetingStep, users, sprint?.id]);
+  }, [meetingStep, users, sprint?.id, focusedKey]);
 
-  const scrollToSection = (elementId: string, anchorKey: number | 'pool') => {
-    const el = document.getElementById(elementId);
-    if (!el) return;
+  const toggleAccordion = useCallback((userId: number) => {
+    setExpandedAccordions((prev) => ({ ...prev, [userId]: !prev[userId] }));
+  }, []);
 
-    if (scrollLockTimerRef.current !== null) {
-      window.clearTimeout(scrollLockTimerRef.current);
+  const pendingAllTasks = useMemo(() => tasks.filter((t) => t.status === 'pending'), [tasks]);
+  const pendingUnassigned = useMemo(
+    () => pendingAllTasks.filter((t) => !t.assigned_to),
+    [pendingAllTasks]
+  );
+  const pendingAssigned = useMemo(
+    () => pendingAllTasks.filter((t) => !!t.assigned_to),
+    [pendingAllTasks]
+  );
+  const activeSprintTasks = useMemo(() => tasks.filter((t) => t.status !== 'pending'), [tasks]);
+  const doneTasks = useMemo(
+    () => activeSprintTasks.filter((t) => t.status === 'done'),
+    [activeSprintTasks]
+  );
+  const unfinishedSprintTasks = useMemo(
+    () => activeSprintTasks.filter((t) => t.status !== 'done'),
+    [activeSprintTasks]
+  );
+  const undecidedQuestions = useMemo(
+    () => questions.filter((q) => !hasFinalDecision(q)),
+    [questions]
+  );
+
+  // Onglets d'intervenants selon l'étape active
+  const participantTabs: MeetingParticipantTab[] = useMemo(() => {
+    const base: MeetingParticipantTab[] = [];
+    if (meetingStep === 'unassigned') {
+      base.push({
+        key: 'pool',
+        label: 'À attribuer',
+        count: pendingUnassigned.length,
+        isPool: true,
+      });
     }
+    for (const u of users) {
+      const count =
+        meetingStep === 'retro'
+          ? activeSprintTasks.filter((t) => t.assigned_to === u.id).length
+          : meetingStep === 'questions'
+          ? questions.filter((q) => q.user_id === u.id && !hasFinalDecision(q)).length
+          : pendingAssigned.filter((t) => t.assigned_to === u.id).length;
+      base.push({
+        key: u.id,
+        label: u.name.split(' ')[0],
+        count,
+        user: u,
+      });
+    }
+    return base;
+  }, [meetingStep, users, activeSprintTasks, questions, pendingUnassigned.length, pendingAssigned]);
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    lockSpyRef.current = true;
-    setActiveAnchor(anchorKey);
+  const handleSelectFocus = useCallback((key: MeetingFocusKey) => {
+    setFocusedKey(key);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, []);
 
-    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  const handleStepSpeaker = useCallback(
+    (direction: -1 | 1) => {
+      if (participantTabs.length === 0) return;
+      const currentIdx = participantTabs.findIndex((t) => t.key === focusedKey);
+      const nextIdx =
+        currentIdx === -1
+          ? 0
+          : Math.max(0, Math.min(participantTabs.length - 1, currentIdx + direction));
+      handleSelectFocus(participantTabs[nextIdx].key);
+    },
+    [participantTabs, focusedKey, handleSelectFocus]
+  );
 
-    scrollLockTimerRef.current = window.setTimeout(() => {
-      lockSpyRef.current = false;
-    }, reduceMotion ? 50 : 650);
-  };
+  const handleDockSelectParticipant = useCallback(
+    (elementId: string, anchorKey: number | 'pool') => {
+      if (focusedKey === 'all') {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        if (scrollLockTimerRef.current !== null) {
+          window.clearTimeout(scrollLockTimerRef.current);
+        }
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        lockSpyRef.current = true;
+        setScrollSpyAnchor(anchorKey);
+        el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        scrollLockTimerRef.current = window.setTimeout(() => {
+          lockSpyRef.current = false;
+        }, reduceMotion ? 50 : 650);
+      } else {
+        handleSelectFocus(anchorKey);
+      }
+    },
+    [focusedKey, handleSelectFocus]
+  );
 
-  // Séparation des tâches :
-  // - pendingAllTasks : toutes les tâches au statut 'pending' (jamais visibles dans l'onglet Tâches)
-  // - pendingUnassigned : tâches 'pending' non attribuées (Sous-section 1 : Tâches non-attribuées)
-  // - pendingAssigned : tâches 'pending' attribuées (Sous-section 2 : Tâches attribuées, regroupées par associé)
-  // - activeSprintTasks : tâches actives du sprint en cours (status !== 'pending')
-  const pendingAllTasks = tasks.filter(t => t.status === 'pending');
-  const pendingUnassigned = pendingAllTasks.filter(t => !t.assigned_to);
-  const pendingAssigned = pendingAllTasks.filter(t => !!t.assigned_to);
-  const activeSprintTasks = tasks.filter(t => t.status !== 'pending');
-  const doneTasks = activeSprintTasks.filter(t => t.status === 'done');
-  const unfinishedSprintTasks = activeSprintTasks.filter(t => t.status !== 'done');
-  const undecidedQuestions = questions.filter(q => !hasFinalDecision(q));
-  const decidedQuestions = questions.filter(hasFinalDecision);
-
-  if (!sprint) {
-    return (
-      <div className="bg-white rounded-2xl border border-black/[0.12] p-10 text-center text-slate-500 text-sm">
-        Aucun sprint disponible.
-      </div>
-    );
-  }
-
-  const showFab = !isReadOnly && currentUser?.role !== 'read' && !!onAddNewTask && sprint.status !== 'closed';
-  const canCreateQuestion = !isReadOnly && currentUser?.role !== 'read' && !!onAddNewQuestion;
-  const canCloseSprint = isAdmin && sprint.status !== 'closed';
+  const showFab =
+    !isReadOnly && currentUser?.role !== 'read' && !!onAddNewTask && sprint?.status !== 'closed';
+  const canCreateQuestion =
+    !isReadOnly && currentUser?.role !== 'read' && !!onAddNewQuestion;
+  const canCloseSprint = isAdmin && sprint?.status !== 'closed';
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -217,7 +284,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         if (isShortcutsModalOpen) {
           e.preventDefault();
           setIsShortcutsModalOpen(false);
-          return;
         }
         return;
       }
@@ -233,65 +299,47 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
       if (e.key === '?' || keyLower === 'h') {
         e.preventDefault();
-        setIsShortcutsModalOpen(prev => !prev);
+        setIsShortcutsModalOpen((prev) => !prev);
         return;
       }
 
       if (isShortcutsModalOpen) return;
 
-      // Étapes de la réunion (compatible AZERTY / QWERTY / pavé numérique)
       if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
         e.preventDefault();
-        setMeetingStep('retro');
+        handleChangeStep('retro');
         return;
       }
       if (e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2') {
         e.preventDefault();
-        setMeetingStep('questions');
+        handleChangeStep('questions');
         return;
       }
       if (e.key === '3' || e.code === 'Digit3' || e.code === 'Numpad3') {
         e.preventDefault();
-        setMeetingStep('unassigned');
+        handleChangeStep('unassigned');
         return;
       }
 
-      // Retour au bloc « À attribuer » (onglet 3)
       if (meetingStep === 'unassigned' && (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
         e.preventDefault();
-        scrollToSection('meeting-section-unassigned-pool', 'pool');
+        handleDockSelectParticipant('meeting-section-unassigned-pool', 'pool');
         return;
       }
 
-      // Navigation intervenant suivant / précédent (J / K)
       if (keyLower === 'j' || keyLower === 'k') {
-        const anchors: { elementId: string; key: number | 'pool' }[] = [
-          ...(meetingStep === 'unassigned'
-            ? [{ elementId: 'meeting-section-unassigned-pool', key: 'pool' as const }]
-            : []),
-          ...users.map((u) => ({
-            elementId: `meeting-section-${meetingStep}-${u.id}`,
-            key: u.id
-          }))
-        ];
-        if (anchors.length === 0) return;
-
         e.preventDefault();
-        const currentIdx = anchors.findIndex((a) => a.key === activeAnchor);
-        const targetAnchor =
-          keyLower === 'j'
-            ? anchors[currentIdx === -1 ? 0 : Math.min(currentIdx + 1, anchors.length - 1)]
-            : anchors[currentIdx === -1 ? 0 : Math.max(currentIdx - 1, 0)];
-
-        if (targetAnchor) {
-          scrollToSection(targetAnchor.elementId, targetAnchor.key);
-        }
+        handleStepSpeaker(keyLower === 'j' ? 1 : -1);
         return;
       }
 
-      // Déplier / replier l'accordéon « Autres tâches » de l'associé actif (onglet 1)
       if (keyLower === 'e' && meetingStep === 'retro') {
-        const targetUserId = typeof activeAnchor === 'number' ? activeAnchor : users[0]?.id;
+        const targetUserId =
+          typeof focusedKey === 'number'
+            ? focusedKey
+            : typeof scrollSpyAnchor === 'number'
+            ? scrollSpyAnchor
+            : users[0]?.id;
         if (targetUserId) {
           e.preventDefault();
           toggleAccordion(targetUserId);
@@ -299,24 +347,18 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         return;
       }
 
-      // Nouvelle tâche en séance : N, + ou = (partageant la même touche clavier)
-      if (
-        showFab &&
-        (keyLower === 'n' || e.key === '+' || e.key === '=' || e.code === 'NumpadAdd')
-      ) {
+      if (showFab && (keyLower === 'n' || e.key === '+' || e.key === '=' || e.code === 'NumpadAdd')) {
         e.preventDefault();
         onAddNewTask?.(null);
         return;
       }
 
-      // Poser une question : Q
       if (canCreateQuestion && keyLower === 'q') {
         e.preventDefault();
         onAddNewQuestion?.();
         return;
       }
 
-      // Valider la réunion & Clôturer le sprint : Shift + C (Admin uniquement)
       if (canCloseSprint && e.shiftKey && keyLower === 'c') {
         e.preventDefault();
         onOpenCloseSprintModal();
@@ -329,31 +371,46 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     hasOpenModal,
     isShortcutsModalOpen,
     meetingStep,
+    focusedKey,
+    scrollSpyAnchor,
     users,
-    activeAnchor,
     showFab,
     canCreateQuestion,
     canCloseSprint,
+    handleChangeStep,
+    handleStepSpeaker,
+    handleDockSelectParticipant,
+    toggleAccordion,
     onAddNewTask,
     onAddNewQuestion,
-    onOpenCloseSprintModal
+    onOpenCloseSprintModal,
   ]);
 
-  // Ordre naturel stable pour éviter que les questions ne sautent sous le curseur lors de la saisie au fil de la réunion
-  const userIdsSet = new Set(users.map(u => u.id));
-  const orderedMeetingQuestions: Question[] = [
-    ...users.flatMap((u) => questions.filter(q => q.user_id === u.id)),
-    ...questions.filter(q => !userIdsSet.has(q.user_id))
-  ];
+  if (!sprint) {
+    return (
+      <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center text-[var(--cdh-text-secondary)] text-sm">
+        Aucun sprint disponible.
+      </div>
+    );
+  }
+
+  // Questions ordonnées pour le passage automatique au champ suivant via Entrée
+  const userIdsSet = new Set(users.map((u) => u.id));
+  const orderedVisibleQuestions: Question[] =
+    typeof focusedKey === 'number'
+      ? questions.filter((q) => q.user_id === focusedKey)
+      : [
+          ...users.flatMap((u) => questions.filter((q) => q.user_id === u.id)),
+          ...questions.filter((q) => !userIdsSet.has(q.user_id)),
+        ];
 
   const focusNextDecisionInput = (currentQuestionId: number) => {
-    const currentIndex = orderedMeetingQuestions.findIndex(q => q.id === currentQuestionId);
-    if (currentIndex === -1) return;
-    const nextQuestion = orderedMeetingQuestions[currentIndex + 1];
-    if (!nextQuestion) return;
-
+    const idx = orderedVisibleQuestions.findIndex((q) => q.id === currentQuestionId);
+    if (idx === -1) return;
+    const nextQ = orderedVisibleQuestions[idx + 1];
+    if (!nextQ) return;
     window.setTimeout(() => {
-      const nextEl = decisionInputRefs.current[nextQuestion.id];
+      const nextEl = decisionInputRefs.current[nextQ.id];
       if (nextEl) {
         nextEl.focus();
         nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -361,1330 +418,189 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     }, 50);
   };
 
-  const handleSelectPropositionAsDecision = (questionId: number, propositionContent: string) => {
-    setDecisionInputs(prev => ({ ...prev, [questionId]: propositionContent }));
-    window.setTimeout(() => {
-      decisionInputRefs.current[questionId]?.focus();
-    }, 30);
-  };
-
   const handleSaveDecision = async (questionId: number, advanceToNext: boolean = false) => {
-    const existingQuestion = questions.find(q => q.id === questionId);
+    const existingQuestion = questions.find((q) => q.id === questionId);
     const savedAnswer = (existingQuestion?.final_answer || '').trim();
-    const text = decisionInputs[questionId] !== undefined
-      ? decisionInputs[questionId].trim()
-      : savedAnswer;
-
+    const text =
+      decisionInputs[questionId] !== undefined ? decisionInputs[questionId].trim() : savedAnswer;
     if (!text) return;
 
-    // Si déjà enregistrée sans modification, passer directement à la question suivante
     if (text === savedAnswer) {
-      if (advanceToNext) {
-        focusNextDecisionInput(questionId);
-      }
+      if (advanceToNext) focusNextDecisionInput(questionId);
       return;
     }
-
     if (!onSetQuestionDecision) return;
 
-    setIsSubmittingDecision(prev => ({ ...prev, [questionId]: true }));
+    setIsSubmittingDecision((prev) => ({ ...prev, [questionId]: true }));
     try {
       await onSetQuestionDecision(questionId, text);
-      setDecisionInputs(prev => {
+      setDecisionInputs((prev) => {
         const next = { ...prev };
         delete next[questionId];
         return next;
       });
-      if (advanceToNext) {
-        focusNextDecisionInput(questionId);
-      }
+      if (advanceToNext) focusNextDecisionInput(questionId);
     } catch {
-      // Erreur gérée par la notification globale ; le brouillon reste en place
+      // Notification gérée globalement
     } finally {
-      setIsSubmittingDecision(prev => ({ ...prev, [questionId]: false }));
+      setIsSubmittingDecision((prev) => ({ ...prev, [questionId]: false }));
     }
   };
 
-  // Rendu récursif des sous-tâches dans la rétrospective
-  const renderRetroSubtasks = (nodes: HierarchicalSubtask[], canEditThis: boolean) => {
-    const depthBorders = [
-      '',
-      'border-l-2 border-indigo-300 ml-2.5 pl-2',
-      'border-l-2 border-amber-300 ml-2.5 pl-2',
-      'border-l-2 border-emerald-300 ml-2.5 pl-2'
-    ];
-
-    return (
-      <div className="space-y-1">
-        {nodes.map(node => (
-          <div key={node.id} className={node.depth > 0 ? depthBorders[node.depth] || 'ml-2 pl-2 border-l' : ''}>
-            <div
-              onClick={() => canEditThis && onToggleSubtask(node.id)}
-              className={`flex items-center gap-1.5 text-xs text-slate-700 ${
-                canEditThis ? 'cursor-pointer hover:text-slate-900' : 'cursor-default'
-              }`}
-            >
-              <BlurredIconSwap
-                active={!!node.is_done}
-                activeIcon={<CheckSquare className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />}
-                inactiveIcon={<Square className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />}
-              />
-              <span className={node.is_done ? 'line-through text-slate-500' : 'font-medium'}>
-                {node.title}
-              </span>
-            </div>
-            {node.children && node.children.length > 0 && (
-              <div className="mt-1">
-                {renderRetroSubtasks(node.children, canEditThis)}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    );
+  const handleClearDecision = async (questionId: number) => {
+    const confirmed = await confirm({
+      title: 'Effacer la décision',
+      message: 'Effacer la réponse définitive pour remettre cette question à trancher ?',
+      confirmLabel: 'Effacer',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+    try {
+      await onSetQuestionDecision?.(questionId, '');
+      setDecisionInputs((prev) => {
+        const next = { ...prev };
+        delete next[questionId];
+        return next;
+      });
+    } catch {
+      // Notification gérée globalement
+    }
   };
 
-  // Enveloppe pleine largeur harmonisée pour chaque intervenant en séance
-  const renderAssociateSection = (
-    person: { id: number | string; name: string; initials: string; avatar_color?: string | null },
-    subtitle: string,
-    badges: React.ReactNode,
-    children: React.ReactNode,
-    sectionId?: string,
-    dataAnchor?: string
-  ) => (
-    <section
-      key={person.id}
-      id={sectionId}
-      data-meeting-anchor={dataAnchor}
-      className="scroll-mt-28 sm:scroll-mt-20 cdh-surface-card rounded-cdh-2xl p-4 sm:p-5 space-y-4"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--cdh-border-hairline)]">
-        <div className="flex items-center gap-3 min-w-0">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-xs shrink-0"
-            style={{ backgroundColor: ensureWhiteTextContrast(person.avatar_color, '#4B5563') }}
-          >
-            {person.initials}
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-bold text-base text-slate-900 leading-tight truncate">{person.name}</h3>
-            <p className="text-xs text-slate-600 font-medium tabular-nums">{subtitle}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {badges}
-        </div>
-      </div>
-
-      {children}
-    </section>
-  );
-
-  // Carte de question binaire & épurée : champ textarea de décision directement accessible pour chaque question
-  const renderQuestionCard = (q: Question) => {
-    const answers = q.answers || [];
-    const hasFinalAnswer = hasFinalDecision(q);
-    const savedAnswer = (q.final_answer || '').trim();
-    const currentInput = decisionInputs[q.id] !== undefined ? decisionInputs[q.id] : (q.final_answer || '');
-    const trimmedInput = currentInput.trim();
-    const isDirty = decisionInputs[q.id] !== undefined && trimmedInput !== savedAnswer;
-    const canArbitrate = !isReadOnly && (q.can_decide ?? (currentUser?.role !== 'read' && (isAdmin || currentUser?.role === 'write')));
-    const canModifyQuestion = !isReadOnly && (q.can_edit !== undefined ? !!q.can_edit : (isAdmin || (currentUser?.role === 'write' && currentUser?.id === q.user_id)));
-    const showProposals = !hasFinalAnswer || !!openProposalDrawers[q.id];
-
-    return (
-      <div
-        key={q.id}
-        className={`p-3 sm:p-4 rounded-xl transition-all space-y-2.5 ${
-          hasFinalAnswer ? 'bg-emerald-50/60' : 'bg-slate-50/90'
-        }`}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2 flex-wrap">
-              <span
-                className={`text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md shrink-0 mt-0.5 ${
-                  hasFinalAnswer
-                    ? 'bg-emerald-100 text-emerald-900'
-                    : 'bg-amber-100 text-amber-900'
-                }`}
-              >
-                {hasFinalAnswer ? 'Décidée' : 'À trancher'}
-              </span>
-              <h4 className="text-sm font-bold break-words leading-snug text-slate-900">
-                {q.title}
-              </h4>
-            </div>
-            {q.details && (
-              <p className="mt-1 text-xs text-slate-600 leading-relaxed whitespace-pre-line break-words">
-                {q.details}
-              </p>
-            )}
-          </div>
-
-          {canModifyQuestion && onEditQuestion && (
-            <button
-              type="button"
-              onClick={() => onEditQuestion(q)}
-              className="min-w-[34px] min-h-[34px] sm:min-w-[30px] sm:min-h-[30px] flex items-center justify-center text-slate-600 hover:text-indigo-700 bg-white hover:bg-indigo-50 border border-black/[0.12] hover:border-indigo-300 rounded-lg transition-colors cursor-pointer shrink-0"
-              title="Modifier la question"
-              aria-label={`Modifier la question : ${q.title}`}
-            >
-              <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
-            </button>
-          )}
-        </div>
-
-        {/* Zone directe de réponse définitive : champ texte classique + validation Entrée */}
-        {canArbitrate ? (
-          <div className="p-2.5 rounded-lg bg-white border border-black/[0.12] focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20 space-y-1.5 transition-all">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <label
-                htmlFor={`meeting-decision-${q.id}`}
-                className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5"
-              >
-                <CheckCircle2
-                  className={`w-3.5 h-3.5 shrink-0 ${hasFinalAnswer ? 'text-emerald-600' : 'text-slate-400'}`}
-                  strokeWidth={2.25}
-                />
-                <span>Réponse définitive</span>
-                <span className="hidden sm:inline font-normal text-[11px] text-slate-600">
-                  (Entrée ↵ pour valider & passer à la suivante)
-                </span>
-              </label>
-              <div className="flex items-center gap-2">
-                {hasFinalAnswer && !isDirty && (
-                  <span className="text-[11px] font-bold text-emerald-900 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                    Enregistrée ✓
-                  </span>
-                )}
-                {isDirty && hasFinalAnswer && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDecisionInputs(prev => {
-                        const next = { ...prev };
-                        delete next[q.id];
-                        return next;
-                      })
-                    }
-                    className="text-[11px] font-medium text-slate-600 hover:text-slate-800 cursor-pointer"
-                  >
-                    Annuler
-                  </button>
-                )}
-                {hasFinalAnswer && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const confirmed = await confirm({
-                        title: 'Effacer la décision',
-                        message: 'Effacer la réponse définitive pour remettre cette question à trancher ?',
-                        confirmLabel: 'Effacer',
-                        variant: 'warning',
-                      });
-                      if (confirmed) {
-                        try {
-                          await onSetQuestionDecision?.(q.id, '');
-                          setDecisionInputs(prev => {
-                            const next = { ...prev };
-                            delete next[q.id];
-                            return next;
-                          });
-                        } catch {
-                          // Erreur gérée par la notification globale
-                        }
-                      }
-                    }}
-                    className="text-[11px] text-red-700 hover:text-red-800 font-semibold cursor-pointer"
-                  >
-                    Effacer
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <input
-                id={`meeting-decision-${q.id}`}
-                ref={(el) => {
-                  decisionInputRefs.current[q.id] = el;
-                }}
-                type="text"
-                aria-label={`Réponse définitive pour : ${q.title}`}
-                placeholder="Saisissez la réponse définitive et appuyez sur Entrée..."
-                value={currentInput}
-                onChange={(e) => setDecisionInputs(prev => ({ ...prev, [q.id]: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleSaveDecision(q.id, true);
-                  }
-                }}
-                className="flex-1 min-w-0 min-h-[38px] sm:min-h-[34px] px-2.5 py-1.5 bg-slate-50/60 focus:bg-white border border-black/[0.12] rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400"
-              />
-
-              {(!hasFinalAnswer || isDirty) && (
-                <button
-                  type="button"
-                  disabled={!trimmedInput || isSubmittingDecision[q.id]}
-                  onClick={() => handleSaveDecision(q.id, true)}
-                  className="min-h-[38px] sm:min-h-[34px] px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
-                >
-                  <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
-                  <span>
-                    {isSubmittingDecision[q.id]
-                      ? '...'
-                      : hasFinalAnswer
-                      ? 'Mettre à jour'
-                      : 'Acter'}
-                  </span>
-                </button>
-              )}
-            </div>
-          </div>
-        ) : hasFinalAnswer ? (
-          <div className="px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs">
-            <div className="flex items-center gap-1.5 font-bold text-emerald-950">
-              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" strokeWidth={2.25} />
-              <span>Réponse définitive</span>
-            </div>
-            <p className="mt-1 text-slate-900 font-semibold whitespace-pre-line break-words pl-5 leading-relaxed">
-              {q.final_answer}
-            </p>
-          </div>
-        ) : (
-          <p className="text-xs italic text-slate-600">Aucune réponse définitive saisie.</p>
-        )}
-
-        {/* Propositions indicatives (repliées par défaut si la question est déjà tranchée) */}
-        {answers.length > 0 && (
-          <div className="pt-2 border-t border-black/[0.08] space-y-1.5">
-            {hasFinalAnswer ? (
-              <button
-                type="button"
-                aria-expanded={showProposals}
-                onClick={() => setOpenProposalDrawers(prev => ({ ...prev, [q.id]: !prev[q.id] }))}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 cursor-pointer"
-              >
-                <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform duration-150 ${showProposals ? 'rotate-180' : ''}`}
-                  strokeWidth={2}
-                />
-                <span>Propositions indicatives ({answers.length})</span>
-              </button>
-            ) : (
-              <p className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
-                Propositions indicatives ({answers.length})
-              </p>
-            )}
-
-            {showProposals && (
-              <div className="space-y-1">
-                {answers.map((ans) => (
-                  <div
-                    key={ans.id}
-                    className="px-2.5 py-2 bg-white rounded-lg text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0 flex-1 flex items-baseline gap-1.5 flex-wrap">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-slate-900 shrink-0">
-                        <span
-                          className="w-5 h-5 rounded-full inline-flex items-center justify-center font-bold text-[11px] leading-none text-white shrink-0 translate-y-0.5"
-                          style={{ backgroundColor: ensureWhiteTextContrast(ans.user_color, '#4F46E5') }}
-                        >
-                          {ans.user_initials}
-                        </span>
-                        <span>{ans.user_name} :</span>
-                      </span>
-                      <span className="text-slate-800 break-words">{ans.content}</span>
-                    </div>
-
-                    {canArbitrate && (
-                      <button
-                        type="button"
-                        onClick={() => handleSelectPropositionAsDecision(q.id, ans.content)}
-                        aria-label={`Retenir la proposition de ${ans.user_name} comme décision finale pour : ${q.title}`}
-                        className="self-end sm:self-auto px-2.5 py-1 text-xs sm:text-[11px] font-bold bg-brand-50 hover:bg-brand-100 text-brand-800 border border-brand-200 rounded-lg flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
-                        title="Retenir cette proposition comme réponse définitive"
-                      >
-                        <Sparkles className="w-3 h-3 text-brand-600" strokeWidth={2} />
-                        <span>Retenir</span>
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+  const dockActiveKey = focusedKey === 'all' ? scrollSpyAnchor : focusedKey;
 
   return (
     <div
-      className={`space-y-6 ${
+      className={`space-y-4 ${
         users.length > 0 || showFab
-          ? 'lg:pl-16 min-[1440px]:pl-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6'
+          ? 'lg:pl-16 min-[1520px]:pl-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6'
           : 'lg:pb-6'
       }`}
     >
-      
-      {/* Header spécial Réunion Hebdomadaire (Responsive) */}
-      <div className="bg-slate-900 rounded-3xl sm:rounded-[32px] p-4 sm:p-6 text-white shadow-lg border border-slate-800">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-[11px] font-bold uppercase tracking-wider mb-1.5">
-              <Users className="w-3.5 h-3.5" strokeWidth={2.25} />
-              Réunion hebdomadaire de l'équipe
-            </div>
-            <h2 className="text-lg sm:text-2xl font-black tracking-tight flex items-center gap-3 flex-wrap">
-              {sprint.name}
-              {isReadOnly && (
-                <span className="text-xs bg-amber-500/20 text-amber-200 px-2.5 py-1 rounded-md font-bold border border-amber-400/30">
-                  Sprint clôturé (Archive)
-                </span>
-              )}
-            </h2>
-            <p className="hidden sm:block text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
-              Support interactif pour animer la réunion, apporter les décisions définitives aux questions, et acter la bascule du sprint.
-            </p>
-          </div>
+      <MeetingHeader
+        sprint={sprint}
+        users={users}
+        isAdmin={isAdmin}
+        isReadOnly={isReadOnly}
+        meetingStep={meetingStep}
+        onChangeStep={handleChangeStep}
+        animatorId={animatorId}
+        onChangeAnimator={(val) => {
+          setAnimatorId(val);
+          localStorage.setItem('meeting_animator_id', String(val));
+        }}
+        scribeId={scribeId}
+        onChangeScribe={(val) => {
+          setScribeId(val);
+          localStorage.setItem('meeting_scribe_id', String(val));
+        }}
+        stats={{
+          total: activeSprintTasks.length,
+          done: doneTasks.length,
+          toCarryOver: unfinishedSprintTasks.length,
+          unassigned: pendingUnassigned.length,
+        }}
+        undecidedQuestionsCount={undecidedQuestions.length}
+        pendingTotalCount={pendingUnassigned.length + pendingAssigned.length}
+        participantTabs={participantTabs}
+        focusedKey={focusedKey}
+        onSelectFocus={handleSelectFocus}
+        onStepSpeaker={handleStepSpeaker}
+        showAddPendingTask={showFab}
+        onAddPendingTask={() => onAddNewTask?.(null)}
+        canCreateQuestion={canCreateQuestion}
+        onAddQuestion={() => onAddNewQuestion?.()}
+        onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
+        onOpenCloseSprint={onOpenCloseSprintModal}
+      />
 
-          {/* Bouton de Clôture / Bascule */}
-          <div className="flex items-center gap-3 shrink-0">
-            {sprint.status === 'closed' ? (
-              <div className="text-xs text-slate-200 bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-700">
-                Sprint validé et archivé
-              </div>
-            ) : isAdmin ? (
-              <button
-                onClick={onOpenCloseSprintModal}
-                aria-keyshortcuts="Shift+c"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs sm:text-sm shadow-sm transition-colors cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-100" strokeWidth={2.25} />
-                Valider la réunion & Clôturer le sprint
-              </button>
-            ) : (
-              <div className="text-xs text-slate-200 bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-700 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-blue-300" strokeWidth={1.75} />
-                Seul un administrateur peut clôturer le sprint
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Chiffres clés du sprint (Bandeau unifié sans cartes imbriquées) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-800 bg-slate-950/60 rounded-2xl border border-slate-800 mt-4 sm:mt-5 overflow-hidden text-xs">
-          <div className="p-2.5 sm:p-3.5">
-            <span className="text-slate-300 font-medium">Tâches totales</span>
-            <div className="text-base sm:text-lg font-bold text-white mt-0.5 tabular-nums">{activeSprintTasks.length}</div>
-          </div>
-          <div className="p-2.5 sm:p-3.5">
-            <span className="text-emerald-300 font-medium">Terminées</span>
-            <div className="text-base sm:text-lg font-bold text-emerald-200 mt-0.5 tabular-nums">{doneTasks.length}</div>
-          </div>
-          <div className="p-2.5 sm:p-3.5">
-            <span className="text-amber-300 font-medium">À reporter</span>
-            <div className="text-base sm:text-lg font-bold text-amber-200 mt-0.5 tabular-nums">{unfinishedSprintTasks.length}</div>
-          </div>
-          <div className="p-2.5 sm:p-3.5">
-            <span className="text-blue-300 font-medium">À attribuer</span>
-            <div className="text-base sm:text-lg font-bold text-blue-200 mt-0.5 tabular-nums">{pendingUnassigned.length}</div>
-          </div>
-        </div>
-
-        {/* Rôles de la réunion hebdomadaire */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3.5 mt-3.5 border-t border-slate-800 text-xs">
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            {/* Animateur */}
-            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
-              <span className="text-[11px] text-blue-200 font-bold uppercase tracking-wider">
-                Animateur :
-              </span>
-              <select
-                aria-label="Animateur de la réunion"
-                value={animatorId}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setAnimatorId(val);
-                  localStorage.setItem('meeting_animator_id', String(val));
-                }}
-                className="bg-slate-700 border border-slate-600 rounded-md px-1.5 py-0.5 text-white font-bold text-xs focus:outline-none cursor-pointer"
-              >
-                {users.map(u => (
-                  <option key={u.id} value={u.id} className="bg-slate-800 text-white">
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-              <span className="text-xs text-slate-300 hidden sm:inline">(Garant du temps & parole)</span>
-            </div>
-
-            {/* Rédacteur */}
-            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/70 rounded-xl px-2.5 py-1.5">
-              <span className="text-[11px] text-blue-200 font-bold uppercase tracking-wider">
-                Rédacteur :
-              </span>
-              <select
-                aria-label="Rédacteur du compte rendu"
-                value={scribeId}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setScribeId(val);
-                  localStorage.setItem('meeting_scribe_id', String(val));
-                }}
-                className="bg-slate-700 border border-slate-600 rounded-md px-1.5 py-0.5 text-white font-bold text-xs focus:outline-none cursor-pointer"
-              >
-                {users.map(u => (
-                  <option key={u.id} value={u.id} className="bg-slate-800 text-white">
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-              <span className="text-xs text-slate-300 hidden sm:inline">(Note décisions & actions)</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsShortcutsModalOpen(true)}
-            aria-keyshortcuts="? h"
-            title="Afficher les raccourcis clavier (?)"
-            className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/70 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <Keyboard className="w-3.5 h-3.5 text-blue-300" strokeWidth={1.75} />
-            <span>Raccourcis</span>
-            <kbd className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-600 text-[11px] font-mono text-slate-200">?</kbd>
-          </button>
-        </div>
-
-      </div>
-
-      {/* Barre d'étapes de la réunion — Segmented Control Liquid Glass (Mobile-first & Dark Mode) */}
-      <nav
-        aria-label="Étapes de la réunion"
-        className="cdh-glass-chrome p-1.5 rounded-cdh-xl grid grid-cols-3 gap-1.5"
-      >
-        {(
-          [
-            {
-              id: 'retro' as const,
-              step: 1,
-              shortcut: '1',
-              mobileLabel: 'Rétro',
-              label: 'Rétrospective par Associé',
-              duration: '15 min',
-              badgeCount: null,
-              badgeClass: '',
-            },
-            {
-              id: 'questions' as const,
-              step: 2,
-              shortcut: '2',
-              mobileLabel: 'Questions',
-              label: 'Questions & Décisions',
-              duration: '30 min',
-              badgeCount: undecidedQuestions.length,
-              badgeClass: 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]',
-            },
-            {
-              id: 'unassigned' as const,
-              step: 3,
-              shortcut: '3',
-              mobileLabel: 'Plan',
-              label: "Plan d'Action & Orphelines",
-              duration: '10 min',
-              badgeCount: pendingUnassigned.length + pendingAssigned.length,
-              badgeClass: 'bg-[var(--cdh-warning-soft)] text-[var(--cdh-warning)]',
-            },
-          ] as const
-        ).map((item) => {
-          const isActive = meetingStep === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setMeetingStep(item.id)}
-              aria-current={isActive ? 'step' : undefined}
-              aria-keyshortcuts={item.shortcut}
-              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3.5 py-2 min-h-[44px] sm:min-h-[40px] rounded-cdh-md text-[12px] font-semibold transition-all duration-150 active:scale-[0.99] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
-                isActive
-                  ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-md ring-1 ring-[var(--cdh-accent)]/40'
-                  : 'text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)]'
-              }`}
-            >
-              <span
-                className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold tabular-nums shrink-0 transition-colors ${
-                  isActive
-                    ? 'bg-[var(--cdh-accent)] text-white'
-                    : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)]'
-                }`}
-              >
-                {item.step}
-              </span>
-              <span className="sm:hidden truncate">{item.mobileLabel}</span>
-              <span className="hidden sm:inline truncate">{item.label}</span>
-              <span className="hidden lg:inline-flex text-[11px] font-medium px-1.5 py-0.5 rounded-cdh-xs bg-[var(--cdh-surface-control)] text-[var(--cdh-text-tertiary)] tabular-nums shrink-0">
-                {item.duration}
-              </span>
-              {item.badgeCount !== null && (
-                <span
-                  className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold leading-none tabular-nums shrink-0 ${item.badgeClass}`}
-                >
-                  {item.badgeCount}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Contenu de l'étape active */}
-
-      {/* ÉTAPE 1 : Rétrospective par associé (pleine largeur pour la prise de parole) */}
       {meetingStep === 'retro' && (
-        <div className="space-y-4">
-          {users.map((user) => {
-            const userTasks = activeSprintTasks.filter(t => t.assigned_to === user.id);
-            const userDone = userTasks.filter(t => t.status === 'done');
-            const userPending = userTasks.filter(t => t.status !== 'done');
-            const retroStatusOrder: Partial<Record<Task['status'], number>> = {
-              done: 0,
-              in_progress: 1,
-              blocked: 2,
-              todo: 3
-            };
-            const sortByRetroStatus = (a: Task, b: Task) =>
-              (retroStatusOrder[a.status] ?? 4) - (retroStatusOrder[b.status] ?? 4);
-            const userStarred = userTasks.filter(t => !!t.is_starred).sort(sortByRetroStatus);
-            const userUnstarred = userTasks.filter(t => !t.is_starred).sort(sortByRetroStatus);
-            const canEditThis = !isReadOnly && (isAdmin || (currentUser?.role === 'write' && currentUser?.id === user.id));
-            const isAccordionOpen = !!expandedAccordions[user.id];
-
-            const renderRetroTask = (t: Task, isHighlighted: boolean) => {
-              const hierarchicalSubtasks = buildSubtaskTree(t.subtasks || []);
-              const canEditTask = !isReadOnly && (t.can_edit !== undefined ? !!t.can_edit : canEditThis);
-              const canStarTask = !isReadOnly && !!t.can_star;
-
-              return (
-                <div
-                  key={t.id}
-                  className={`p-3.5 sm:p-4 rounded-xl text-xs transition-all ${
-                    isHighlighted
-                      ? 'bg-amber-50/75 ring-1 ring-amber-300/80'
-                      : t.status === 'done'
-                      ? 'bg-emerald-50/55'
-                      : t.status === 'blocked'
-                      ? 'bg-red-50/55'
-                      : 'bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                      {/* Toggle rapide statut en séance */}
-                      {canEditTask ? (
-                        <button
-                          type="button"
-                          onClick={() => onUpdateTaskStatus(t.id, t.status === 'done' ? 'in_progress' : 'done')}
-                          className="mt-0.5 text-slate-400 hover:text-emerald-600 transition-colors shrink-0 cursor-pointer"
-                          title="Marquer fait / en cours"
-                        >
-                          <BlurredIconSwap
-                            active={t.status === 'done'}
-                            activeIcon={<CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />}
-                            inactiveIcon={<Square className="w-4 h-4 text-slate-400" strokeWidth={1.75} />}
-                          />
-                        </button>
-                      ) : (
-                        <span className="mt-0.5 shrink-0">
-                          <TaskStatusIcon status={t.status} className="w-4 h-4" />
-                        </span>
-                      )}
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {/* Étoile interactive si autorisé */}
-                          {(canStarTask || !!t.is_starred) && (
-                            <button
-                              type="button"
-                              disabled={!canStarTask}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (canStarTask && onToggleStar) {
-                                  onToggleStar(t.id);
-                                }
-                              }}
-                              className={`p-0.5 rounded transition-all shrink-0 ${
-                                t.is_starred
-                                  ? `text-amber-500 ${canStarTask ? 'hover:text-amber-600 cursor-pointer' : 'cursor-default'}`
-                                  : canStarTask
-                                  ? 'text-slate-300 hover:text-amber-400 cursor-pointer'
-                                  : 'hidden'
-                              }`}
-                              title={t.is_starred ? (canStarTask ? 'Mise en avant activée (cliquer pour retirer)' : 'Mise en avant pour la réunion') : 'Mettre en avant pour la réunion'}
-                            >
-                              <Star className={`w-3.5 h-3.5 ${t.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-300'}`} strokeWidth={1.75} />
-                            </button>
-                          )}
-
-                          <span className={`text-sm font-semibold break-words leading-snug ${t.status === 'done' ? 'line-through text-slate-600' : 'text-slate-900'}`}>
-                            {t.title}
-                          </span>
-
-                          {t.property_name && (
-                            <span
-                              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md text-slate-900 border shrink-0"
-                              style={{
-                                backgroundColor: hexToSoftTint(t.property_color, 0.12),
-                                borderColor: hexToSoftTint(t.property_color, 0.30)
-                              }}
-                            >
-                              <span
-                                aria-hidden="true"
-                                className="w-2 h-2 rounded-full shrink-0"
-                                style={{ backgroundColor: t.property_color || '#2563EB' }}
-                              />
-                              {t.property_name}
-                            </span>
-                          )}
-                        </div>
-
-                        {t.description && (
-                          <p className="mt-1.5 text-slate-600 text-xs leading-relaxed break-words">
-                            <span className="text-brand-600 font-bold mr-1">→</span>
-                            {t.description}
-                          </p>
-                        )}
-
-                        {/* Sous-tâches hiérarchiques jusqu'à 4 niveaux */}
-                        {t.subtasks && t.subtasks.length > 0 && (
-                          <div className="mt-2.5 pt-2 border-t border-black/[0.12]">
-                            {renderRetroSubtasks(hierarchicalSubtasks, canEditTask)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Statut sélecteur rapide pour la réunion */}
-                    {canEditTask && (
-                      <select
-                        value={t.status}
-                        onChange={(e) => onUpdateTaskStatus(t.id, e.target.value as TaskStatus)}
-                        className="text-xs font-semibold border border-black/[0.12] rounded-lg px-2 py-1 bg-white text-slate-700 cursor-pointer shrink-0"
-                      >
-                        <option value="todo">À faire</option>
-                        <option value="in_progress">En cours</option>
-                        <option value="blocked">Bloqué</option>
-                        <option value="done">Terminé</option>
-                      </select>
-                    )}
-                  </div>
-                </div>
-              );
-            };
-
-            return renderAssociateSection(
-              user,
-              `${userDone.length}/${userTasks.length} terminée${userDone.length > 1 ? 's' : ''}`,
-              <>
-                {userStarred.length > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
-                    <Star className="w-3 h-3 fill-amber-500 text-amber-600" strokeWidth={2.25} />
-                    {userStarred.length} mise{userStarred.length > 1 ? 's' : ''} en avant
-                  </span>
-                )}
-                <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-700">
-                  {userPending.length} en cours
-                </span>
-              </>,
-              <div className="space-y-3">
-                {userStarred.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {userStarred.map(t => renderRetroTask(t, true))}
-                  </div>
-                ) : (
-                  <div className="px-4 py-3 border border-dashed border-black/[0.15] bg-slate-50/70 rounded-xl text-center">
-                    <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-700">
-                      <Star className="w-3.5 h-3.5 text-amber-500" strokeWidth={2} />
-                      <span>Aucune tâche mise en avant avec l'étoile</span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-1 [text-wrap:pretty]">
-                      {userUnstarred.length > 0
-                        ? `Dépliez ci-dessous pour afficher les ${userUnstarred.length} autre${userUnstarred.length > 1 ? 's' : ''} tâche${userUnstarred.length > 1 ? 's' : ''} de ${user.name}.`
-                        : 'Aucune tâche assignée sur ce sprint.'}
-                    </p>
-                  </div>
-                )}
-
-                {/* Accordéon pour les autres tâches non mises en avant */}
-                {userUnstarred.length > 0 && (
-                  <div className="pt-2 border-t border-black/[0.12]">
-                    <button
-                      type="button"
-                      onClick={() => toggleAccordion(user.id)}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-800 transition-colors border border-black/[0.12] cursor-pointer group"
-                    >
-                      <span className="flex items-center gap-2">
-                        <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${isAccordionOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
-                        <span>Autres tâches ({userUnstarred.length})</span>
-                      </span>
-                      <span className="text-[11px] font-bold text-slate-600 group-hover:text-slate-900 uppercase tracking-wider">
-                        {isAccordionOpen ? 'Masquer' : 'Afficher'}
-                      </span>
-                    </button>
-
-                    {isAccordionOpen && (
-                      <div className="mt-2.5 space-y-2.5 animate-fade-in">
-                        {userUnstarred.map(t => renderRetroTask(t, false))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>,
-              `meeting-section-retro-${user.id}`,
-              String(user.id)
-            );
-          })}
-        </div>
+        <MeetingRetroStep
+          users={users}
+          focusedKey={focusedKey}
+          activeSprintTasks={activeSprintTasks}
+          currentUser={currentUser}
+          isAdmin={isAdmin}
+          isReadOnly={isReadOnly}
+          expandedAccordions={expandedAccordions}
+          onToggleAccordion={toggleAccordion}
+          onUpdateTaskStatus={onUpdateTaskStatus}
+          onToggleSubtask={onToggleSubtask}
+          onToggleStar={onToggleStar}
+          onEditTask={onEditTask}
+        />
       )}
 
-      {/* ÉTAPE 2 : Revue des questions regroupées par associé (pleine largeur pour la prise de parole) */}
       {meetingStep === 'questions' && (
-        <div className="space-y-4">
-          {/* Barre d'en-tête synthétique */}
-          <div className="bg-white rounded-[28px] sm:rounded-[32px] px-4 py-3 sm:px-5 sm:py-3.5 border border-black/[0.12] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div>
-              <h3 className="font-bold text-base text-slate-800">Revue des Questions & Décisions</h3>
-              <p className="text-xs text-slate-600">
-                Regroupées par associé pour acter les réponses définitives en séance.
-              </p>
-              {(sprint.status === 'closed' || isReadOnly) && (
-                <p className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-black/[0.08] text-[11px] text-slate-700 font-medium">
-                  <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" strokeWidth={2} />
-                  <span>
-                    Sprint clôturé : les propositions indicatives préparatoires ne sont pas conservées ; seules les réponses définitives sont archivées.
-                  </span>
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-900">
-                {undecidedQuestions.length} à trancher
-              </span>
-              {decidedQuestions.length > 0 && (
-                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900">
-                  {decidedQuestions.length} décidée{decidedQuestions.length > 1 ? 's' : ''}
-                </span>
-              )}
-              {canCreateQuestion && (
-                <button
-                  type="button"
-                  onClick={onAddNewQuestion}
-                  aria-keyshortcuts="q"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" strokeWidth={2.25} />
-                  <span>Poser une question</span>
-                  <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 rounded bg-indigo-700/80 border border-indigo-400/40 text-[10px] font-mono text-indigo-100">
-                    Q
-                  </kbd>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {users.map((user) => {
-            const userQuestions = questions.filter(q => q.user_id === user.id);
-            const userUndecided = userQuestions.filter(q => !hasFinalDecision(q));
-            const userDecided = userQuestions.filter(hasFinalDecision);
-
-            return renderAssociateSection(
-              user,
-              userQuestions.length === 0
-                ? 'Aucune question posée'
-                : `${userQuestions.length} question${userQuestions.length > 1 ? 's' : ''} · ${userDecided.length} décidée${userDecided.length > 1 ? 's' : ''}`,
-              <>
-                {userUndecided.length > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900">
-                    {userUndecided.length} à trancher
-                  </span>
-                )}
-                {userDecided.length > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-900">
-                    {userDecided.length} décidée{userDecided.length > 1 ? 's' : ''}
-                  </span>
-                )}
-                {userQuestions.length === 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-600">
-                    0 question
-                  </span>
-                )}
-              </>,
-              userQuestions.length > 0 ? (
-                <div className="space-y-2">
-                  {userQuestions.map(renderQuestionCard)}
-                </div>
-              ) : (
-                <p className="py-2 text-center text-xs text-slate-600 font-medium">
-                  Aucune question à aborder pour {user.name}.
-                </p>
-              ),
-              `meeting-section-questions-${user.id}`,
-              String(user.id)
-            );
-          })}
-
-          {(() => {
-            const userIds = new Set(users.map(u => u.id));
-            const orphanQuestions = questions.filter(q => !userIds.has(q.user_id));
-            if (orphanQuestions.length === 0) return null;
-            const orphanUndecided = orphanQuestions.filter(q => !hasFinalDecision(q));
-            const orphanDecided = orphanQuestions.filter(hasFinalDecision);
-
-            return renderAssociateSection(
-              { id: 'other-questions', name: 'Autres participants', initials: '?', avatar_color: '#64748B' },
-              `${orphanQuestions.length} question${orphanQuestions.length > 1 ? 's' : ''}`,
-              <>
-                {orphanUndecided.length > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-900">
-                    {orphanUndecided.length} à trancher
-                  </span>
-                )}
-                {orphanDecided.length > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-900">
-                    {orphanDecided.length} décidée{orphanDecided.length > 1 ? 's' : ''}
-                  </span>
-                )}
-              </>,
-              <div className="space-y-2">
-                {orphanQuestions.map(renderQuestionCard)}
-              </div>
-            );
-          })()}
-        </div>
+        <MeetingQuestionsStep
+          sprint={sprint}
+          users={users}
+          questions={questions}
+          focusedKey={focusedKey}
+          currentUser={currentUser}
+          isAdmin={isAdmin}
+          isReadOnly={isReadOnly}
+          decisionInputs={decisionInputs}
+          isSubmittingDecision={isSubmittingDecision}
+          openProposalDrawers={openProposalDrawers}
+          decisionInputRefs={decisionInputRefs}
+          onChangeDecisionInput={(qId, val) =>
+            setDecisionInputs((prev) => ({ ...prev, [qId]: val }))
+          }
+          onResetDecisionInput={(qId) =>
+            setDecisionInputs((prev) => {
+              const next = { ...prev };
+              delete next[qId];
+              return next;
+            })
+          }
+          onToggleProposals={(qId) =>
+            setOpenProposalDrawers((prev) => ({ ...prev, [qId]: !prev[qId] }))
+          }
+          onSelectProposition={(qId, content) => {
+            setDecisionInputs((prev) => ({ ...prev, [qId]: content }));
+            window.setTimeout(() => decisionInputRefs.current[qId]?.focus(), 30);
+          }}
+          onSaveDecision={handleSaveDecision}
+          onClearDecision={handleClearDecision}
+          onEditQuestion={onEditQuestion}
+        />
       )}
 
-      {/* ÉTAPE 3 : Plan d'Action & Tâches orphelines (Tâches au statut 'pending') */}
       {meetingStep === 'unassigned' && (
-        <div className="space-y-4">
-          {/* Sous-section 1 : Tâches non-attribuées */}
-          <section
-            id="meeting-section-unassigned-pool"
-            data-meeting-anchor="pool"
-            className="scroll-mt-28 sm:scroll-mt-20 bg-white rounded-[28px] sm:rounded-[32px] p-4 sm:p-5 border border-black/[0.12] shadow-xs space-y-4"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-black/[0.12]">
-              <div>
-                <h3 className="font-bold text-base text-slate-800 flex items-center gap-2">
-                  <UserPlus className="w-4 h-4 text-amber-600" strokeWidth={2.25} />
-                  <span>Tâches non-attribuées</span>
-                </h3>
-                <p className="text-xs text-slate-500">
-                  En attente d'un responsable. Attribuez-les en un clic pour les planifier sur le Point {sprint.number + 1}.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
-                  {pendingUnassigned.length} à attribuer
-                </span>
-              </div>
-            </div>
-
-            {pendingUnassigned.length > 0 ? (
-              <div className="space-y-3">
-                {pendingUnassigned.map((t) => (
-                  <div
-                    key={t.id}
-                    className="p-3.5 sm:p-4 rounded-xl border border-amber-200/90 bg-amber-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
-                          <UserPlus className="w-3 h-3" strokeWidth={2.25} /> À attribuer
-                        </span>
-
-                        {t.property_name && (
-                          <span
-                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md text-slate-900 border"
-                            style={{
-                              backgroundColor: hexToSoftTint(t.property_color, 0.12),
-                              borderColor: hexToSoftTint(t.property_color, 0.30)
-                            }}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="w-2 h-2 rounded-full shrink-0"
-                              style={{ backgroundColor: t.property_color || '#2563EB' }}
-                            />
-                            {t.property_name}
-                          </span>
-                        )}
-
-                        {t.priority === 'high' && (
-                          <span className="text-[11px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
-                            Urgent
-                          </span>
-                        )}
-                      </div>
-
-                      <h4 className="font-bold text-sm text-slate-800 break-words leading-snug">{t.title}</h4>
-                      {t.description && (
-                        <p className="text-xs text-slate-600 mt-1 break-words leading-relaxed">
-                          <span className="text-brand-600 font-bold mr-1">→</span>
-                          {t.description}
-                        </p>
-                      )}
-                      {t.subtasks && t.subtasks.length > 0 && (
-                        <ul className="mt-2 space-y-1 pl-2 border-l-2 border-amber-200">
-                          {t.subtasks.map(st => (
-                            <li key={st.id} className="text-[11px] text-slate-600 font-medium">
-                              • {st.title}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
-                      {isAdmin && !isReadOnly && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-semibold text-slate-500 mr-0.5">Attribuer :</span>
-                          {users.map((u) => (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => onAssignTask(t.id, u.id)}
-                              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white border border-black/[0.12] text-slate-700 hover:border-black/[0.22] hover:bg-slate-50 transition-all flex items-center gap-1.5 cursor-pointer"
-                              title={`Attribuer à ${u.name}`}
-                            >
-                              <span
-                                className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] leading-none font-bold text-white shrink-0"
-                                style={{ backgroundColor: ensureWhiteTextContrast(u.avatar_color) }}
-                              >
-                                {u.initials}
-                              </span>
-                              <span>{u.name}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {!isReadOnly && (t.can_edit || t.can_delete) && (
-                        <div className="flex items-center gap-1 self-end sm:self-auto">
-                          {t.can_edit && onAddNewTask && (
-                            <button
-                              type="button"
-                              onClick={() => onAddNewTask(t)}
-                              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg cursor-pointer transition-colors"
-                              title="Modifier cette tâche"
-                            >
-                              <Edit3 className="w-4 h-4" strokeWidth={1.75} />
-                            </button>
-                          )}
-                          {t.can_delete && onDeleteTask && (
-                            <button
-                              type="button"
-                              onClick={() => onDeleteTask(t.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg cursor-pointer transition-colors"
-                              title="Supprimer cette tâche"
-                            >
-                              <Trash2 className="w-4 h-4" strokeWidth={1.75} />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-3 px-4 border border-dashed border-black/[0.12] rounded-xl text-center text-xs text-slate-400 font-medium">
-                Aucune tâche non attribuée en attente.
-              </div>
-            )}
-          </section>
-
-          {/* Sous-section 2 : Tâches attribuées (pleine largeur par associé pour relecture en séance) */}
-          <div className="bg-white rounded-[28px] sm:rounded-[32px] px-5 py-4 border border-black/[0.12] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h3 className="font-bold text-base text-slate-800 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-violet-600" strokeWidth={2.25} />
-                <span>Tâches attribuées (Plan d'action Point {sprint.number + 1})</span>
-              </h3>
-              <p className="text-xs text-slate-500">
-                Regroupées par associé sur toute la largeur pour relire ce que chacun aura à réaliser la semaine prochaine.
-              </p>
-            </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-violet-100 text-violet-800 self-start sm:self-auto shrink-0">
-              {pendingAssigned.length} planifiée{pendingAssigned.length > 1 ? 's' : ''}
-            </span>
-          </div>
-
-          {users.map((u) => {
-            const userPending = pendingAssigned.filter(t => t.assigned_to === u.id);
-
-            return renderAssociateSection(
-              u,
-              userPending.length === 0
-                ? `Aucune tâche prévue pour le Point ${sprint.number + 1}`
-                : `${userPending.length} tâche${userPending.length > 1 ? 's' : ''} pour le Point ${sprint.number + 1}`,
-              <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
-                userPending.length > 0 ? 'bg-violet-100 text-violet-800' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {userPending.length} planifiée{userPending.length > 1 ? 's' : ''}
-              </span>,
-              userPending.length > 0 ? (
-                <div className="space-y-2.5">
-                  {userPending.map((t) => (
-                    <div
-                      key={t.id}
-                      className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-black/[0.12] space-y-2"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-violet-100 text-violet-900 border border-violet-200 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-violet-700" strokeWidth={2.25} />
-                            Nouveau
-                          </span>
-
-                          {t.property_name && (
-                            <span
-                              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md text-slate-900 border"
-                              style={{
-                                backgroundColor: hexToSoftTint(t.property_color, 0.12),
-                                borderColor: hexToSoftTint(t.property_color, 0.30)
-                              }}
-                            >
-                              <span
-                                aria-hidden="true"
-                                className="w-2 h-2 rounded-full shrink-0"
-                                style={{ backgroundColor: t.property_color || '#2563EB' }}
-                              />
-                              {t.property_name}
-                            </span>
-                          )}
-
-                          {t.priority === 'high' && (
-                            <span className="text-[11px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
-                              Urgent
-                            </span>
-                          )}
-                        </div>
-
-                        {!isReadOnly && (t.can_edit || t.can_delete) && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            {t.can_edit && onAddNewTask && (
-                              <button
-                                type="button"
-                                onClick={() => onAddNewTask(t)}
-                                className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg cursor-pointer transition-colors"
-                                title="Modifier cette tâche en attente"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
-                              </button>
-                            )}
-                            {t.can_delete && onDeleteTask && (
-                              <button
-                                type="button"
-                                onClick={() => onDeleteTask(t.id)}
-                                className="p-1 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg cursor-pointer transition-colors"
-                                title="Supprimer cette tâche en attente"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      <h4 className="font-semibold text-sm text-slate-800 break-words leading-snug">{t.title}</h4>
-
-                      {t.description && (
-                        <p className="text-xs text-slate-600 break-words leading-relaxed">
-                          <span className="text-brand-600 font-bold mr-1">→</span>
-                          {t.description}
-                        </p>
-                      )}
-
-                      {t.subtasks && t.subtasks.length > 0 && (
-                        <ul className="space-y-1 pl-2 border-l-2 border-violet-200">
-                          {t.subtasks.map(st => (
-                            <li key={st.id} className="text-[11px] text-slate-600 font-medium">
-                              • {st.title}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-
-                      {/* Réattribution / Retrait rapide (Admin) */}
-                      {isAdmin && !isReadOnly && (
-                        <div className="pt-2 border-t border-black/[0.12] flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {users
-                              .filter(other => other.id !== u.id)
-                              .map(other => (
-                                <button
-                                  key={other.id}
-                                  type="button"
-                                  onClick={() => onAssignTask(t.id, other.id)}
-                                  className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-white border border-black/[0.12] text-slate-700 hover:border-black/[0.22] hover:bg-slate-100 transition-colors cursor-pointer"
-                                  title={`Réattribuer à ${other.name}`}
-                                >
-                                  → {other.name}
-                                </button>
-                              ))}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => onAssignTask(t.id, null)}
-                            className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-colors cursor-pointer"
-                            title="Retirer le responsable (renvoyer dans Tâches non-attribuées)"
-                          >
-                            Retirer
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-3 px-4 border border-dashed border-black/[0.12] rounded-xl text-center text-xs text-slate-400 font-medium">
-                  Aucune tâche attribuée pour la semaine prochaine.
-                </div>
-              ),
-              `meeting-section-unassigned-${u.id}`,
-              String(u.id)
-            );
-          })}
-        </div>
+        <MeetingActionPlanStep
+          sprint={sprint}
+          users={users}
+          pendingUnassigned={pendingUnassigned}
+          pendingAssigned={pendingAssigned}
+          focusedKey={focusedKey}
+          isAdmin={isAdmin}
+          isReadOnly={isReadOnly}
+          onAssignTask={onAssignTask}
+          onEditPendingTask={onAddNewTask}
+          onDeleteTask={onDeleteTask}
+        />
       )}
 
-      {/* Super-dock unifié : ancres par associé (+ À attribuer) + ajout rapide d'une tâche en attente */}
       <MeetingControlDock
         users={users}
         tasks={tasks}
         questions={questions}
         meetingStep={meetingStep}
-        activeAnchor={activeAnchor}
+        activeAnchor={dockActiveKey}
         pendingUnassignedCount={pendingUnassigned.length}
         showAddPendingTask={showFab}
-        onScrollToSection={scrollToSection}
+        onSelectParticipant={handleDockSelectParticipant}
         onAddPendingTask={() => onAddNewTask?.(null)}
       />
 
-      {/* Mémo compact des raccourcis clavier */}
-      {isShortcutsModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
-          onClick={() => setIsShortcutsModalOpen(false)}
-        >
-          <div
-            ref={shortcutsDialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="meeting-shortcuts-title"
-            tabIndex={-1}
-            className="cdh-glass-overlay rounded-cdh-2xl max-w-md w-full overflow-hidden animate-modal-in focus:outline-none"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--cdh-border-hairline)]">
-              <div className="flex items-center gap-2">
-                <Keyboard className="w-4 h-4 text-[var(--cdh-accent)]" strokeWidth={2} />
-                <h3 id="meeting-shortcuts-title" className="text-[15px] font-semibold text-[var(--cdh-text-primary)]">
-                  Raccourcis clavier — Vue Réunion
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsShortcutsModalOpen(false)}
-                aria-label="Fermer le mémo"
-                className="text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] p-1.5 rounded-full hover:bg-[var(--cdh-surface-control)] cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" strokeWidth={1.75} />
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-5 space-y-4 text-xs">
-              <div className="space-y-2">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  Navigation
-                </p>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-3 py-1">
-                    <span className="text-slate-700 font-medium">Changer d'étape (1, 2, 3)</span>
-                    <span className="flex items-center gap-1 shrink-0">
-                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">1</kbd>
-                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">2</kbd>
-                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">3</kbd>
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 py-1">
-                    <span className="text-slate-700 font-medium">Intervenant suivant / précédent</span>
-                    <span className="flex items-center gap-1 shrink-0">
-                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">J</kbd>
-                      <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">K</kbd>
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 py-1">
-                    <span className="text-slate-700 font-medium">Aller à « À attribuer » (étape 3)</span>
-                    <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">0</kbd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 py-1">
-                    <span className="text-slate-700 font-medium">Déplier/replier « Autres tâches » (étape 1)</span>
-                    <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">E</kbd>
-                  </div>
-                </div>
-              </div>
-
-              {(showFab || canCreateQuestion || canCloseSprint) && (
-                <div className="pt-3 border-t border-black/[0.12] space-y-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Actions en séance
-                  </p>
-                  <div className="space-y-1.5">
-                    {showFab && (
-                      <div className="flex items-center justify-between gap-3 py-1">
-                        <span className="text-slate-700 font-medium">Nouvelle tâche en séance</span>
-                        <span className="flex items-center gap-1 shrink-0">
-                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">N</kbd>
-                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">+</kbd>
-                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">=</kbd>
-                        </span>
-                      </div>
-                    )}
-                    {canCreateQuestion && (
-                      <div className="flex items-center justify-between gap-3 py-1">
-                        <span className="text-slate-700 font-medium">Poser une question</span>
-                        <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">Q</kbd>
-                      </div>
-                    )}
-                    {canCloseSprint && (
-                      <div className="flex items-center justify-between gap-3 py-1">
-                        <span className="text-slate-700 font-medium">Valider & Clôturer le sprint</span>
-                        <span className="flex items-center gap-1 shrink-0">
-                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">Shift</kbd>
-                          <span className="text-slate-400">+</span>
-                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono text-[11px] font-bold text-slate-700">C</kbd>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-3 border-t border-black/[0.12] flex items-center justify-between text-[11px] text-slate-500">
-                <span>Annuler une édition / Fermer</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-black/[0.15] font-mono font-bold text-slate-700">Échap</kbd>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+      <MeetingShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+        showFab={showFab}
+        canCreateQuestion={canCreateQuestion}
+        canCloseSprint={canCloseSprint}
+      />
     </div>
   );
 };

@@ -620,8 +620,14 @@ export const App: React.FC = () => {
       />
 
       <main
-        className={`flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 ${
-          isFixedViewportTab ? 'min-h-0 flex flex-col py-2.5 sm:py-3.5' : 'py-4 sm:py-6'
+        className={`flex-1 w-full mx-auto px-3 sm:px-6 lg:px-8 ${
+          activeTab === 'meeting' ? 'max-w-[1440px]' : 'max-w-7xl'
+        } ${
+          isFixedViewportTab
+            ? 'min-h-0 flex flex-col py-2.5 sm:py-3.5'
+            : activeTab === 'meeting'
+            ? 'py-2.5 sm:py-4'
+            : 'py-4 sm:py-6'
         }`}
       >
         <ToastContainer
