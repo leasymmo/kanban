@@ -346,7 +346,7 @@ export function useSprintTasks({
     );
     scheduleTaskMotionFeedback({
       taskId,
-      tone: patch.priority === 'high' ? 'warning' : 'accent',
+      tone: 'accent',
       mode: 'update',
       snapshot
     });
