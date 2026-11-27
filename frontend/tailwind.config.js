@@ -9,7 +9,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
       },
       screens: {
         'xs': '480px',
@@ -49,12 +49,24 @@ export default {
         'toast-in': 'toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'shake': 'shake 320ms ease-in-out both',
       },
-      backgroundImage: {
-        'gradient-to-r': 'linear-gradient(to right in oklch, var(--tw-gradient-stops))',
-        'gradient-to-br': 'linear-gradient(to bottom right in oklch, var(--tw-gradient-stops))',
-        'gradient-to-tr': 'linear-gradient(to top right in oklch, var(--tw-gradient-stops))',
+      boxShadow: {
+        'glass-sm': '0 2px 10px 0 rgba(0, 0, 0, 0.25), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 0 0 rgba(255, 255, 255, 0.12)',
+        'glass-hover': '0 12px 36px 0 rgba(56, 189, 248, 0.18), inset 0 1px 0 0 rgba(255, 255, 255, 0.2)',
+        'glass-modal': '0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.12)',
       },
       colors: {
+        glass: {
+          canvas: '#090D16',
+          panel: 'rgba(15, 23, 42, 0.65)',
+          panelBorder: 'rgba(255, 255, 255, 0.08)',
+          card: 'rgba(30, 41, 59, 0.55)',
+          cardHover: 'rgba(30, 41, 59, 0.75)',
+          cardBorder: 'rgba(255, 255, 255, 0.12)',
+          cardBorderHover: 'rgba(56, 189, 248, 0.45)',
+          input: 'rgba(15, 23, 42, 0.7)',
+          inputBorder: 'rgba(255, 255, 255, 0.14)',
+        },
         brand: {
           50: 'oklch(0.97 0.015 255)',
           100: 'oklch(0.93 0.035 255)',

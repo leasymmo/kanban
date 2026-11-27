@@ -32,30 +32,30 @@ const COLUMNS: ColumnConfig[] = [
   {
     id: 'todo',
     title: 'À faire',
-    icon: <ListTodo className="w-4 h-4 text-slate-600" strokeWidth={2.25} />,
-    headerColor: 'text-slate-800',
-    badgeBg: 'bg-slate-300/70 text-slate-800'
+    icon: <ListTodo className="w-4 h-4 text-slate-400" strokeWidth={2.25} />,
+    headerColor: 'text-slate-200',
+    badgeBg: 'bg-white/10 text-slate-300 border border-white/10'
   },
   {
     id: 'in_progress',
     title: 'En cours',
-    icon: <PlayCircle className="w-4 h-4 text-amber-600" strokeWidth={2.25} />,
-    headerColor: 'text-amber-900',
-    badgeBg: 'bg-amber-100 text-amber-900'
+    icon: <PlayCircle className="w-4 h-4 text-cyan-400" strokeWidth={2.25} />,
+    headerColor: 'text-cyan-300',
+    badgeBg: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
   },
   {
     id: 'blocked',
     title: 'Bloqué / Litige',
-    icon: <AlertOctagon className="w-4 h-4 text-red-600" strokeWidth={2.25} />,
-    headerColor: 'text-red-900',
-    badgeBg: 'bg-red-100 text-red-900'
+    icon: <AlertOctagon className="w-4 h-4 text-rose-400" strokeWidth={2.25} />,
+    headerColor: 'text-rose-300',
+    badgeBg: 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
   },
   {
     id: 'done',
     title: 'Terminé',
-    icon: <CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={2.25} />,
-    headerColor: 'text-emerald-900',
-    badgeBg: 'bg-emerald-100 text-emerald-900'
+    icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" strokeWidth={2.25} />,
+    headerColor: 'text-emerald-300',
+    badgeBg: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
   }
 ];
 
@@ -205,14 +205,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               onDragOver={(e) => handleDragOverContainer(e, col.id)}
               onDragLeave={handleDragLeaveContainer}
               onDrop={(e) => handleDropOnContainer(e, col.id)}
-              className={`flex flex-col bg-slate-200/70 rounded-2xl sm:rounded-[26px] p-3 sm:p-3.5 border min-h-[260px] md:min-h-[480px] w-[calc(100vw-2.25rem)] max-w-[360px] md:max-w-none md:w-auto shrink-0 snap-center md:shrink transition-all duration-200 ${
+              className={`flex flex-col glass-panel rounded-2xl sm:rounded-[26px] p-3 sm:p-3.5 border min-h-[260px] md:min-h-[480px] w-[calc(100vw-2.25rem)] max-w-[360px] md:max-w-none md:w-auto shrink-0 snap-center md:shrink transition-all duration-200 shadow-glass ${
                 isHovered
-                  ? 'border-brand-500 bg-brand-50/40 ring-2 ring-brand-400/30'
-                  : 'border-black/[0.12]'
+                  ? 'border-cyan-400 bg-cyan-950/30 ring-2 ring-cyan-400/40'
+                  : 'border-white/[0.08]'
               }`}
             >
               {/* Header Colonne */}
-              <div className="flex items-center justify-between pb-3 px-1 border-b border-black/[0.12] mb-3">
+              <div className="flex items-center justify-between pb-3 px-1 border-b border-white/[0.08] mb-3">
                 <h3 className="flex items-center gap-2">
                   {col.icon}
                   <span className={`font-bold text-xs sm:text-sm ${col.headerColor}`}>
@@ -228,7 +228,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     type="button"
                     onClick={() => onAddNewTask(col.id)}
                     aria-label={`Ajouter dans ${col.title}`}
-                    className="p-2 sm:p-1 text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
+                    className="p-2 sm:p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                     title={`Ajouter dans "${col.title}"`}
                   >
                     <Plus className="w-4 h-4" strokeWidth={1.75} />
@@ -265,19 +265,19 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     );
                   })
                 ) : (
-                  <p className={`py-10 px-3 text-center text-xs text-slate-700 font-medium select-none transition-colors ${
-                    isHovered ? 'border-2 border-dashed border-brand-500 rounded-xl bg-brand-50/40' : ''
+                  <p className={`py-10 px-3 text-center text-xs text-slate-400 font-medium select-none transition-colors ${
+                    isHovered ? 'border-2 border-dashed border-cyan-400 rounded-xl bg-cyan-500/10' : ''
                   }`}>
                     {isReadOnly || currentUser?.role === 'read' ? 'Aucune tâche' : 'Déposer une tâche ici'}
                   </p>
                 )}
               </div>
 
-              {/* Bouton rapide bas de colonne (Admin ou écriture sur Mes tâches) */}
+              {/* Bouton rapide bas de colonne */}
               {showQuickAddButtons && (
                 <button
                   onClick={() => onAddNewTask(col.id)}
-                  className="mt-2.5 w-full py-2 px-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="mt-2.5 w-full py-2 px-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/[0.08] flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-white/[0.06]"
                 >
                   <Plus className="w-3.5 h-3.5" strokeWidth={2} />
                   Ajouter une tâche

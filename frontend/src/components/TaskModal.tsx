@@ -674,11 +674,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         aria-labelledby="task-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-t-3xl sm:rounded-2xl max-w-xl w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
+        className="glass-panel bg-slate-900/90 backdrop-blur-2xl rounded-t-3xl sm:rounded-2xl max-w-xl w-full shadow-glass-modal border border-white/[0.12] overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
 
         {/* Header compact & adaptatif */}
-        <div className="bg-slate-900 border-slate-800 text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 border-b shrink-0">
+        <div className="bg-slate-950/70 border-white/[0.08] text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 border-b shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
             <h2 id="task-modal-title" className="text-sm sm:text-base font-bold truncate">
               {isEdit
@@ -691,10 +691,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <span
               className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                 showUnplannedBadge
-                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  ? 'bg-purple-500/20 text-purple-200 border border-purple-400/30'
                   : isEdit && task?.is_new
-                  ? 'bg-violet-500/20 text-violet-200 border border-violet-400/30'
-                  : 'bg-blue-500/20 text-blue-200 border border-blue-400/30'
+                  ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/30'
+                  : 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/30'
               }`}
             >
               {showUnplannedBadge ? (
@@ -720,7 +720,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Fermer la fenêtre"
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer shrink-0 transition-colors"
           >
             <X className="w-4 h-4" strokeWidth={1.75} />
           </button>
@@ -728,10 +728,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
         {/* Formulaire compact avec corps scrollable et footer fixe */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="p-4 sm:px-5 sm:py-4 space-y-3 overflow-y-auto flex-1">
+          <div className="p-4 sm:px-5 sm:py-4 space-y-3.5 overflow-y-auto flex-1">
 
             {error && (
-              <div className="px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs flex items-center gap-2">
+              <div className="px-3 py-2 bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" strokeWidth={1.75} />
                 <span>{error}</span>
               </div>
@@ -739,7 +739,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
             {/* Titre */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                 Intitulé {isMultiCreate ? 'des tâches' : 'de la tâche'} *
               </label>
               <input
@@ -748,13 +748,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 placeholder="Ex: Vérifier le détecteur de fumée..."
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                className="w-full px-3 py-2 border border-white/[0.12] bg-slate-900/60 rounded-xl text-sm text-white placeholder:text-slate-500 font-medium focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 focus:outline-none"
               />
             </div>
 
             {/* Notes */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                 Notes
               </label>
               <textarea
@@ -762,7 +762,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 placeholder="Précisions, suivi devis, contact..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                className="w-full px-3 py-2 border border-white/[0.12] bg-slate-900/60 rounded-xl text-sm text-white placeholder:text-slate-500 focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 focus:outline-none"
               />
             </div>
 

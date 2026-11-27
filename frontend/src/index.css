@@ -3,14 +3,32 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --glass-canvas: #090D16;
+    --glass-panel: rgba(15, 23, 42, 0.65);
+    --glass-card: rgba(30, 41, 59, 0.55);
+    --glass-border: rgba(255, 255, 255, 0.09);
+    --glass-border-hover: rgba(56, 189, 248, 0.4);
+    --glass-blur: 16px;
+  }
+
   html {
     scrollbar-gutter: stable;
     overflow-x: clip;
     -webkit-tap-highlight-color: transparent;
+    background-color: var(--glass-canvas);
+    color: #F8FAFC;
   }
 
   body {
-    caret-color: oklch(0.49 0.19 260);
+    background-color: var(--glass-canvas);
+    background-image: 
+      radial-gradient(circle at 10% 15%, rgba(56, 189, 248, 0.12) 0%, transparent 45%),
+      radial-gradient(circle at 90% 85%, rgba(99, 102, 241, 0.14) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.5) 0%, transparent 100%);
+    background-attachment: fixed;
+    color: #F8FAFC;
+    caret-color: #38BDF8;
     overflow-x: clip;
     overscroll-behavior-y: contain;
     text-size-adjust: 100%;
@@ -27,18 +45,18 @@
   }
 
   ::selection {
-    background-color: oklch(0.55 0.20 260 / 0.18);
-    color: #0f172a;
+    background-color: rgba(56, 189, 248, 0.3);
+    color: #FFFFFF;
   }
 
   input::placeholder,
   textarea::placeholder {
-    color: #64748b;
-    opacity: 1;
+    color: #94A3B8;
+    opacity: 0.8;
   }
 
   :where(button, a, input, select, textarea, [tabindex]):focus-visible {
-    outline: 2px solid oklch(0.55 0.20 260);
+    outline: 2px solid #38BDF8;
     outline-offset: 2px;
   }
 
@@ -52,6 +70,53 @@
   }
 }
 
+@layer components {
+  /* Composants utilitaires Frosted Glass Studio */
+  .glass-panel {
+    background-color: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-card {
+    background-color: rgba(30, 41, 59, 0.55);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .glass-card:hover {
+    background-color: rgba(30, 41, 59, 0.75);
+    border-color: rgba(56, 189, 248, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 36px 0 rgba(56, 189, 248, 0.16), inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  }
+
+  .glass-pill {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .glass-input {
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #F8FAFC;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .glass-input:focus {
+    border-color: #38BDF8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+    outline: none;
+  }
+}
+
 @layer utilities {
   .no-scrollbar {
     -ms-overflow-style: none;
@@ -62,28 +127,26 @@
   }
 }
 
-/* Scrollbars thématisées sur la palette neutre */
+/* Scrollbars thématisées Frosted Glass */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(15, 23, 42, 0.3);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.16);
   border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 23, 42, 0.32);
+  background: rgba(56, 189, 248, 0.4);
 }
 
 .kanban-board-bg {
-  background-color: #0c4a6e;
-  background-image: radial-gradient(#0369a1 1px, transparent 1px), radial-gradient(#0369a1 1px, #075985 1px);
-  background-size: 40px 40px;
-  background-position: 0 0, 20px 20px;
+  background-color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {

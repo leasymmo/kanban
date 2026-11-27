@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carré d'Hôtes Kanban — 5 Directions Artistiques UI/UX</title>
+  
+  <!-- Tailwind CDN pour le banc d'essai comparatif -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Polices Google Fonts sélectionnées pour les 5 directions -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,600&family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,500&family=Geist+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* Classes de thèmes isolées */
+    
+    /* 1. LINEAR OBSIDIAN */
+    .theme-linear {
+      --bg-canvas: #090A0F;
+      --bg-surface: #12141A;
+      --bg-card: #181B22;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(99, 102, 241, 0.4);
+      --text-main: #F3F4F6;
+      --text-muted: #94A3B8;
+      --accent-indigo: #6366F1;
+      --accent-cyan: #06B6D4;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+    .theme-linear .kanban-card {
+      background: linear-gradient(180deg, rgba(28, 31, 40, 0.8) 0%, rgba(20, 23, 30, 0.95) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .theme-linear .kanban-card:hover {
+      border-color: rgba(99, 102, 241, 0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px -4px rgba(99, 102, 241, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    /* 2. CONCIERGERIE ÉDITORIALE LUXE */
+    .theme-editorial {
+      --bg-canvas: #0C0F17;
+      --bg-surface: #151924;
+      --bg-card: #1C2232;
+      --border-subtle: rgba(212, 175, 55, 0.15);
+      --border-gold: #D4AF37;
+      --text-main: #FDFBF7;
+      --text-muted: #9BA3AF;
+      --accent-gold: #C5A059;
+      --accent-amber: #D97706;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .theme-editorial .font-serif-title {
+      font-family: 'Newsreader', 'Fraunces', Georgia, serif;
+    }
+    .theme-editorial .kanban-card {
+      background: #161B26;
+      border: 1px solid rgba(212, 175, 55, 0.18);
+      border-top: 2px solid rgba(212, 175, 55, 0.45);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+      border-radius: 4px;
+      transition: all 0.25s ease;
+    }
+    .theme-editorial .kanban-card:hover {
+      border-top-color: #D4AF37;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6), 0 0 16px rgba(212, 175, 55, 0.12);
+    }
+
+    /* 3. WARM NOTION ARCHITECT */
+    .theme-warm {
+      --bg-canvas: #FBF9F5;
+      --bg-surface: #F3EFEA;
+      --bg-card: #FFFFFF;
+      --border-subtle: #E6DFD5;
+      --text-main: #2D2926;
+      --text-muted: #736B63;
+      --accent-terracotta: #C85A32;
+      --accent-olive: #556B2F;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    }
+    .theme-warm .kanban-card {
+      background: #FFFFFF;
+      border: 1px solid #E6DFD5;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(45, 41, 38, 0.04), 0 3px 8px rgba(45, 41, 38, 0.02);
+      transition: all 0.18s ease;
+    }
+    .theme-warm .kanban-card:hover {
+      border-color: #D0C5B4;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(45, 41, 38, 0.08);
+    }
+
+    /* 4. SWISS INTERNATIONAL RIGOR */
+    .theme-swiss {
+      --bg-canvas: #F4F4F4;
+      --bg-surface: #EAEAEA;
+      --bg-card: #FFFFFF;
+      --border-subtle: #000000;
+      --text-main: #000000;
+      --text-muted: #555555;
+      --accent-red: #E60000;
+      --accent-blue: #0033FF;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+    .theme-swiss .font-swiss-mono {
+      font-family: 'Geist Mono', monospace;
+    }
+    .theme-swiss .kanban-card {
+      background: #FFFFFF;
+      border: 1.5px solid #000000;
+      border-radius: 0px;
+      box-shadow: 3px 3px 0px #000000;
+      transition: all 0.15s ease-out;
+    }
+    .theme-swiss .kanban-card:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 5px 5px 0px #000000;
+    }
+
+    /* 5. FROSTED GLASS PRIVÉ */
+    .theme-glass {
+      --bg-canvas: #090D16;
+      --bg-surface: rgba(15, 23, 42, 0.7);
+      --border-subtle: rgba(255, 255, 255, 0.12);
+      --text-main: #FFFFFF;
+      --text-muted: #94A3B8;
+      --accent-cyan: #38BDF8;
+      font-family: 'Inter', sans-serif;
+      background-image: radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.15) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.18) 0%, transparent 45%);
+    }
+    .theme-glass .kanban-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .theme-glass .kanban-card:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 36px 0 rgba(56, 189, 248, 0.15);
+    }
+
+    /* Dragging simulation */
+    .card-dragging {
+      opacity: 0.6;
+      transform: rotate(2deg) scale(0.98);
+    }
+  </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col font-sans select-none">
+
+  <!-- TOP BARRE D'EXPLORATION & SÉLECTION DES DIRECTIONS -->
+  <header class="bg-slate-900 border-b border-slate-800 shrink-0 px-4 py-3 z-50">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-amber-500 flex items-center justify-center font-black text-white text-lg shadow-lg">
+          C
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base font-bold text-white tracking-tight">Carré d'Hôtes — Studio de Refonte UI/UX</h1>
+            <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              Pro Max Review
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">Banc d'essai comparatif interactif avec les données réelles du sprint</p>
+        </div>
+      </div>
+
+      <!-- Sélecteur de direction artistique -->
+      <div class="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
+        <button onclick="setTheme('linear')" id="btn-linear" class="theme-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 bg-indigo-600 text-white shadow-sm">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+          1. Linear Obsidian
+        </button>
+        <button onclick="setTheme('editorial')" id="btn-editorial" class="theme-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-white">
+          <i data-lucide="crown" class="w-3.5 h-3.5"></i>
+          2. Éditorial Luxe
+        </button>
+        <button onclick="setTheme('warm')" id="btn-warm" class="theme-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-white">
+          <i data-lucide="coffee" class="w-3.5 h-3.5"></i>
+          3. Warm Notion
+        </button>
+        <button onclick="setTheme('swiss')" id="btn-swiss" class="theme-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-white">
+          <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+          4. Swiss Rigor
+        </button>
+        <button onclick="setTheme('glass')" id="btn-glass" class="theme-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-white">
+          <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+          5. Frosted Glass
+        </button>
+      </div>
+
+      <!-- Mode plein écran / Zoom -->
+      <div class="hidden lg:flex items-center gap-2 text-xs text-slate-400">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        Sprint Hebdo #14 actif
+      </div>
+    </div>
+  </header>
+
+  <!-- BANDEAU DESCRIPTIF DU THÈME ACTIF -->
+  <section id="theme-banner" class="bg-slate-900/60 border-b border-slate-800/80 px-4 py-2.5 text-xs text-slate-300 transition-colors">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-white text-sm" id="banner-title">1. Linear Obsidian (SaaS Dark Ultra-Crisp)</span>
+        <span class="text-slate-500">—</span>
+        <span id="banner-desc" class="text-slate-400">Esthétique high-end type Linear/Vercel. Noir profond, bordures fines sub-pixel 1px, accents indigo néon et clarté chirurgicale pour les réunions de sprint.</span>
+      </div>
+      <div class="flex items-center gap-3 shrink-0">
+        <span class="text-[11px] text-slate-400">Typo : <strong id="banner-typo" class="text-slate-200">Inter + Plus Jakarta Sans</strong></span>
+        <span class="text-slate-700">|</span>
+        <span class="text-[11px] text-slate-400">Densité : <strong class="text-slate-200">Élevée (Vue Sprint)</strong></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ZONE DE RENDU DU BOARD (AVEC CONTENEUR THÉMÉ DYNAMIQUE) -->
+  <main id="board-container" class="flex-1 overflow-x-auto overflow-y-hidden p-4 md:p-6 transition-all duration-300 theme-linear" style="background-color: var(--bg-canvas);">
+    
+    <!-- HEADER INTERNE KANBAN (NAVBAR APPLICATIVE DU THÈME) -->
+    <div class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-3.5 rounded-xl border" id="mock-navbar" style="background: var(--bg-surface); border-color: var(--border-subtle); color: var(--text-main);">
+      
+      <!-- Sprint & Propriétés -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold" style="border-color: var(--border-subtle); background: var(--bg-card);">
+          <i data-lucide="calendar" class="w-4 h-4 text-indigo-400"></i>
+          <span>Sprint #14 (24 nov - 01 déc)</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">Actif</span>
+        </div>
+
+        <!-- Filtre propriété -->
+        <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs" style="border-color: var(--border-subtle); background: var(--bg-card); color: var(--text-muted);">
+          <i data-lucide="building" class="w-3.5 h-3.5"></i>
+          <span>Toutes les conciergeries (8 logements)</span>
+          <i data-lucide="chevron-down" class="w-3 h-3 ml-1"></i>
+        </div>
+      </div>
+
+      <!-- Navigation d'onglets (Tâches / Questions / Réunion) -->
+      <div class="flex items-center gap-1 p-1 rounded-lg border text-xs" style="border-color: var(--border-subtle); background: var(--bg-card);">
+        <button class="px-3 py-1 rounded-md font-semibold text-white bg-indigo-600 flex items-center gap-1.5 shadow-sm" id="tab-tasks">
+          <i data-lucide="check-square" class="w-3.5 h-3.5"></i> Tâches (14)
+        </button>
+        <button class="px-3 py-1 rounded-md font-medium text-slate-400 hover:text-white flex items-center gap-1.5" id="tab-questions">
+          <i data-lucide="help-circle" class="w-3.5 h-3.5"></i> Questions (3)
+        </button>
+        <button class="px-3 py-1 rounded-md font-medium text-amber-400 hover:text-amber-300 flex items-center gap-1.5" id="tab-meeting">
+          <i data-lucide="users" class="w-3.5 h-3.5"></i> Mode Réunion
+        </button>
+      </div>
+
+      <!-- Actions Rapides -->
+      <div class="flex items-center gap-2">
+        <button class="px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 shadow-sm bg-indigo-600 text-white hover:bg-indigo-500 transition-colors" id="btn-new-task">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nouvelle Tâche
+        </button>
+        <div class="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-[11px] font-bold text-white border border-white/20">
+          CH
+        </div>
+      </div>
+    </div>
+
+    <!-- COLONNES KANBAN -->
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-5 h-[calc(100vh-210px)] pb-4">
+      
+      <!-- COLONNE 1 : À FAIRE -->
+      <div class="flex flex-col rounded-xl border p-3.5 h-full overflow-hidden" style="background: var(--bg-surface); border-color: var(--border-subtle);">
+        <!-- Entête Colonne -->
+        <div class="flex items-center justify-between pb-3 mb-3 border-b" style="border-color: var(--border-subtle);">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wider" style="color: var(--text-main);">À Faire</h2>
+            <span class="text-xs px-2 py-0.5 rounded-full font-bold" style="background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border-subtle);">2</span>
+          </div>
+          <button class="p-1 rounded hover:bg-white/10" style="color: var(--text-muted);"><i data-lucide="plus" class="w-4 h-4"></i></button>
+        </div>
+
+        <!-- Cartes -->
+        <div class="flex-1 overflow-y-auto space-y-3.5 pr-1">
+          
+          <!-- Carte 1 : Tâche standard avec logement et assigné -->
+          <div class="kanban-card p-4 cursor-pointer relative group">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <!-- Badge Conciergerie / Propriété -->
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md" style="background: rgba(15, 118, 110, 0.2); color: #2DD4BF; border: 1px solid rgba(45, 212, 191, 0.3);">
+                <i data-lucide="home" class="w-3 h-3"></i> Villa Belle-Vue
+              </span>
+              <!-- Priorité -->
+              <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                Moyenne
+              </span>
+            </div>
+
+            <!-- Titre -->
+            <h3 class="font-semibold text-sm leading-snug mb-2 font-serif-title" style="color: var(--text-main);">
+              Remplacement serrure connectée Nuki + test code voyageur
+            </h3>
+
+            <!-- Sous-tâches Checklist preview -->
+            <div class="mb-3 p-2 rounded-lg text-xs space-y-1.5" style="background: rgba(0, 0, 0, 0.15); border: 1px solid var(--border-subtle);">
+              <div class="flex items-center justify-between text-[11px]" style="color: var(--text-muted);">
+                <span>Sous-tâches</span>
+                <span class="font-bold text-indigo-400">1/3 terminé</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                <div class="bg-indigo-500 h-1.5 rounded-full" style="width: 33%"></div>
+              </div>
+              <div class="flex items-center gap-1.5 text-[11px] text-slate-400 pt-1">
+                <i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-400"></i>
+                <span class="line-through text-slate-500">Commander le pont Wi-Fi</span>
+              </div>
+              <div class="flex items-center gap-1.5 text-[11px]" style="color: var(--text-main);">
+                <i data-lucide="circle" class="w-3 h-3 text-slate-500"></i>
+                <span>Installer sur porte palière</span>
+              </div>
+            </div>
+
+            <!-- Footer Carte -->
+            <div class="flex items-center justify-between pt-2 border-t text-xs" style="border-color: var(--border-subtle); color: var(--text-muted);">
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
+                  AM
+                </div>
+                <span class="text-[11px]">Alexandre</span>
+              </div>
+              <div class="flex items-center gap-1 text-[11px] text-slate-400">
+                <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                <span>28 Nov</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Carte 2 : Non planifiée / Urgente -->
+          <div class="kanban-card p-4 cursor-pointer relative group">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md" style="background: rgba(147, 51, 234, 0.2); color: #C084FC; border: 1px solid rgba(192, 132, 252, 0.3);">
+                <i data-lucide="home" class="w-3 h-3"></i> Le Loft Haussmann
+              </span>
+              <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                <i data-lucide="zap" class="w-3 h-3"></i> Hors sprint
+              </span>
+            </div>
+
+            <h3 class="font-semibold text-sm leading-snug mb-2 font-serif-title" style="color: var(--text-main);">
+              Intervention fuite siphon douche suite signalement guest
+            </h3>
+
+            <div class="flex items-center justify-between pt-2 border-t text-xs" style="border-color: var(--border-subtle); color: var(--text-muted);">
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px] font-bold">
+                  SL
+                </div>
+                <span class="text-[11px]">Sarah</span>
+              </div>
+              <div class="flex items-center gap-1 text-[11px] text-rose-400 font-semibold">
+                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                <span>Aujourd'hui</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- COLONNE 2 : EN COURS -->
+      <div class="flex flex-col rounded-xl border p-3.5 h-full overflow-hidden" style="background: var(--bg-surface); border-color: var(--border-subtle);">
+        <!-- Entête Colonne -->
+        <div class="flex items-center justify-between pb-3 mb-3 border-b" style="border-color: var(--border-subtle);">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wider" style="color: var(--text-main);">En Cours</h2>
+            <span class="text-xs px-2 py-0.5 rounded-full font-bold" style="background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border-subtle);">2</span>
+          </div>
+          <button class="p-1 rounded hover:bg-white/10" style="color: var(--text-muted);"><i data-lucide="plus" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto space-y-3.5 pr-1">
+          
+          <!-- Carte En cours + Starred -->
+          <div class="kanban-card p-4 cursor-pointer relative group">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md" style="background: rgba(2, 132, 199, 0.2); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.3);">
+                <i data-lucide="home" class="w-3 h-3"></i> Le Penthouse Port
+              </span>
+              <div class="flex items-center gap-1.5">
+                <i data-lucide="star" class="w-3.5 h-3.5 fill-amber-400 text-amber-400"></i>
+                <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  Urgent
+                </span>
+              </div>
+            </div>
+
+            <h3 class="font-semibold text-sm leading-snug mb-2 font-serif-title" style="color: var(--text-main);">
+              Audit shooting photo Airbnb Plus & re-référencement OTA
+            </h3>
+            <p class="text-xs line-clamp-2 mb-3" style="color: var(--text-muted);">
+              Vérifier la luminosité des prises du salon et valider le descriptif bilingue avant mise en ligne vendredi.
+            </p>
+
+            <div class="flex items-center justify-between pt-2 border-t text-xs" style="border-color: var(--border-subtle); color: var(--text-muted);">
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">
+                  CH
+                </div>
+                <span class="text-[11px]">Christophe</span>
+              </div>
+              <div class="flex items-center gap-1.5 text-[11px] text-indigo-400 font-medium">
+                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+                <span>4 retours</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Carte En cours standard -->
+          <div class="kanban-card p-4 cursor-pointer relative group">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md" style="background: rgba(202, 138, 4, 0.2); color: #FACC15; border: 1px solid rgba(250, 204, 21, 0.3);">
+                <i data-lucide="home" class="w-3 h-3"></i> Studio République
+              </span>
+              <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-slate-500/20 text-slate-300 border border-slate-500/30">
+                Basse
+              </span>
+            </div>
+
+            <h3 class="font-semibold text-sm leading-snug mb-2 font-serif-title" style="color: var(--text-main);">
+              Réapprovisionnement consommables d'accueil (café bio, savons)
+            </h3>
+
+            <div class="flex items-center justify-between pt-2 border-t text-xs" style="border-color: var(--border-subtle); color: var(--text-muted);">
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-slate-700 text-white flex items-center justify-center text-[10px] font-bold">
+                  TL
+                </div>
+                <span class="text-[11px]">Thomas</span>
+              </div>
+              <div class="flex items-center gap-1 text-[11px] text-slate-400">
+                <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                <span>Demain</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- COLONNE 3 : TERMINÉ -->
+      <div class="flex flex-col rounded-xl border p-3.5 h-full overflow-hidden" style="background: var(--bg-surface); border-color: var(--border-subtle);">
+        <!-- Entête Colonne -->
+        <div class="flex items-center justify-between pb-3 mb-3 border-b" style="border-color: var(--border-subtle);">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wider" style="color: var(--text-main);">Terminé</h2>
+            <span class="text-xs px-2 py-0.5 rounded-full font-bold" style="background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border-subtle);">1</span>
+          </div>
+          <button class="p-1 rounded hover:bg-white/10" style="color: var(--text-muted);"><i data-lucide="plus" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto space-y-3.5 pr-1">
+          
+          <!-- Carte Terminée -->
+          <div class="kanban-card p-4 cursor-pointer relative group opacity-85">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md" style="background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(52, 211, 153, 0.3);">
+                <i data-lucide="check" class="w-3 h-3"></i> Fait le 25 Nov
+              </span>
+              <span class="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Clôturé
+              </span>
+            </div>
+
+            <h3 class="font-semibold text-sm leading-snug mb-2 line-through text-slate-400 font-serif-title">
+              Point comptable mensuel & reversement loyers propriétaires
+            </h3>
+
+            <div class="flex items-center justify-between pt-2 border-t text-xs" style="border-color: var(--border-subtle); color: var(--text-muted);">
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px] font-bold">
+                  AM
+                </div>
+                <span class="text-[11px]">Alexandre</span>
+              </div>
+              <div class="flex items-center gap-1 text-[11px] text-slate-500">
+                <span>Virements SEPA OK</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // Configuration détaillée des 5 univers graphiques
+    const themes = {
+      linear: {
+        id: 'linear',
+        className: 'theme-linear',
+        title: '1. Linear Obsidian (SaaS Dark Ultra-Crisp)',
+        desc: 'Inspiration Linear & Vercel. Noir profond (#090A0F), micro-bordures sub-pixel lumineuses (rgba 8%), accents indigo & cyan électriques, densité haute, typographie épurée sans empattement. Parfait pour la concentration en réunion.',
+        typo: 'Inter 400/500/600/700',
+        palette: ['#090A0F', '#12141A', '#181B22', '#6366F1', '#06B6D4', '#F3F4F6'],
+        bgCanvas: '#090A0F'
+      },
+      editorial: {
+        id: 'editorial',
+        className: 'theme-editorial',
+        title: '2. Conciergerie Éditoriale Privée (Luxury Hospitality)',
+        desc: 'Inspiration Hôtellerie 5 étoiles & Magazines d\'architecture. Fond bleu nuit profond (#0C0F17), liserés dorés champagne (#D4AF37), cartes aux angles stricts avec liseré d\'or en tête, typographie de titrage Newsreader / Fraunces.',
+        typo: 'Newsreader (Serif Luxe) + Plus Jakarta Sans',
+        palette: ['#0C0F17', '#151924', '#1C2232', '#D4AF37', '#C5A059', '#FDFBF7'],
+        bgCanvas: '#0C0F17'
+      },
+      warm: {
+        id: 'warm',
+        className: 'theme-warm',
+        title: '3. Warm Architect (Notion / Craft Humaniste)',
+        desc: 'Inspiration Notion & Linear Warm. Fond crème feutré (#FBF9F5), cartes blanches lumineuses aux ombres douces et organiques, accents terracotta chaleureux (#C85A32) et olive (#556B2F). Ambiance apaisante et humaine.',
+        typo: 'Plus Jakarta Sans (Humanist Geo)',
+        palette: ['#FBF9F5', '#F3EFEA', '#FFFFFF', '#C85A32', '#556B2F', '#2D2926'],
+        bgCanvas: '#FBF9F5'
+      },
+      swiss: {
+        id: 'swiss',
+        className: 'theme-swiss',
+        title: '4. Swiss International Rigor (Grille & Typographie Pure)',
+        desc: 'Inspiration Design Suisse / Bauhaus contemporain. Fond gris minéral clair (#F4F4F4), bordures noires 1.5px franches, ombres portées nettes et décalées (3px solid black), zéro rayon de courbure (0px), accent rouge international (#E60000).',
+        typo: 'Inter Display + Geist Mono',
+        palette: ['#F4F4F4', '#EAEAEA', '#FFFFFF', '#000000', '#E60000', '#0033FF'],
+        bgCanvas: '#F4F4F4'
+      },
+      glass: {
+        id: 'glass',
+        className: 'theme-glass',
+        title: '5. Frosted Glass Studio (Aéro Glass & Profondeur)',
+        desc: 'Inspiration VisionOS / Glassmorphism de nouvelle génération. Arrière-plan sombre avec halos lumineux en dégradé, panneaux en verre dépoli (backdrop-filter: blur(16px)), reflets subtils de lumière et bordures translucides.',
+        typo: 'Inter Sans + Dégradés lumineux',
+        palette: ['#090D16', 'rgba(255,255,255,0.08)', '#38BDF8', '#818CF8', '#FFFFFF'],
+        bgCanvas: '#090D16'
+      }
+    };
+
+    function setTheme(themeKey) {
+      const theme = themes[themeKey];
+      if (!theme) return;
+
+      const container = document.getElementById('board-container');
+      
+      // Retirer les anciennes classes de thèmes
+      container.className = `flex-1 overflow-x-auto overflow-y-hidden p-4 md:p-6 transition-all duration-300 ${theme.className}`;
+      container.style.backgroundColor = theme.bgCanvas;
+
+      // Mettre à jour le bandeau
+      document.getElementById('banner-title').textContent = theme.title;
+      document.getElementById('banner-desc').textContent = theme.desc;
+      document.getElementById('banner-typo').textContent = theme.typo;
+
+      // Boutons actifs
+      document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.remove('bg-indigo-600', 'text-white', 'shadow-sm');
+        btn.classList.add('text-slate-400');
+      });
+      const activeBtn = document.getElementById(`btn-${themeKey}`);
+      if (activeBtn) {
+        activeBtn.classList.remove('text-slate-400');
+        activeBtn.classList.add('bg-indigo-600', 'text-white', 'shadow-sm');
+      }
+
+      // Réinitialiser les icônes lucide
+      lucide.createIcons();
+    }
+
+    // Initialisation au chargement
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      setTheme('linear');
+    });
+  </script>
+</body>
+</html>
