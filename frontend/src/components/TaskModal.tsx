@@ -862,7 +862,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 </select>
               ) : (
                 <div className="p-2 rounded-2xl border border-black/[0.12] bg-slate-50/70 space-y-1.5">
-                  <div className="flex flex-wrap gap-1.5">
+                  <div
+                    className={
+                      properties.length > 4
+                        ? 'grid grid-rows-2 grid-flow-col auto-cols-max gap-1.5 overflow-x-auto overscroll-x-contain pb-1'
+                        : 'flex items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1'
+                    }
+                  >
                     {properties.map((p) => {
                       const isSelected = selectedPropertyIds.includes(p.id);
                       const isDeactivated = Number(p.is_active) === 0;
@@ -871,16 +877,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                           key={p.id}
                           type="button"
                           onClick={() => toggleSelectedProperty(p.id)}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                             isSelected
                               ? 'text-white border-transparent shadow-xs'
                               : 'bg-white text-slate-700 border-black/[0.12] hover:border-black/[0.22] hover:bg-slate-50'
                           }`}
                           style={isSelected ? { backgroundColor: p.color || '#3B82F6' } : {}}
                         >
-                          <Home className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-slate-400'}`} strokeWidth={2} />
+                          <Home className={`w-3 h-3 shrink-0 ${isSelected ? 'text-white' : 'text-slate-400'}`} strokeWidth={2} />
                           <span>{isDeactivated ? `${p.name} (désactivé)` : p.name}</span>
-                          {isSelected && <Check className="w-3 h-3" strokeWidth={2} />}
+                          {isSelected && <Check className="w-3 h-3 shrink-0" strokeWidth={2} />}
                         </button>
                       );
                     })}
@@ -918,7 +924,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-3.5 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl sm:rounded-lg cursor-pointer transition-colors"
+              className="hidden sm:inline-flex items-center justify-center px-3.5 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl sm:rounded-lg cursor-pointer transition-colors"
             >
               Annuler
             </button>
