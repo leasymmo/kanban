@@ -34,3 +34,6 @@ export {
 
 export { TaskMetaBar } from './TaskMetaBar';
 export type { TaskMetaBarProps } from './TaskMetaBar';
+
+export { PropertyMultiSelect } from './PropertyMultiSelect';
+export type { PropertyMultiSelectProps } from './PropertyMultiSelect';

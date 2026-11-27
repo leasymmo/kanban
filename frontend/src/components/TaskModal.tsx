@@ -3,10 +3,10 @@ import { Task, User, Property, TaskPriority, TaskStatus } from '../types';
 import { buildSubtaskTree, HierarchicalSubtask, SUBTASK_DEPTH_THEME } from '../utils/subtasks';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import { useModalDialog } from '../hooks/useModalDialog';
-import { TaskMetaBar } from './ui';
+import { PropertyMultiSelect, TaskMetaBar } from './ui';
 import {
-  X, Plus, Trash2, Home, CheckSquare, Square,
-  AlertCircle, CornerDownRight, Check,
+  X, Plus, Trash2, CheckSquare, Square,
+  AlertCircle, CornerDownRight,
   GripVertical, Zap, ClipboardList, Sparkles
 } from 'lucide-react';
 
@@ -327,13 +327,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     window.addEventListener('pointercancel', handlePointerUp);
   }, [reorderSiblingsInTree]);
 
-  if (!isOpen) return null;
-
-  const toggleSelectedProperty = (propId: number) => {
+  const toggleSelectedProperty = useCallback((propId: number) => {
     setSelectedPropertyIds(prev =>
       prev.includes(propId) ? prev.filter(id => id !== propId) : [...prev, propId]
     );
-  };
+  }, []);
+
+  if (!isOpen) return null;
 
   const updateTreeNodes = (
     nodes: ModalSubtaskNode[],
@@ -728,8 +728,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         </div>
 
         {/* Formulaire compact avec corps scrollable et footer fixe */}
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="p-4 sm:px-5 sm:py-4 space-y-3 overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 min-w-0">
+          <div className="p-4 sm:px-5 sm:py-4 space-y-3 overflow-y-auto overflow-x-hidden flex-1 min-w-0">
 
             {error && (
               <div className="px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs flex items-center gap-2">
@@ -812,7 +812,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </div>
 
             {/* Logement concerné (Multi-sélection en création / Simple en édition) */}
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   {isEdit ? 'Logement concerné' : 'Logement(s) concerné(s)'}
@@ -861,44 +861,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   ))}
                 </select>
               ) : (
-                <div className="p-2 rounded-2xl border border-black/[0.12] bg-slate-50/70 space-y-1.5">
-                  <div
-                    className={
-                      properties.length > 4
-                        ? 'grid grid-rows-2 grid-flow-col auto-cols-max gap-1.5 overflow-x-auto overscroll-x-contain pb-1'
-                        : 'flex items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1'
-                    }
-                  >
-                    {properties.map((p) => {
-                      const isSelected = selectedPropertyIds.includes(p.id);
-                      const isDeactivated = Number(p.is_active) === 0;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => toggleSelectedProperty(p.id)}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border whitespace-nowrap shrink-0 transition-all cursor-pointer ${
-                            isSelected
-                              ? 'text-white border-transparent shadow-xs'
-                              : 'bg-white text-slate-700 border-black/[0.12] hover:border-black/[0.22] hover:bg-slate-50'
-                          }`}
-                          style={isSelected ? { backgroundColor: p.color || '#3B82F6' } : {}}
-                        >
-                          <Home className={`w-3 h-3 shrink-0 ${isSelected ? 'text-white' : 'text-slate-400'}`} strokeWidth={2} />
-                          <span>{isDeactivated ? `${p.name} (désactivé)` : p.name}</span>
-                          {isSelected && <Check className="w-3 h-3 shrink-0" strokeWidth={2} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] text-slate-500 px-0.5">
-                    {selectedPropertyIds.length === 0
-                      ? 'Sans logement (1 tâche générale).'
-                      : selectedPropertyIds.length === 1
-                      ? '1 logement sélectionné.'
-                      : `${selectedPropertyIds.length} logements → ${selectedPropertyIds.length} tâches créées.`}
-                  </p>
-                </div>
+                <PropertyMultiSelect
+                  properties={properties}
+                  selectedIds={selectedPropertyIds}
+                  onToggle={toggleSelectedProperty}
+                />
               )}
             </div>
 
