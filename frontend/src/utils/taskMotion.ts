@@ -37,8 +37,20 @@ function isRectInViewport(rect: DOMRect): boolean {
   );
 }
 
-function isVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
-  if (!isRectInViewport(rect)) return false;
+function isRectFullyInViewport(rect: DOMRect): boolean {
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    rect.top >= 4 &&
+    rect.left >= 4 &&
+    rect.bottom <= window.innerHeight - 4 &&
+    rect.right <= window.innerWidth - 4
+  );
+}
+
+function checkScrollAncestors(el: HTMLElement, rect: DOMRect, requireFull: boolean): boolean {
+  const inViewport = requireFull ? isRectFullyInViewport(rect) : isRectInViewport(rect);
+  if (!inViewport) return false;
 
   let parent = el.parentElement;
   while (parent && parent !== document.body && parent !== document.documentElement) {
@@ -56,13 +68,26 @@ function isVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
 
     if (clipsY || clipsX) {
       const pRect = parent.getBoundingClientRect();
-      if (clipsY && (rect.bottom <= pRect.top || rect.top >= pRect.bottom)) return false;
-      if (clipsX && (rect.right <= pRect.left || rect.left >= pRect.right)) return false;
+      if (requireFull) {
+        if (clipsY && (rect.top < pRect.top + 4 || rect.bottom > pRect.bottom - 4)) return false;
+        if (clipsX && (rect.left < pRect.left + 4 || rect.right > pRect.right - 4)) return false;
+      } else {
+        if (clipsY && (rect.bottom <= pRect.top || rect.top >= pRect.bottom)) return false;
+        if (clipsX && (rect.right <= pRect.left || rect.left >= pRect.right)) return false;
+      }
     }
     parent = parent.parentElement;
   }
 
   return true;
+}
+
+export function isVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
+  return checkScrollAncestors(el, rect, false);
+}
+
+export function isFullyVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
+  return checkScrollAncestors(el, rect, true);
 }
 
 export interface TaskDepartureSnapshot {
@@ -185,6 +210,59 @@ function spawnDepartureGhost(snapshot: TaskDepartureSnapshot): void {
   }
 }
 
+function scrollAndPlayAppear(el: HTMLElement, tone: TaskHaloTone): void {
+  const rect = el.getBoundingClientRect();
+  if (isFullyVisibleInScrollAncestors(el, rect)) {
+    triggerEnterOnElement(el);
+    triggerHaloOnElement(el, tone);
+    return;
+  }
+
+  el.scrollIntoView({
+    behavior: getScrollBehavior(),
+    block: 'center',
+    inline: 'center',
+  });
+
+  if (prefersReducedMotion()) {
+    triggerHaloOnElement(el, tone);
+    return;
+  }
+
+  const start = performance.now();
+  let lastTop = rect.top;
+  let lastLeft = rect.left;
+  let settledFrames = 0;
+
+  const waitUntilSettled = () => {
+    if (!el.isConnected) return;
+    const elapsed = performance.now() - start;
+    const currentRect = el.getBoundingClientRect();
+    const moved =
+      Math.abs(currentRect.top - lastTop) > 0.75 ||
+      Math.abs(currentRect.left - lastLeft) > 0.75;
+
+    if (!moved && isFullyVisibleInScrollAncestors(el, currentRect)) {
+      settledFrames += 1;
+    } else {
+      settledFrames = 0;
+    }
+
+    lastTop = currentRect.top;
+    lastLeft = currentRect.left;
+
+    if ((settledFrames >= 2 && elapsed >= 90) || elapsed >= 520) {
+      triggerEnterOnElement(el);
+      triggerHaloOnElement(el, tone);
+      return;
+    }
+
+    window.requestAnimationFrame(waitUntilSettled);
+  };
+
+  window.requestAnimationFrame(waitUntilSettled);
+}
+
 export function scheduleTaskMotionFeedback(options: {
   taskId: number;
   tone?: TaskHaloTone;
@@ -203,8 +281,17 @@ export function scheduleTaskMotionFeedback(options: {
     scrollIfOffscreen = mode === 'appear',
   } = options;
 
-  window.requestAnimationFrame(() => {
+  let attempts = 0;
+  const runWhenReady = () => {
+    attempts += 1;
+    const hasOpenModal = !!document.querySelector('[role="dialog"], [role="alertdialog"]');
     const el = document.querySelector<HTMLElement>(`[data-task-card-id="${taskId}"]`);
+
+    // Attendre que la modale d'édition/création soit fermée (et que le DOM soit monté) avant de scroller
+    if ((hasOpenModal || (mode === 'appear' && !el)) && attempts < 15) {
+      window.requestAnimationFrame(runWhenReady);
+      return;
+    }
 
     if (!el || mode === 'disappear') {
       if (snapshot) {
@@ -220,45 +307,12 @@ export function scheduleTaskMotionFeedback(options: {
     }
 
     if (mode === 'appear') {
-      const rect = el.getBoundingClientRect();
-      if (scrollIfOffscreen && !isVisibleInScrollAncestors(el, rect)) {
-        el.scrollIntoView({
-          behavior: getScrollBehavior(),
-          block: 'nearest',
-          inline: 'nearest',
-        });
-
-        if (prefersReducedMotion()) {
-          triggerHaloOnElement(el, tone);
-          return;
-        }
-
-        const start = performance.now();
-        const waitUntilVisibleAndPlay = () => {
-          if (!el.isConnected) return;
-          const elapsed = performance.now() - start;
-          const currentRect = el.getBoundingClientRect();
-          if (isVisibleInScrollAncestors(el, currentRect) && elapsed >= 140) {
-            window.setTimeout(() => {
-              if (!el.isConnected) return;
-              triggerEnterOnElement(el);
-              triggerHaloOnElement(el, tone);
-            }, 70);
-            return;
-          }
-          if (elapsed >= 450) {
-            triggerEnterOnElement(el);
-            triggerHaloOnElement(el, tone);
-            return;
-          }
-          window.requestAnimationFrame(waitUntilVisibleAndPlay);
-        };
-        window.requestAnimationFrame(waitUntilVisibleAndPlay);
-        return;
+      if (scrollIfOffscreen) {
+        scrollAndPlayAppear(el, tone);
+      } else {
+        triggerEnterOnElement(el);
+        triggerHaloOnElement(el, tone);
       }
-
-      triggerEnterOnElement(el);
-      triggerHaloOnElement(el, tone);
       return;
     }
 
@@ -300,5 +354,7 @@ export function scheduleTaskMotionFeedback(options: {
     }
 
     triggerHaloOnElement(el, tone);
-  });
+  };
+
+  window.requestAnimationFrame(runWhenReady);
 }
