@@ -327,9 +327,9 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   ) => (
     <section
       key={groupKey}
-      className="bg-slate-200/70 rounded-[24px] p-2.5 sm:p-3 border border-black/[0.12] flex flex-col gap-2.5"
+      className="cdh-glass-column rounded-cdh-2xl p-3 sm:p-3.5 flex flex-col gap-2.5"
     >
-      <div className="flex items-center justify-between gap-2 pb-2 px-1 border-b border-black/[0.12]">
+      <div className="flex items-center justify-between gap-2 pb-2.5 px-1 border-b border-[var(--cdh-border-hairline)]">
         <div className="flex items-center gap-2 min-w-0">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0"
@@ -378,8 +378,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   return (
     <div className="space-y-4">
       <h2 className="sr-only">Questions pour la réunion</h2>
-      {/* Barre supérieure épurée : Filtres par associé + Ajout de question */}
-      <div className="bg-white p-2.5 sm:p-3.5 rounded-[22px] sm:rounded-[26px] border border-black/[0.12] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+      {/* Barre supérieure Liquid Glass : Filtres par associé + Ajout de question */}
+      <div className="cdh-glass-chrome p-3 sm:p-4 rounded-cdh-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div
           role="group"
           aria-label="Filtrer les questions par associé"

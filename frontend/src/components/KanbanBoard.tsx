@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Task, TaskStatus, User } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
-import { Plus, ListTodo, PlayCircle, AlertOctagon, CheckCircle2, EyeOff } from 'lucide-react';
+import { Plus, EyeOff } from 'lucide-react';
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -23,40 +23,14 @@ interface KanbanBoardProps {
 interface ColumnConfig {
   id: TaskStatus;
   title: string;
-  icon: React.ReactNode;
-  headerColor: string;
-  badgeBg: string;
+  dotColor: string;
 }
 
 const COLUMNS: ColumnConfig[] = [
-  {
-    id: 'todo',
-    title: 'À faire',
-    icon: <ListTodo className="w-4 h-4 text-slate-600" strokeWidth={2.25} />,
-    headerColor: 'text-slate-800',
-    badgeBg: 'bg-slate-300/70 text-slate-800'
-  },
-  {
-    id: 'in_progress',
-    title: 'En cours',
-    icon: <PlayCircle className="w-4 h-4 text-amber-600" strokeWidth={2.25} />,
-    headerColor: 'text-amber-900',
-    badgeBg: 'bg-amber-100 text-amber-900'
-  },
-  {
-    id: 'blocked',
-    title: 'Bloqué / Litige',
-    icon: <AlertOctagon className="w-4 h-4 text-red-600" strokeWidth={2.25} />,
-    headerColor: 'text-red-900',
-    badgeBg: 'bg-red-100 text-red-900'
-  },
-  {
-    id: 'done',
-    title: 'Terminé',
-    icon: <CheckCircle2 className="w-4 h-4 text-emerald-600" strokeWidth={2.25} />,
-    headerColor: 'text-emerald-900',
-    badgeBg: 'bg-emerald-100 text-emerald-900'
-  }
+  { id: 'todo', title: 'À faire', dotColor: 'var(--cdh-status-todo-dot)' },
+  { id: 'in_progress', title: 'En cours', dotColor: 'var(--cdh-status-progress-dot)' },
+  { id: 'blocked', title: 'Bloqué / Litige', dotColor: 'var(--cdh-status-blocked-dot)' },
+  { id: 'done', title: 'Terminé', dotColor: 'var(--cdh-status-done-dot)' }
 ];
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
@@ -151,10 +125,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   if (visibleColumns.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-black/[0.12] p-10 text-center text-slate-500">
-        <EyeOff className="w-8 h-8 mx-auto mb-2 text-slate-300" strokeWidth={1.75} />
-        <p className="text-sm font-semibold text-slate-700">Tous les statuts sont actuellement masqués.</p>
-        <p className="text-xs text-slate-500 mt-1">Sélectionnez au moins un statut dans le filtre « Statuts » ci-dessus.</p>
+      <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center">
+        <EyeOff className="w-8 h-8 mx-auto mb-2.5 text-[var(--cdh-text-tertiary)]" strokeWidth={1.75} />
+        <p className="text-sm font-semibold text-[var(--cdh-text-primary)]">
+          Tous les statuts sont actuellement masqués.
+        </p>
+        <p className="text-xs text-[var(--cdh-text-secondary)] mt-1">
+          Sélectionnez au moins un statut dans le filtre « Statuts » ci-dessus.
+        </p>
       </div>
     );
   }
@@ -172,27 +150,29 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               key={col.id}
               type="button"
               onClick={() => scrollToColumn(col.id)}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 min-h-[40px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] shrink-0 cursor-pointer tabular-nums ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 min-h-[38px] rounded-full text-xs font-semibold transition-all active:scale-[0.98] shrink-0 cursor-pointer tabular-nums ${
                 isActive
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-white text-slate-700 border border-black/[0.12]'
+                  ? 'bg-[var(--cdh-text-primary)] text-[var(--cdh-text-inverted)] shadow-sm'
+                  : 'cdh-glass-chrome text-[var(--cdh-text-primary)]'
               }`}
             >
-              {col.icon}
+              <span
+                aria-hidden="true"
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: col.dotColor }}
+              />
               <span>{col.title}</span>
-              <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-700'}`}>
-                {count}
-              </span>
+              <span className="text-[11px] opacity-75">{count}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Colonnes adaptatives selon les statuts visibles */}
+      {/* Colonnes Liquid Glass (Couche 1) */}
       <div
         ref={scrollContainerRef}
         onScroll={handleMobileCarouselScroll}
-        className={`flex md:grid ${getGridClass(visibleColumns.length)} gap-3 sm:gap-4 items-start overflow-x-auto no-scrollbar md:overflow-visible snap-x snap-mandatory pb-2 md:pb-4 -mx-3 px-3 sm:mx-0 sm:px-0`}
+        className={`flex md:grid ${getGridClass(visibleColumns.length)} gap-3.5 sm:gap-4 items-start overflow-x-auto no-scrollbar md:overflow-visible snap-x snap-mandatory pb-2 md:pb-4 -mx-3 px-3 sm:mx-0 sm:px-0`}
       >
         {visibleColumns.map((col) => {
           const colTasks = tasks.filter((t) => t.status === col.id);
@@ -205,20 +185,24 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               onDragOver={(e) => handleDragOverContainer(e, col.id)}
               onDragLeave={handleDragLeaveContainer}
               onDrop={(e) => handleDropOnContainer(e, col.id)}
-              className={`flex flex-col bg-slate-200/70 rounded-2xl sm:rounded-[26px] p-3 sm:p-3.5 border min-h-[260px] md:min-h-[480px] w-[calc(100vw-2.25rem)] max-w-[360px] md:max-w-none md:w-auto shrink-0 snap-center md:shrink transition-all duration-200 ${
+              className={`cdh-glass-column flex flex-col rounded-cdh-2xl p-3 sm:p-3.5 min-h-[260px] md:min-h-[480px] w-[calc(100vw-2.25rem)] max-w-[360px] md:max-w-none md:w-auto shrink-0 snap-center md:shrink transition-all duration-200 ${
                 isHovered
-                  ? 'border-brand-500 bg-brand-50/40 ring-2 ring-brand-400/30'
-                  : 'border-black/[0.12]'
+                  ? 'ring-2 ring-[var(--cdh-accent)]/50 border-[var(--cdh-accent)]'
+                  : ''
               }`}
             >
-              {/* Header Colonne */}
-              <div className="flex items-center justify-between pb-3 px-1 border-b border-black/[0.12] mb-3">
-                <h3 className="flex items-center gap-2">
-                  {col.icon}
-                  <span className={`font-bold text-xs sm:text-sm ${col.headerColor}`}>
+              {/* En-tête Colonne épuré */}
+              <div className="flex items-center justify-between px-1.5 pb-2.5 mb-2.5 border-b border-[var(--cdh-border-hairline)]">
+                <h3 className="flex items-center gap-2 min-w-0">
+                  <span
+                    aria-hidden="true"
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: col.dotColor }}
+                  />
+                  <span className="font-semibold text-[13px] tracking-[-0.01em] text-[var(--cdh-text-primary)] truncate">
                     {col.title}
                   </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold tabular-nums ${col.badgeBg}`}>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold tabular-nums bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)]">
                     {colTasks.length}
                   </span>
                 </h3>
@@ -228,16 +212,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     type="button"
                     onClick={() => onAddNewTask(col.id)}
                     aria-label={`Ajouter dans ${col.title}`}
-                    className="p-2 sm:p-1 text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] rounded-full transition-colors cursor-pointer"
                     title={`Ajouter dans "${col.title}"`}
                   >
-                    <Plus className="w-4 h-4" strokeWidth={1.75} />
+                    <Plus className="w-4 h-4" strokeWidth={2} />
                   </button>
                 )}
               </div>
 
               {/* Liste des cartes */}
-              <div className="space-y-2.5 flex-1 md:overflow-y-auto md:max-h-[calc(100dvh-270px)] md:pr-1">
+              <div className="space-y-2.5 flex-1 md:overflow-y-auto md:max-h-[calc(100dvh-260px)] md:pr-0.5">
                 {colTasks.length > 0 ? (
                   colTasks.map((task) => {
                     const indicator =
@@ -265,19 +249,24 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     );
                   })
                 ) : (
-                  <p className={`py-10 px-3 text-center text-xs text-slate-700 font-medium select-none transition-colors ${
-                    isHovered ? 'border-2 border-dashed border-brand-500 rounded-xl bg-brand-50/40' : ''
-                  }`}>
+                  <p
+                    className={`py-10 px-3 text-center text-xs text-[var(--cdh-text-tertiary)] font-medium select-none transition-colors rounded-cdh-lg ${
+                      isHovered
+                        ? 'border-2 border-dashed border-[var(--cdh-accent)] bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
+                        : 'border border-dashed border-[var(--cdh-border-hairline)]'
+                    }`}
+                  >
                     {isReadOnly || currentUser?.role === 'read' ? 'Aucune tâche' : 'Déposer une tâche ici'}
                   </p>
                 )}
               </div>
 
-              {/* Bouton rapide bas de colonne (Admin ou écriture sur Mes tâches) */}
+              {/* Bouton rapide bas de colonne */}
               {showQuickAddButtons && (
                 <button
+                  type="button"
                   onClick={() => onAddNewTask(col.id)}
-                  className="mt-2.5 w-full py-2 px-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="mt-2.5 w-full py-2 px-2 rounded-cdh-md text-xs font-medium text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" strokeWidth={2} />
                   Ajouter une tâche

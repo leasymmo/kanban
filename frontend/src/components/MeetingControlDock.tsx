@@ -175,7 +175,7 @@ export const MeetingControlDock: React.FC<MeetingControlDockProps> = ({
   return (
     <nav
       aria-label="Barre de contrôle rapide de la réunion"
-      className="fixed z-40 bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 sm:left-6 max-w-[calc(100vw-1.5rem)] lg:bottom-auto lg:top-1/2 lg:-translate-y-1/2 lg:left-3 min-[1440px]:left-[max(1rem,calc(50%-43rem))] lg:max-w-none bg-white/95 backdrop-blur-md border border-black/[0.12] shadow-lg shadow-slate-900/10 rounded-full p-1.5 flex flex-row lg:flex-col items-center gap-1.5 overflow-x-auto lg:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="fixed z-40 bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 sm:left-6 max-w-[calc(100vw-1.5rem)] lg:bottom-auto lg:top-1/2 lg:-translate-y-1/2 lg:left-3 min-[1440px]:left-[max(1rem,calc(50%-43rem))] lg:max-w-none cdh-glass-overlay rounded-full p-1.5 flex flex-row lg:flex-col items-center gap-1.5 overflow-x-auto lg:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {meetingStep === 'unassigned' && users.length > 0 && (
         <>

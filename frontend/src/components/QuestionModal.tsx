@@ -109,7 +109,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
       onClick={() => !isSubmitting && onClose()}
     >
       <div
@@ -119,7 +119,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
         aria-labelledby="question-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full shadow-2xl border border-black/[0.12] overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
+        className="bg-white/95 backdrop-blur-2xl rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full shadow-cdh-overlay border border-white/60 overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
 
         {/* Header compact */}

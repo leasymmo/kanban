@@ -34,8 +34,8 @@ export function MultiFilterDropdown<T extends string | number>({
   onToggle,
   onSelectAll,
   onSelectNone,
-  activeButtonClass = 'bg-brand-50 border-brand-300 text-brand-800',
-  activeCheckClass = 'bg-brand-600 border-brand-600 text-white',
+  activeButtonClass = 'bg-[var(--cdh-accent-soft)] border-[var(--cdh-accent)]/30 text-[var(--cdh-accent)]',
+  activeCheckClass = 'bg-[var(--cdh-accent)] border-[var(--cdh-accent)] text-white',
   align = 'left',
   title
 }: MultiFilterDropdownProps<T>) {
@@ -72,10 +72,10 @@ export function MultiFilterDropdown<T extends string | number>({
         onClick={() => setIsOpen(prev => !prev)}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
-        className={`flex items-center gap-1.5 text-xs border rounded-xl px-2.5 py-1.5 min-h-[40px] sm:min-h-[36px] font-semibold transition-all active:scale-[0.98] cursor-pointer ${
+        className={`flex items-center gap-1.5 text-[12px] border rounded-cdh-md px-2.5 py-1.5 min-h-[38px] sm:min-h-[34px] font-semibold transition-all active:scale-[0.98] cursor-pointer ${
           isFiltered
             ? activeButtonClass
-            : 'bg-slate-50 border-black/[0.12] text-slate-700 hover:bg-slate-100'
+            : 'bg-[var(--cdh-surface-control)] border-[var(--cdh-border-hairline)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
         }`}
         title={title}
       >
@@ -90,25 +90,25 @@ export function MultiFilterDropdown<T extends string | number>({
           aria-label={headerTitle}
           className={`absolute ${
             align === 'right' ? 'right-0' : 'left-0 sm:left-auto sm:right-0'
-          } mt-1.5 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-black/[0.12] py-2 z-40 animate-fade-in`}
+          } mt-1.5 w-64 max-w-[calc(100vw-2rem)] cdh-glass-overlay rounded-cdh-xl py-2 z-40 animate-fade-in`}
         >
-          <div className="px-3 pb-2 mb-1.5 border-b border-black/[0.12] flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <div className="px-3 pb-2 mb-1.5 border-b border-[var(--cdh-border-hairline)] flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cdh-text-tertiary)]">
               {headerTitle}
             </span>
             <div className="flex items-center gap-2 text-[11px] font-semibold">
               <button
                 type="button"
                 onClick={onSelectAll}
-                className="text-brand-600 hover:text-brand-800 cursor-pointer"
+                className="text-[var(--cdh-accent)] hover:underline cursor-pointer"
               >
                 Tous
               </button>
-              <span className="text-slate-300">|</span>
+              <span className="text-[var(--cdh-border-subtle)]">|</span>
               <button
                 type="button"
                 onClick={onSelectNone}
-                className="text-slate-500 hover:text-slate-700 cursor-pointer"
+                className="text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] cursor-pointer"
               >
                 Aucun
               </button>
@@ -125,10 +125,10 @@ export function MultiFilterDropdown<T extends string | number>({
                   role="option"
                   aria-selected={isVisible}
                   onClick={() => onToggle(opt.id)}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 sm:py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-2.5 py-2 sm:py-1.5 rounded-cdh-sm text-xs transition-colors cursor-pointer ${
                     isVisible
-                      ? 'bg-slate-50/80 text-slate-800 font-semibold'
-                      : 'text-slate-400 hover:bg-slate-50'
+                      ? 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] font-semibold'
+                      : 'text-[var(--cdh-text-tertiary)] hover:bg-[var(--cdh-surface-control)]'
                   }`}
                 >
                   <span className="flex items-center gap-2 truncate">

@@ -32,6 +32,22 @@ export const App: React.FC = () => {
 
   // Onglets
   const [activeTab, setActiveTab] = useState<'tasks' | 'questions' | 'meeting'>('tasks');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      return window.localStorage.getItem('cdh-theme') === 'dark' ? 'dark' : 'light';
+    }
+    return 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    window.localStorage.setItem('cdh-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
 
   // Modales
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -538,9 +554,13 @@ export const App: React.FC = () => {
 
   if (isLoading && !currentUser) {
     return (
-      <div className="min-h-dvh bg-slate-900 flex flex-col items-center justify-center text-white p-4">
-        <div className="w-12 h-12 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin mb-4" />
-        <p className="text-sm font-semibold text-slate-300">Vérification de la session Carré d'Hôtes...</p>
+      <div className="min-h-dvh cdh-canvas-bg flex flex-col items-center justify-center p-4">
+        <div className="cdh-glass-overlay rounded-cdh-2xl px-8 py-7 flex flex-col items-center">
+          <div className="w-10 h-10 border-[3px] border-[var(--cdh-accent-soft)] border-t-[var(--cdh-accent)] rounded-full animate-spin mb-3.5" />
+          <p className="text-[13.5px] font-semibold text-[var(--cdh-text-primary)]">
+            Vérification de la session Carré d'Hôtes…
+          </p>
+        </div>
       </div>
     );
   }
@@ -563,7 +583,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-dvh bg-slate-100 flex flex-col">
+    <div className="min-h-dvh cdh-canvas-bg text-[var(--cdh-text-primary)] flex flex-col">
       <Navbar
         currentUser={currentUser}
         sprints={sprints}
@@ -574,6 +594,8 @@ export const App: React.FC = () => {
         onChangeTab={handleChangeTab}
         onLogout={handleLogout}
         onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
@@ -584,17 +606,17 @@ export const App: React.FC = () => {
         />
 
         {apiError && (
-          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-center justify-between shadow-xs">
+          <div className="mb-6 p-4 rounded-cdh-xl cdh-glass-overlay border-[var(--cdh-danger-accent)]/30 text-[var(--cdh-danger)] flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" strokeWidth={2} />
+              <AlertCircle className="w-5 h-5 shrink-0" strokeWidth={2} />
               <div>
                 <p className="font-semibold text-sm">Erreur de communication avec l'API :</p>
-                <p className="text-xs text-red-700">{apiError}</p>
+                <p className="text-xs opacity-90">{apiError}</p>
               </div>
             </div>
             <button
               onClick={() => loadInitialData()}
-              className="px-3 py-1.5 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 text-xs font-semibold bg-[var(--cdh-danger-accent)] hover:opacity-90 text-white rounded-cdh-sm transition-all cursor-pointer"
             >
               Réessayer
             </button>
@@ -602,9 +624,11 @@ export const App: React.FC = () => {
         )}
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400">
-            <RefreshCw className="w-8 h-8 animate-spin text-brand-600 mb-3" strokeWidth={1.75} />
-            <p className="text-sm font-medium text-slate-600">Chargement du tableau de bord Carré d'Hôtes...</p>
+          <div className="flex flex-col items-center justify-center py-24">
+            <RefreshCw className="w-8 h-8 animate-spin text-[var(--cdh-accent)] mb-3" strokeWidth={1.75} />
+            <p className="text-sm font-medium text-[var(--cdh-text-secondary)]">
+              Chargement du tableau de bord Carré d'Hôtes…
+            </p>
           </div>
         ) : (
           <>

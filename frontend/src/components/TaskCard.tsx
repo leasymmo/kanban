@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Task, TaskStatus } from '../types';
 import { BlurredIconSwap } from './BlurredIconSwap';
-import { ensureWhiteTextContrast, hexToSoftTint } from '../utils/color';
+import { Avatar, Badge, ProgressBar } from './ui';
+import { hexToSoftTint } from '../utils/color';
 import {
   buildSubtaskTree,
   calculateSubtaskStats,
@@ -66,9 +67,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case 'high':
-        return <span className="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-red-100 text-red-800">Urgent</span>;
+        return <Badge variant="danger" pill>Urgent</Badge>;
       case 'low':
-        return <span className="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">Basse</span>;
+        return <Badge variant="neutral" pill>Basse</Badge>;
       default:
         return null;
     }
@@ -183,7 +184,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   return (
     <div className="relative">
       {dropIndicator === 'before' && (
-        <div className="h-1 bg-brand-500 rounded-full mb-1.5 shadow-xs animate-pulse" />
+        <div className="h-0.5 bg-[var(--cdh-accent)] rounded-full mb-1.5 shadow-sm animate-pulse" />
       )}
       <div
         draggable={canModify && !!onDragStart}
@@ -191,16 +192,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         onDragEnd={() => onDragEnd && onDragEnd()}
         onDragOver={(e) => onDragOverCard && onDragOverCard(e, task)}
         onDrop={(e) => onDropOnCard && onDropOnCard(e, task)}
-        className={`bg-white rounded-xl p-3.5 shadow-xs border transition-all duration-150 group hover:shadow-md ${
+        className={`cdh-surface-card rounded-cdh-lg p-3.5 group hover:-translate-y-0.5 ${
           canModify && onDragStart ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
         } ${
           isDragging ? 'opacity-45 scale-[0.98]' : ''
         } ${
           task.is_starred
-            ? 'border-amber-300 ring-1 ring-amber-300/70 bg-amber-50/15'
+            ? 'ring-1 ring-[var(--cdh-warning-accent)]/60 border-[var(--cdh-warning-accent)]/50'
             : task.status === 'blocked'
-            ? 'border-red-300 bg-red-50/20'
-            : 'border-black/[0.12] hover:border-black/[0.22]'
+            ? 'border-[var(--cdh-danger-accent)]/35'
+            : ''
         }`}
       >
       {/* Top Badges (Logement & Priorité) */}
@@ -208,16 +209,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         <div className="flex items-center gap-1.5 flex-wrap">
           {task.property_name && (
             <span
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md text-slate-900 border"
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-cdh-xs text-[var(--cdh-text-primary)]"
               style={{
-                backgroundColor: hexToSoftTint(task.property_color, 0.12),
-                borderColor: hexToSoftTint(task.property_color, 0.30)
+                backgroundColor: hexToSoftTint(task.property_color, 0.14),
               }}
             >
               <span
                 aria-hidden="true"
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: task.property_color || '#2563EB' }}
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: task.property_color || '#007AFF' }}
               />
               {task.property_name}
             </span>
@@ -226,22 +226,22 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           {getPriorityBadge(task.priority)}
 
           {task.is_new ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 text-violet-900 border border-violet-200/80">
-              <Sparkles className="w-3 h-3 text-violet-700" strokeWidth={2} />
+            <Badge variant="accent">
+              <Sparkles className="w-3 h-3" strokeWidth={2} />
               Nouveau
-            </span>
+            </Badge>
           ) : null}
 
           {task.is_unplanned ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900">
-              <Zap className="w-3 h-3 text-emerald-700" strokeWidth={2} />
+            <Badge variant="success">
+              <Zap className="w-3 h-3" strokeWidth={2} />
               Complémentaire
-            </span>
+            </Badge>
           ) : null}
         </div>
 
         {/* Actions (Étoile / Modifier / Supprimer) */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
           {(canStar || !!task.is_starred) && (
             <button
               type="button"
@@ -257,12 +257,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   ? (canStar ? 'Retirer la mise en avant' : 'Mise en avant pour la réunion')
                   : 'Mettre en avant pour la réunion'
               }
-              className={`min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 rounded-lg sm:rounded-md transition-all active:scale-95 ${
+              className={`min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 rounded-cdh-sm transition-all active:scale-95 ${
                 task.is_starred
-                  ? `text-amber-500 bg-amber-50 shadow-2xs ${canStar ? 'hover:text-amber-600 cursor-pointer' : 'cursor-default'}`
+                  ? `text-[var(--cdh-warning-accent)] bg-[var(--cdh-warning-soft)] ${canStar ? 'cursor-pointer' : 'cursor-default'}`
                   : canStar
-                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 text-slate-400 hover:text-amber-500 hover:bg-slate-100 cursor-pointer'
-                  : 'text-slate-200 cursor-not-allowed hidden'
+                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-warning-accent)] hover:bg-[var(--cdh-surface-control)] cursor-pointer'
+                  : 'hidden'
               }`}
               title={
                 task.is_starred
@@ -272,22 +272,21 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             >
               <Star
                 className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${
-                  task.is_starred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'
+                  task.is_starred ? 'fill-current' : ''
                 }`}
                 strokeWidth={1.75}
               />
             </button>
           )}
 
-          {/* Modifier & Supprimer */}
           {(canModify || canDelete) && (
-            <div className="flex items-center gap-0.5 sm:gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:transition-opacity">
+            <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:transition-opacity">
               {canModify && (
                 <button
                   type="button"
                   onClick={() => onEdit(task)}
                   aria-label="Modifier la tâche"
-                  className="min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-slate-400 hover:text-brand-600 rounded-lg sm:rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
+                  className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-accent)] rounded-cdh-sm hover:bg-[var(--cdh-surface-control)] active:scale-95 cursor-pointer transition-colors"
                   title="Modifier la tâche"
                 >
                   <Edit3 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
@@ -299,7 +298,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   type="button"
                   onClick={() => onDelete(task.id)}
                   aria-label="Supprimer la tâche"
-                  className="min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-slate-400 hover:text-red-600 rounded-lg sm:rounded-md hover:bg-slate-100 active:scale-95 cursor-pointer transition-colors"
+                  className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-danger)] rounded-cdh-sm hover:bg-[var(--cdh-danger-soft)] active:scale-95 cursor-pointer transition-colors"
                   title="Supprimer la tâche"
                 >
                   <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
@@ -313,10 +312,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       {/* Titre de la tâche */}
       <h4
         onClick={() => canModify && onEdit(task)}
-        className={`font-semibold text-sm text-slate-900 leading-snug [text-wrap:balance] transition-colors break-words ${
-          canModify ? 'hover:text-brand-600 cursor-pointer' : ''
+        className={`font-semibold text-[13.5px] text-[var(--cdh-text-primary)] leading-snug [text-wrap:balance] transition-colors break-words ${
+          canModify ? 'hover:text-[var(--cdh-accent)] cursor-pointer' : ''
         } ${
-          task.status === 'done' ? 'line-through text-slate-500' : ''
+          task.status === 'done' ? 'line-through text-[var(--cdh-text-tertiary)]' : ''
         }`}
       >
         {task.title}
@@ -324,25 +323,25 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Description / Remarques */}
       {task.description && (
-        <p className="mt-2 pt-2 border-t border-black/[0.08] text-xs text-slate-700 leading-relaxed font-normal break-words">
-          <span className="text-brand-600 font-bold mr-1">→</span>
+        <p className="mt-2 pt-2 border-t border-[var(--cdh-border-hairline)] text-[12px] text-[var(--cdh-text-secondary)] leading-relaxed break-words">
+          <span className="text-[var(--cdh-accent)] font-semibold mr-1">→</span>
           {task.description}
         </p>
       )}
 
       {/* Sous-tâches Checklist hiérarchique */}
       {totalSubtasks > 0 && (
-        <div className="mt-3 pt-2.5 border-t border-black/[0.10]">
+        <div className="mt-3 pt-2.5 border-t border-[var(--cdh-border-hairline)]">
           <button
             onClick={() => setShowSubtasks(!showSubtasks)}
-            className="w-full flex items-center justify-between text-xs text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
+            className="w-full flex items-center justify-between text-xs text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] font-medium cursor-pointer"
           >
             <span className="flex items-center gap-1.5 tabular-nums">
-              <CheckSquare className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />
+              <CheckSquare className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)]" strokeWidth={1.75} />
               Sous-tâches ({doneSubtasksCount}/{totalSubtasks})
             </span>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-600 font-semibold tabular-nums">{progressPercent}%</span>
+              <span className="text-[11px] font-semibold tabular-nums">{progressPercent}%</span>
               <BlurredIconSwap
                 active={showSubtasks}
                 activeIcon={<ChevronUp className="w-3.5 h-3.5" strokeWidth={1.75} />}
@@ -351,17 +350,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             </div>
           </button>
 
-          {/* Barre de progression */}
-          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
-            <div
-              className={`h-full transition-all duration-300 ${
-                progressPercent === 100 ? 'bg-emerald-500' : 'bg-brand-500'
-              }`}
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
+          <ProgressBar value={progressPercent} label="Sous-tâches" className="mt-1.5" />
 
-          {/* Arborescence des sous-tâches jusqu'à 4 niveaux */}
           {showSubtasks && (
             <div className="mt-2.5 space-y-1.5 max-h-56 overflow-y-auto pr-1">
               {hierarchicalSubtasks.map(renderSubtaskNode)}
@@ -370,47 +360,42 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
       )}
 
-      {/* Footer : Assigné, Échéance & Changement rapide de statut (Touch/Mobile & Desktop) */}
-      <div className="mt-3 pt-2.5 border-t border-black/[0.12] flex items-center justify-between gap-2 flex-wrap text-xs">
-        
-        {/* Responsable */}
+      {/* Footer : Assigné, Échéance & Changement rapide de statut */}
+      <div className="mt-3 pt-2.5 border-t border-[var(--cdh-border-hairline)] flex items-center justify-between gap-2 flex-wrap text-xs">
         {task.assigned_to ? (
           <div className="flex items-center gap-1.5 min-w-0">
-            <div
-              className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[11px] leading-none text-white shadow-xs shrink-0"
-              style={{ backgroundColor: ensureWhiteTextContrast(task.assigned_to_color, '#4B5563') }}
-              title={`Assignée à ${task.assigned_to_name}`}
-            >
-              {task.assigned_to_initials || '?'}
-            </div>
-            <span className="text-slate-700 font-medium text-xs truncate max-w-[100px] sm:max-w-[120px]">
+            <Avatar
+              initials={task.assigned_to_initials || '?'}
+              name={`Assignée à ${task.assigned_to_name}`}
+              color={task.assigned_to_color || '#4B5563'}
+              size="xs"
+            />
+            <span className="text-[var(--cdh-text-secondary)] font-medium text-[12px] truncate max-w-[100px] sm:max-w-[120px]">
               {task.assigned_to_name}
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-1 text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full font-medium text-[11px] border border-amber-200">
-            <UserPlus className="w-3 h-3 text-amber-700" strokeWidth={1.75} />
-            <span>À attribuer</span>
-          </div>
+          <Badge variant="warning" pill>
+            <UserPlus className="w-3 h-3" strokeWidth={1.75} />
+            À attribuer
+          </Badge>
         )}
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Échéance */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {parsedDueDate && (
             <div
               className={`flex items-center gap-1 text-[11px] tabular-nums ${
                 overdue
-                  ? 'text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded font-semibold'
-                  : 'text-slate-600'
+                  ? 'text-[var(--cdh-danger)] bg-[var(--cdh-danger-soft)] px-1.5 py-0.5 rounded-cdh-xs font-semibold'
+                  : 'text-[var(--cdh-text-tertiary)]'
               }`}
               title={overdue ? 'Échéance dépassée' : 'Date d’échéance'}
             >
-              <Clock className={`w-3 h-3 ${overdue ? 'text-red-600' : 'text-slate-500'}`} strokeWidth={overdue ? 2 : 1.75} />
+              <Clock className="w-3 h-3" strokeWidth={overdue ? 2 : 1.75} />
               <span>{parsedDueDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
             </div>
           )}
 
-          {/* Sélecteur de statut rapide (essentiel sur mobile tactile sans drag-and-drop) */}
           {onUpdateStatus && canModify && (
             <select
               value={task.status}
@@ -420,21 +405,20 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 e.stopPropagation();
                 onUpdateStatus(task.id, e.target.value as TaskStatus);
               }}
-              className="text-xs sm:text-[11px] font-semibold border border-black/[0.15] rounded-lg sm:rounded-md px-2 py-1 sm:px-1.5 sm:py-0.5 min-h-[32px] sm:min-h-0 bg-slate-50 hover:bg-white text-slate-800 cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="text-[11px] font-semibold border border-[var(--cdh-border-hairline)] rounded-cdh-sm px-2 py-1 sm:py-0.5 min-h-[32px] sm:min-h-0 bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--cdh-accent-soft)]"
               title="Changer rapidement de statut"
             >
-              <option value="todo">⏳ À faire</option>
-              <option value="in_progress">🚧 En cours</option>
-              <option value="blocked">❌ Bloqué</option>
-              <option value="done">✅ Fait</option>
+              <option value="todo">À faire</option>
+              <option value="in_progress">En cours</option>
+              <option value="blocked">Bloqué</option>
+              <option value="done">Terminé</option>
             </select>
           )}
         </div>
-
       </div>
       </div>
       {dropIndicator === 'after' && (
-        <div className="h-1 bg-brand-500 rounded-full mt-1.5 shadow-xs animate-pulse" />
+        <div className="h-0.5 bg-[var(--cdh-accent)] rounded-full mt-1.5 shadow-sm animate-pulse" />
       )}
     </div>
   );

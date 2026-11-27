@@ -2,10 +2,11 @@ import React from 'react';
 import { User, Property, Task, TaskStatus } from '../types';
 import { AssigneeFilter, TASK_STATUS_OPTIONS } from '../hooks/useTaskFilters';
 import { MultiFilterDropdown, MultiFilterOption } from './MultiFilterDropdown';
+import { Avatar, Button, SearchInput } from './ui';
 import { ensureWhiteTextContrast } from '../utils/color';
 import {
   Plus, LayoutGrid, Home, UserCheck,
-  Search, X, SlidersHorizontal, RotateCcw
+  SlidersHorizontal, RotateCcw
 } from 'lucide-react';
 
 interface TasksToolbarProps {
@@ -59,7 +60,7 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
     ...properties.map(p => ({
       id: p.id,
       label: Number(p.is_active) === 0 ? `${p.name} (désactivé)` : p.name,
-      dotColor: p.color || '#3B82F6'
+      dotColor: p.color || '#007AFF'
     })),
     {
       id: 0,
@@ -75,23 +76,19 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
   }));
 
   return (
-    <div className="bg-white p-3 sm:p-4 rounded-2xl sm:rounded-[28px] border border-black/[0.12] shadow-xs space-y-3">
-      {/* Ligne 1 : Filtres par associé / pool (scroll horizontal sur mobile, wrap sur desktop) */}
+    <div className="cdh-glass-chrome p-3 sm:p-4 rounded-cdh-xl space-y-3">
+      {/* Ligne 1 : Filtres par associé / pool */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-nowrap sm:flex-wrap overflow-x-auto no-scrollbar sm:overflow-visible pb-0.5 sm:pb-0 flex-1 min-w-0">
-          <span className="hidden sm:inline text-xs font-bold text-slate-600 uppercase tracking-wider mr-1 shrink-0">
-            Filtres :
-          </span>
-
           {currentUser && (
             <button
               type="button"
               aria-pressed={taskFilter === 'me'}
               onClick={() => onChangeTaskFilter('me')}
-              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 min-h-[40px] sm:min-h-[36px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 min-h-[38px] sm:min-h-[32px] rounded-full text-[12px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
                 taskFilter === 'me'
-                  ? 'bg-brand-600 text-white shadow-xs'
-                  : 'bg-brand-50 text-brand-800 hover:bg-brand-100'
+                  ? 'bg-[var(--cdh-accent)] text-white shadow-sm'
+                  : 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] hover:opacity-85'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
@@ -103,10 +100,10 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
             type="button"
             aria-pressed={taskFilter === 'all'}
             onClick={() => onChangeTaskFilter('all')}
-            className={`shrink-0 px-3 py-1.5 min-h-[40px] sm:min-h-[36px] rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
+            className={`shrink-0 px-3 py-1.5 min-h-[38px] sm:min-h-[32px] rounded-full text-[12px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
               taskFilter === 'all'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'bg-[var(--cdh-text-primary)] text-[var(--cdh-text-inverted)] shadow-sm'
+                : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
             }`}
           >
             Toutes ({facetFilteredTasks.length})
@@ -125,19 +122,19 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
                   type="button"
                   aria-pressed={isSelected}
                   onClick={() => onChangeTaskFilter(u.id)}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 min-h-[40px] sm:min-h-[36px] rounded-xl text-xs font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
+                  className={`shrink-0 flex items-center gap-1.5 pl-1.5 pr-3 py-1 min-h-[38px] sm:min-h-[32px] rounded-full text-[12px] font-medium transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
                     isSelected
-                      ? 'text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
+                      ? 'text-white shadow-sm'
+                      : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
                   }`}
-                  style={isSelected ? { backgroundColor: avatarBg } : {}}
+                  style={isSelected ? { backgroundColor: avatarBg } : undefined}
                 >
-                  <span
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 leading-none"
-                    style={{ backgroundColor: avatarBg }}
-                  >
-                    {u.initials}
-                  </span>
+                  <Avatar
+                    initials={u.initials}
+                    color={avatarBg}
+                    size="xs"
+                    className={isSelected ? 'ring-white/40' : ''}
+                  />
                   <span>{u.name} ({count})</span>
                 </button>
               );
@@ -145,50 +142,36 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
         </div>
 
         {hasActiveFilters && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onResetFilters}
-            className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 min-h-[40px] sm:min-h-[36px] rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+            leftIcon={<RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />}
             title="Réinitialiser la recherche et les filtres logements/statuts"
+            className="shrink-0"
           >
-            <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
-            <span className="hidden sm:inline">Réinitialiser les filtres</span>
-          </button>
+            <span className="hidden sm:inline">Réinitialiser</span>
+          </Button>
         )}
       </div>
 
       {/* Ligne 2 : Recherche, multi-filtres, switch de vue & bouton création */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2.5 border-t border-black/[0.12]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2.5 border-t border-[var(--cdh-border-hairline)]">
         <div className="flex flex-col xs:flex-row xs:items-center gap-2 flex-1 min-w-0">
-          {/* Recherche instantanée */}
-          <div className="relative flex-1 sm:flex-none sm:w-56">
-            <Search className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
-            <input
-              type="search"
-              value={taskSearchQuery}
-              onChange={(e) => onChangeSearchQuery(e.target.value)}
-              placeholder="Rechercher une tâche..."
-              className="w-full pl-9 sm:pl-8 pr-8 py-2 sm:py-1.5 min-h-[40px] sm:min-h-0 text-xs bg-white text-slate-900 placeholder:text-slate-500 border border-black/[0.15] rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500"
-            />
-            {taskSearchQuery && (
-              <button
-                type="button"
-                aria-label="Effacer la recherche"
-                onClick={() => onChangeSearchQuery('')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 hover:text-slate-800 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" strokeWidth={1.75} />
-              </button>
-            )}
-          </div>
+          <SearchInput
+            value={taskSearchQuery}
+            onChange={(e) => onChangeSearchQuery(e.target.value)}
+            onClear={() => onChangeSearchQuery('')}
+            placeholder="Rechercher une tâche…"
+            className="flex-1 sm:flex-none sm:w-60"
+          />
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Multi-filtre Logements */}
             <MultiFilterDropdown
               defaultLabel="Logements"
               filteredLabel={(vis, total) => `Logements (${vis}/${total})`}
               headerTitle="Logements affichés"
-              icon={<Home className="w-3.5 h-3.5 text-slate-500 shrink-0" strokeWidth={2} />}
+              icon={<Home className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />}
               options={propertyOptions}
               hiddenIds={hiddenPropertyIds}
               onToggle={onToggleProperty}
@@ -198,19 +181,16 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
               title="Afficher ou masquer des logements"
             />
 
-            {/* Multi-filtre Statuts */}
             <MultiFilterDropdown
               defaultLabel="Statuts"
               filteredLabel={(vis, total) => `Statuts (${vis}/${total})`}
               headerTitle="Statuts affichés"
-              icon={<SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 shrink-0" strokeWidth={2} />}
+              icon={<SlidersHorizontal className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />}
               options={statusOptions}
               hiddenIds={hiddenStatuses}
               onToggle={onToggleStatus}
               onSelectAll={() => onSetHiddenStatuses([])}
               onSelectNone={() => onSetHiddenStatuses(TASK_STATUS_OPTIONS.map(s => s.id))}
-              activeButtonClass="bg-indigo-50 border-indigo-300 text-indigo-800"
-              activeCheckClass="bg-indigo-600 border-indigo-600 text-white"
               align="right"
               title="Afficher ou masquer des statuts"
             />
@@ -218,16 +198,16 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto sm:ml-auto justify-between sm:justify-end">
-          {/* Switch vue Kanban / Logement */}
-          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-black/[0.12]">
+          {/* Segmented Control vue Kanban / Logement */}
+          <div className="flex items-center p-0.5 bg-[var(--cdh-surface-control)] rounded-cdh-md">
             <button
               type="button"
               aria-pressed={taskViewMode === 'kanban'}
               onClick={() => onChangeViewMode('kanban')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 min-h-[34px] sm:min-h-0 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 min-h-[34px] sm:min-h-[30px] rounded-cdh-sm text-[12px] font-semibold transition-all cursor-pointer ${
                 taskViewMode === 'kanban'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-cdh-card'
+                  : 'text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
               }`}
               title="Vue Kanban par statut"
             >
@@ -239,10 +219,10 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
               type="button"
               aria-pressed={taskViewMode === 'property'}
               onClick={() => onChangeViewMode('property')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 min-h-[34px] sm:min-h-0 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 min-h-[34px] sm:min-h-[30px] rounded-cdh-sm text-[12px] font-semibold transition-all cursor-pointer ${
                 taskViewMode === 'property'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-cdh-card'
+                  : 'text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
               }`}
               title="Vue groupée par logement"
             >
@@ -252,14 +232,14 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
           </div>
 
           {!isReadOnly && currentUser?.role !== 'read' && (
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="md"
               onClick={onAddNewTask}
-              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 min-h-[42px] sm:min-h-[38px] bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+              leftIcon={<Plus className="w-4 h-4" strokeWidth={2.25} />}
             >
-              <Plus className="w-4 h-4" strokeWidth={2.25} />
-              <span>Nouvelle tâche</span>
-            </button>
+              Nouvelle tâche
+            </Button>
           )}
         </div>
       </div>

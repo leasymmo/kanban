@@ -632,7 +632,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-6 animate-backdrop-in"
+      className="fixed inset-0 z-50 overflow-y-auto bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] flex items-end sm:items-center justify-center p-0 sm:p-6 animate-backdrop-in"
       onClick={() => !actionLoading && onClose()}
     >
       <div
@@ -642,7 +642,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         aria-labelledby="admin-panel-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-t-3xl sm:rounded-3xl max-w-5xl w-full shadow-2xl border border-black/[0.12] overflow-hidden flex flex-col max-h-[92dvh] animate-sheet-up sm:animate-modal-in focus:outline-none"
+        className="bg-white/95 backdrop-blur-2xl rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-5xl w-full shadow-cdh-overlay border border-white/60 overflow-hidden flex flex-col max-h-[92dvh] animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
         
         {/* Header Modal */}

@@ -3,6 +3,7 @@ import { Task, Property, User, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
 import { ensureWhiteTextContrast } from '../utils/color';
+import { Badge, ProgressBar } from './ui';
 import { Home, Plus, EyeOff } from 'lucide-react';
 
 interface PropertyBoardProps {
@@ -93,17 +94,17 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
 
   if (sections.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-black/[0.12] p-10 text-center text-slate-500">
-        <EyeOff className="w-8 h-8 mx-auto mb-2 text-slate-300" strokeWidth={1.75} />
-        <p className="text-sm font-semibold text-slate-700">Tous les logements sont actuellement masqués.</p>
-        <p className="text-xs text-slate-500 mt-1">Sélectionnez au moins un logement dans le filtre « Logements » ci-dessus.</p>
+      <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center">
+        <EyeOff className="w-8 h-8 mx-auto mb-2.5 text-[var(--cdh-text-tertiary)]" strokeWidth={1.75} />
+        <p className="text-sm font-semibold text-[var(--cdh-text-primary)]">Tous les logements sont actuellement masqués.</p>
+        <p className="text-xs text-[var(--cdh-text-secondary)] mt-1">Sélectionnez au moins un logement dans le filtre « Logements » ci-dessus.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className={`grid ${getGridClass(sections.length)} gap-5`}>
+      <div className={`grid ${getGridClass(sections.length)} gap-4`}>
         {sections.map((section) => {
           const total = section.tasks.length;
           const doneCount = section.tasks.filter(t => t.status === 'done').length;
@@ -116,33 +117,29 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
               onDragOver={(e) => handleDragOverContainer(e, section.id)}
               onDragLeave={handleDragLeaveContainer}
               onDrop={(e) => handleDropOnContainer(e, section.id)}
-              className={`rounded-2xl sm:rounded-[28px] p-3 sm:p-4 border flex flex-col min-h-[160px] md:min-h-[340px] transition-all duration-200 ${
-                isHovered
-                  ? 'bg-brand-50/40 border-brand-500 ring-2 ring-brand-400/30'
-                  : 'bg-slate-200/70 border-black/[0.12]'
+              className={`cdh-glass-column rounded-cdh-2xl p-3.5 sm:p-4 flex flex-col min-h-[160px] md:min-h-[340px] transition-all duration-200 ${
+                isHovered ? 'ring-2 ring-[var(--cdh-accent)]/50 border-[var(--cdh-accent)]' : ''
               }`}
             >
               {/* Entête du Logement */}
-              <div className="flex items-center justify-between pb-3 border-b border-black/[0.12] mb-3">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--cdh-border-hairline)] mb-3">
+                <div className="flex items-center gap-2.5">
                   <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-xs shrink-0"
+                    className="w-8 h-8 rounded-cdh-md flex items-center justify-center text-white shadow-xs shrink-0"
                     style={{ backgroundColor: ensureWhiteTextContrast(section.color) }}
                   >
                     <Home className="w-4 h-4" strokeWidth={2} />
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="font-bold text-sm text-slate-900 leading-tight">
+                      <h3 className="font-semibold text-sm text-[var(--cdh-text-primary)] leading-tight">
                         {section.name}
                       </h3>
                       {section.isDeactivated && (
-                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-300/80 text-slate-800">
-                          Désactivé
-                        </span>
+                        <Badge variant="neutral">Désactivé</Badge>
                       )}
                     </div>
-                    <p className="text-xs text-slate-700 font-medium tabular-nums">
+                    <p className="text-[11.5px] text-[var(--cdh-text-secondary)] font-medium tabular-nums">
                       {doneCount}/{total} terminées ({percent}%)
                     </p>
                   </div>
@@ -152,26 +149,19 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   <button
                     onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
                     aria-label={`Ajouter une tâche pour ${section.name}`}
-                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-300/60 rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] rounded-full transition-colors cursor-pointer"
                     title={`Ajouter une tâche pour ${section.name}`}
                   >
-                    <Plus className="w-4 h-4" strokeWidth={1.75} />
+                    <Plus className="w-4 h-4" strokeWidth={2} />
                   </button>
                 )}
               </div>
 
               {/* Mini barre de progression */}
-              <div className="w-full bg-slate-300/80 h-1 rounded-full mb-3 overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-300 ${
-                    percent === 100 ? 'bg-emerald-500' : 'bg-brand-500'
-                  }`}
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
+              <ProgressBar value={percent} label={`Progression ${section.name}`} className="mb-3" />
 
               {/* Cartes de tâches du logement */}
-              <div className={`space-y-2.5 flex-1 md:overflow-y-auto ${listMaxHeightClass} md:pr-1`}>
+              <div className={`space-y-2.5 flex-1 md:overflow-y-auto ${listMaxHeightClass} md:pr-0.5`}>
                 {section.tasks.length > 0 ? (
                   section.tasks.map((task) => {
                     const indicator =
@@ -199,19 +189,21 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                     );
                   })
                 ) : (
-                  <p className={`py-8 px-3 text-center text-xs text-slate-700 font-medium select-none transition-colors ${
-                    isHovered ? 'border-2 border-dashed border-brand-500 rounded-xl bg-brand-50/40' : ''
+                  <p className={`py-8 px-3 text-center text-xs text-[var(--cdh-text-tertiary)] font-medium select-none transition-colors rounded-cdh-lg ${
+                    isHovered
+                      ? 'border-2 border-dashed border-[var(--cdh-accent)] bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
+                      : 'border border-dashed border-[var(--cdh-border-hairline)]'
                   }`}>
                     {isReadOnly || currentUser?.role === 'read' ? 'Aucune tâche' : 'Déposer une tâche ici'}
                   </p>
                 )}
               </div>
 
-              {/* Bouton rapide d'ajout (Admin ou écriture sur Mes tâches) */}
+              {/* Bouton rapide d'ajout */}
               {showQuickAddButtons && (
                 <button
                   onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
-                  className="mt-3 w-full py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-300/70 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="mt-3 w-full py-2 rounded-cdh-md text-xs font-medium text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" strokeWidth={2} />
                   Ajouter une tâche pour {section.name}

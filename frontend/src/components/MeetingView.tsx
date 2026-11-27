@@ -450,9 +450,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       key={person.id}
       id={sectionId}
       data-meeting-anchor={dataAnchor}
-      className="scroll-mt-28 sm:scroll-mt-20 bg-white rounded-[28px] sm:rounded-[32px] p-4 sm:p-5 border border-black/[0.12] shadow-xs space-y-4"
+      className="scroll-mt-28 sm:scroll-mt-20 cdh-surface-card rounded-cdh-2xl p-4 sm:p-5 space-y-4"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-black/[0.12]">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--cdh-border-hairline)]">
         <div className="flex items-center gap-3 min-w-0">
           <div
             className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-xs shrink-0"
@@ -851,8 +851,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
       </div>
 
-      {/* Barre d'étapes de la réunion (Responsive horizontal scroll on mobile) */}
-      <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-black/[0.12] shadow-xs overflow-x-auto no-scrollbar">
+      {/* Barre d'étapes de la réunion (Liquid Glass) */}
+      <div className="flex items-center gap-2 cdh-glass-chrome p-2 rounded-cdh-xl overflow-x-auto no-scrollbar">
         <button
           onClick={() => setMeetingStep('retro')}
           aria-keyshortcuts="1"
@@ -1554,14 +1554,14 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       {/* Mémo compact des raccourcis clavier */}
       {isShortcutsModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-backdrop-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
           onClick={() => setIsShortcutsModalOpen(false)}
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="meeting-shortcuts-title"
-            className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-black/[0.12] overflow-hidden animate-modal-in"
+            className="bg-white/95 backdrop-blur-2xl rounded-cdh-2xl max-w-md w-full shadow-cdh-overlay border border-white/60 overflow-hidden animate-modal-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800">
