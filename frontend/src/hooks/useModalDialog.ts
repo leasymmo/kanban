@@ -3,6 +3,12 @@ import { useEffect, useRef } from 'react';
 let openModalCounter = 0;
 let previousBodyOverflow = '';
 
+const FIRST_FIELD_SELECTOR = [
+  'input:not([disabled]):not([type="hidden"])',
+  'textarea:not([disabled])',
+  'select:not([disabled])'
+].join(', ');
+
 const FOCUSABLE_SELECTOR = [
   'a[href]',
   'button:not([disabled])',
@@ -57,6 +63,11 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
       }
       const dialogEl = dialogRef.current;
       if (!dialogEl) return;
+      const firstField = dialogEl.querySelector<HTMLElement>(FIRST_FIELD_SELECTOR);
+      if (firstField) {
+        firstField.focus({ preventScroll: true });
+        return;
+      }
       const firstFocusable = dialogEl.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
       if (firstFocusable) {
         firstFocusable.focus({ preventScroll: true });
