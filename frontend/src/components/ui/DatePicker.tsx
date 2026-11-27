@@ -10,6 +10,8 @@ export interface DatePickerProps {
   disabled?: boolean;
   ariaLabel?: string;
   variant?: 'default' | 'icon-pill';
+  size?: 'sm' | 'md';
+  markOverdue?: boolean;
   className?: string;
 }
 
@@ -42,6 +44,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   disabled = false,
   ariaLabel = 'Sélectionner une date',
   variant = 'default',
+  size = 'md',
+  markOverdue = true,
   className = ''
 }) => {
   const selectedDate = useMemo(() => parseIsoDate(value), [value]);
@@ -141,7 +145,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       })
     : '';
 
-  const isOverdue = !!selectedDate && value < todayIso;
+  const isOverdue = markOverdue && !!selectedDate && value < todayIso;
 
   return (
     <div className={`relative ${className}`.trim()}>
@@ -153,13 +157,20 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           aria-label={selectedDate ? `Échéance : ${formattedLabel}` : ariaLabel}
           title={selectedDate ? `Échéance : ${formattedLabel}` : 'Définir une échéance'}
           aria-expanded={isOpen}
-          onClick={toggleCalendar}
-          className={`h-8 flex items-center justify-center gap-1 rounded-full text-[11.5px] font-semibold transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] disabled:opacity-45 disabled:cursor-not-allowed ${
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleCalendar();
+          }}
+          className={`${size === 'sm' ? 'h-7 text-[11px]' : 'h-8 text-[11.5px]'} flex items-center justify-center gap-1 rounded-full font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
+            disabled ? 'cursor-default' : 'active:scale-95 cursor-pointer'
+          } ${
             selectedDate
               ? isOverdue
-                ? 'px-2.5 bg-[var(--cdh-danger-soft)] text-[var(--cdh-danger)]'
-                : 'px-2.5 bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
-              : 'w-8 bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
+                ? `${size === 'sm' ? 'px-2' : 'px-2.5'} bg-[var(--cdh-danger-soft)] text-[var(--cdh-danger)]`
+                : `${size === 'sm' ? 'px-2' : 'px-2.5'} bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]`
+              : `${size === 'sm' ? 'w-7' : 'w-8'} bg-[var(--cdh-surface-control)] ${
+                  disabled ? 'opacity-55' : 'hover:bg-[var(--cdh-surface-control-hover)]'
+                } text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]`
           }`}
         >
           {selectedDate ? (

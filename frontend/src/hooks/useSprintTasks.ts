@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Task, TaskStatus, Property, User } from '../types';
+import { Task, TaskPriority, TaskStatus, Property, User } from '../types';
 import { api } from '../api/client';
 import { reorderTasksInSubset } from '../utils/subtasks';
 import { useConfirm } from '../components/ui';
@@ -257,6 +257,33 @@ export function useSprintTasks({
     }
   };
 
+  const quickUpdateTask = async (
+    taskId: number,
+    patch: { priority?: TaskPriority; due_date?: string | null }
+  ) => {
+    const previousTasks = tasks;
+    setTasks(prev =>
+      prev.map(t => (t.id === taskId ? { ...t, ...patch } : t))
+    );
+
+    try {
+      await api.updateTask(taskId, {
+        sprint_id: currentSprintId || undefined,
+        ...patch
+      });
+      if (patch.priority !== undefined) {
+        notifySuccess('Priorité mise à jour.');
+      } else if (patch.due_date !== undefined) {
+        notifySuccess(patch.due_date ? 'Échéance mise à jour.' : 'Échéance retirée.');
+      }
+    } catch (err: any) {
+      if (!(err instanceof TypeError)) {
+        setTasks(previousTasks);
+        notifyError(err, 'Impossible de mettre à jour cette tâche.');
+      }
+    }
+  };
+
   const deleteTask = async (id: number) => {
     const confirmed = await confirm({
       title: 'Supprimer la tâche',
@@ -342,6 +369,7 @@ export function useSprintTasks({
     setTasks,
     saveTask,
     updateTaskStatus,
+    quickUpdateTask,
     reorderKanbanTask,
     moveTaskProperty,
     assignTask,

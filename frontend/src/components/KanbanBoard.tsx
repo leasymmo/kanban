@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Task, TaskStatus, User } from '../types';
+import { Task, TaskPriority, TaskStatus, User } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
 import { TaskStatusIcon } from './ui';
@@ -7,6 +7,7 @@ import { Plus, EyeOff } from 'lucide-react';
 
 interface KanbanBoardProps {
   tasks: Task[];
+  allUsers?: User[];
   currentUser: User | null;
   hiddenStatuses?: TaskStatus[];
   onEditTask: (task: Task) => void;
@@ -14,6 +15,8 @@ interface KanbanBoardProps {
   onToggleSubtask: (subtaskId: number) => void;
   onAddSubtask?: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
   onUpdateStatus: (taskId: number, newStatus: TaskStatus) => void;
+  onAssignTask?: (taskId: number, userId: number | null) => void;
+  onQuickUpdateTask?: (taskId: number, patch: { priority?: TaskPriority; due_date?: string | null }) => void;
   onReorderTask?: (taskId: number, targetStatus: TaskStatus, orderedColumnTaskIds: number[]) => void;
   onToggleStar?: (taskId: number) => void;
   onAddNewTask: (initialStatus?: TaskStatus) => void;
@@ -36,6 +39,7 @@ const COLUMNS: ColumnConfig[] = [
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   tasks,
+  allUsers = [],
   currentUser,
   hiddenStatuses = [],
   onEditTask,
@@ -43,6 +47,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onToggleSubtask,
   onAddSubtask,
   onUpdateStatus,
+  onAssignTask,
+  onQuickUpdateTask,
   onReorderTask,
   onToggleStar,
   onAddNewTask,
@@ -280,12 +286,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       <TaskCard
                         key={task.id}
                         task={task}
+                        allUsers={allUsers}
+                        currentUser={currentUser}
                         isReadOnly={isReadOnly}
                         onEdit={onEditTask}
                         onDelete={onDeleteTask}
                         onToggleSubtask={onToggleSubtask}
                         onAddSubtask={onAddSubtask}
                         onUpdateStatus={onUpdateStatus}
+                        onAssignTask={onAssignTask}
+                        onQuickUpdateTask={onQuickUpdateTask}
                         onToggleStar={onToggleStar}
                         onDragStart={handleDragStart}
                         onDragEnd={resetDragState}

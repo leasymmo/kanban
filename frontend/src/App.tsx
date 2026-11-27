@@ -118,6 +118,7 @@ export const App: React.FC = () => {
     setTasks,
     saveTask,
     updateTaskStatus,
+    quickUpdateTask,
     reorderKanbanTask,
     moveTaskProperty,
     assignTask,
@@ -667,6 +668,8 @@ export const App: React.FC = () => {
                 onToggleSubtask={toggleSubtask}
                 onAddSubtask={addSubtask}
                 onUpdateStatus={updateTaskStatus}
+                onAssignTask={assignTask}
+                onQuickUpdateTask={quickUpdateTask}
                 onReorderKanbanTask={reorderKanbanTask}
                 onMoveTaskProperty={moveTaskProperty}
                 onToggleStar={toggleStar}

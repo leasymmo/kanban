@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Task, Property, User, TaskStatus } from '../types';
+import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
 import { ensureWhiteTextContrast } from '../utils/color';
@@ -10,6 +10,7 @@ import { Home, Plus, EyeOff, Eye } from 'lucide-react';
 interface PropertyBoardProps {
   tasks: Task[];
   properties: Property[];
+  allUsers?: User[];
   hiddenPropertyIds?: number[];
   currentUser: User | null;
   onEditTask: (task: Task) => void;
@@ -17,6 +18,8 @@ interface PropertyBoardProps {
   onToggleSubtask: (subtaskId: number) => void;
   onAddSubtask?: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
   onUpdateStatus?: (taskId: number, newStatus: TaskStatus) => void;
+  onAssignTask?: (taskId: number, userId: number | null) => void;
+  onQuickUpdateTask?: (taskId: number, patch: { priority?: TaskPriority; due_date?: string | null }) => void;
   onMoveTaskProperty?: (taskId: number, targetPropertyId: number | null, orderedSectionTaskIds: number[]) => void;
   onToggleStar?: (taskId: number) => void;
   onAddNewTask: (propertyId?: number) => void;
@@ -27,6 +30,7 @@ interface PropertyBoardProps {
 export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   tasks,
   properties,
+  allUsers = [],
   hiddenPropertyIds = [],
   currentUser,
   onEditTask,
@@ -34,6 +38,8 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   onToggleSubtask,
   onAddSubtask,
   onUpdateStatus,
+  onAssignTask,
+  onQuickUpdateTask,
   onMoveTaskProperty,
   onToggleStar,
   onAddNewTask,
@@ -404,12 +410,16 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                         <TaskCard
                           key={task.id}
                           task={task}
+                          allUsers={allUsers}
+                          currentUser={currentUser}
                           isReadOnly={isReadOnly}
                           onEdit={onEditTask}
                           onDelete={onDeleteTask}
                           onToggleSubtask={onToggleSubtask}
                           onAddSubtask={onAddSubtask}
                           onUpdateStatus={onUpdateStatus}
+                          onAssignTask={onAssignTask}
+                          onQuickUpdateTask={onQuickUpdateTask}
                           onToggleStar={onToggleStar}
                           onDragStart={handleDragStart}
                           onDragEnd={resetDragState}

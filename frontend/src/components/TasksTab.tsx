@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Task, Property, User, TaskStatus } from '../types';
+import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
 import { useTaskFilters } from '../hooks/useTaskFilters';
 import { getUserPreferences, saveUserPreferences } from '../utils/cookies';
 import { TasksToolbar } from './TasksToolbar';
@@ -17,6 +17,8 @@ interface TasksTabProps {
   onToggleSubtask: (subtaskId: number) => void;
   onAddSubtask: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
   onUpdateStatus: (taskId: number, newStatus: TaskStatus) => void;
+  onAssignTask: (taskId: number, userId: number | null) => void;
+  onQuickUpdateTask: (taskId: number, patch: { priority?: TaskPriority; due_date?: string | null }) => void;
   onReorderKanbanTask: (taskId: number, targetStatus: TaskStatus, orderedColumnTaskIds: number[]) => void;
   onMoveTaskProperty: (taskId: number, targetPropertyId: number | null, orderedSectionTaskIds: number[]) => void;
   onToggleStar: (taskId: number) => void;
@@ -39,6 +41,8 @@ export const TasksTab: React.FC<TasksTabProps> = ({
   onToggleSubtask,
   onAddSubtask,
   onUpdateStatus,
+  onAssignTask,
+  onQuickUpdateTask,
   onReorderKanbanTask,
   onMoveTaskProperty,
   onToggleStar,
@@ -134,6 +138,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
       {taskViewMode === 'kanban' ? (
         <KanbanBoard
           tasks={filteredTasks}
+          allUsers={allUsers}
           currentUser={currentUser}
           hiddenStatuses={hiddenStatuses}
           onEditTask={onEditTask}
@@ -141,6 +146,8 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           onToggleSubtask={onToggleSubtask}
           onAddSubtask={onAddSubtask}
           onUpdateStatus={onUpdateStatus}
+          onAssignTask={onAssignTask}
+          onQuickUpdateTask={onQuickUpdateTask}
           onReorderTask={onReorderKanbanTask}
           onToggleStar={onToggleStar}
           onAddNewTask={(initialStatus) =>
@@ -158,6 +165,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
         <PropertyBoard
           tasks={filteredTasks}
           properties={properties}
+          allUsers={allUsers}
           hiddenPropertyIds={hiddenPropertyIds}
           currentUser={currentUser}
           onEditTask={onEditTask}
@@ -165,6 +173,8 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           onToggleSubtask={onToggleSubtask}
           onAddSubtask={onAddSubtask}
           onUpdateStatus={onUpdateStatus}
+          onAssignTask={onAssignTask}
+          onQuickUpdateTask={onQuickUpdateTask}
           onMoveTaskProperty={onMoveTaskProperty}
           onToggleStar={onToggleStar}
           onAddNewTask={(propertyId) =>

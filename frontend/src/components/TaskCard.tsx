@@ -1,30 +1,32 @@
 import React, { useState } from 'react';
-import { Task, TaskStatus } from '../types';
+import { Task, TaskPriority, TaskStatus, User } from '../types';
 import { BlurredIconSwap } from './BlurredIconSwap';
-import { Avatar, Badge, ProgressBar } from './ui';
+import { Badge, ProgressBar, TaskMetaBar } from './ui';
 import { hexToSoftTint } from '../utils/color';
 import {
   buildSubtaskTree,
   calculateSubtaskStats,
   HierarchicalSubtask,
   SUBTASK_DEPTH_THEME,
-  parseLocalDate,
-  isTaskOverdue
 } from '../utils/subtasks';
 import {
-  CheckSquare, Square, ChevronDown, ChevronUp, Clock,
-  Trash2, Edit3, UserPlus, CornerDownRight, Check, X, Star,
+  CheckSquare, Square, ChevronDown, ChevronUp,
+  Trash2, Edit3, CornerDownRight, Check, X,
   Sparkles, Zap
 } from 'lucide-react';
 
 interface TaskCardProps {
   task: Task;
+  allUsers?: User[];
+  currentUser?: User | null;
   isReadOnly?: boolean;
   onEdit: (task: Task) => void;
   onDelete: (id: number) => void;
   onToggleSubtask: (subtaskId: number) => void;
   onAddSubtask?: (taskId: number, title: string, parentId?: number | null) => Promise<void>;
   onUpdateStatus?: (taskId: number, newStatus: TaskStatus) => void;
+  onAssignTask?: (taskId: number, userId: number | null) => void;
+  onQuickUpdateTask?: (taskId: number, patch: { priority?: TaskPriority; due_date?: string | null }) => void;
   onToggleStar?: (taskId: number) => void;
   onDragStart?: (e: React.DragEvent, task: Task) => void;
   onDragEnd?: () => void;
@@ -36,12 +38,16 @@ interface TaskCardProps {
 
 export const TaskCard: React.FC<TaskCardProps> = ({
   task,
+  allUsers = [],
+  currentUser = null,
   isReadOnly = false,
   onEdit,
   onDelete,
   onToggleSubtask,
   onAddSubtask,
   onUpdateStatus,
+  onAssignTask,
+  onQuickUpdateTask,
   onToggleStar,
   onDragStart,
   onDragEnd,
@@ -58,8 +64,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const canModify = !isReadOnly && !!task.can_edit;
   const canDelete = !isReadOnly && !!task.can_delete;
   const canStar = !isReadOnly && !!task.can_star;
-  const parsedDueDate = parseLocalDate(task.due_date);
-  const overdue = isTaskOverdue(task.due_date, task.status);
+  const isAdmin = currentUser?.role === 'admin';
+  const assignableUsers = allUsers.filter((u) => u.role !== 'read');
 
   const { total: totalSubtasks, done: doneSubtasksCount, percent: progressPercent } = calculateSubtaskStats(task.subtasks);
   const hierarchicalSubtasks = buildSubtaskTree(task.subtasks);
@@ -240,73 +246,34 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           ) : null}
         </div>
 
-        {/* Actions (Étoile / Modifier / Supprimer) */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          {(canStar || !!task.is_starred) && (
-            <button
-              type="button"
-              disabled={!canStar}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (canStar && onToggleStar) {
-                  onToggleStar(task.id);
-                }
-              }}
-              aria-label={
-                task.is_starred
-                  ? (canStar ? 'Retirer la mise en avant' : 'Mise en avant pour la réunion')
-                  : 'Mettre en avant pour la réunion'
-              }
-              className={`min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 rounded-cdh-sm transition-all active:scale-95 ${
-                task.is_starred
-                  ? `text-[var(--cdh-warning-accent)] bg-[var(--cdh-warning-soft)] ${canStar ? 'cursor-pointer' : 'cursor-default'}`
-                  : canStar
-                  ? 'opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-warning-accent)] hover:bg-[var(--cdh-surface-control)] cursor-pointer'
-                  : 'hidden'
-              }`}
-              title={
-                task.is_starred
-                  ? (canStar ? 'Mise en avant activée (cliquer pour retirer)' : 'Mise en avant pour la réunion')
-                  : 'Mettre en avant pour la réunion'
-              }
-            >
-              <Star
-                className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${
-                  task.is_starred ? 'fill-current' : ''
-                }`}
-                strokeWidth={1.75}
-              />
-            </button>
-          )}
+        {/* Actions (Modifier / Supprimer) */}
+        {(canModify || canDelete) && (
+          <div className="flex items-center gap-0.5 shrink-0 opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:transition-opacity">
+            {canModify && (
+              <button
+                type="button"
+                onClick={() => onEdit(task)}
+                aria-label="Modifier la tâche"
+                className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-accent)] rounded-cdh-sm hover:bg-[var(--cdh-surface-control)] active:scale-95 cursor-pointer transition-colors"
+                title="Modifier la tâche"
+              >
+                <Edit3 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
+              </button>
+            )}
 
-          {(canModify || canDelete) && (
-            <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:transition-opacity">
-              {canModify && (
-                <button
-                  type="button"
-                  onClick={() => onEdit(task)}
-                  aria-label="Modifier la tâche"
-                  className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-accent)] rounded-cdh-sm hover:bg-[var(--cdh-surface-control)] active:scale-95 cursor-pointer transition-colors"
-                  title="Modifier la tâche"
-                >
-                  <Edit3 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
-                </button>
-              )}
-
-              {canDelete && (
-                <button
-                  type="button"
-                  onClick={() => onDelete(task.id)}
-                  aria-label="Supprimer la tâche"
-                  className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-danger)] rounded-cdh-sm hover:bg-[var(--cdh-danger-soft)] active:scale-95 cursor-pointer transition-colors"
-                  title="Supprimer la tâche"
-                >
-                  <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+            {canDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(task.id)}
+                aria-label="Supprimer la tâche"
+                className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 flex items-center justify-center p-1.5 sm:p-1 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-danger)] rounded-cdh-sm hover:bg-[var(--cdh-danger-soft)] active:scale-95 cursor-pointer transition-colors"
+                title="Supprimer la tâche"
+              >
+                <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" strokeWidth={1.75} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Titre de la tâche */}
@@ -360,61 +327,37 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
       )}
 
-      {/* Footer : Assigné, Échéance & Changement rapide de statut */}
-      <div className="mt-3 pt-2.5 border-t border-[var(--cdh-border-hairline)] flex items-center justify-between gap-2 flex-wrap text-xs">
-        {task.assigned_to ? (
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Avatar
-              initials={task.assigned_to_initials || '?'}
-              name={`Assignée à ${task.assigned_to_name}`}
-              color={task.assigned_to_color || '#4B5563'}
-              size="xs"
-            />
-            <span className="text-[var(--cdh-text-secondary)] font-medium text-[12px] truncate max-w-[100px] sm:max-w-[120px]">
-              {task.assigned_to_name}
-            </span>
-          </div>
-        ) : (
-          <Badge variant="warning" pill>
-            <UserPlus className="w-3 h-3" strokeWidth={1.75} />
-            À attribuer
-          </Badge>
-        )}
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          {parsedDueDate && (
-            <div
-              className={`flex items-center gap-1 text-[11px] tabular-nums ${
-                overdue
-                  ? 'text-[var(--cdh-danger)] bg-[var(--cdh-danger-soft)] px-1.5 py-0.5 rounded-cdh-xs font-semibold'
-                  : 'text-[var(--cdh-text-tertiary)]'
-              }`}
-              title={overdue ? 'Échéance dépassée' : 'Date d’échéance'}
-            >
-              <Clock className="w-3 h-3" strokeWidth={overdue ? 2 : 1.75} />
-              <span>{parsedDueDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
-            </div>
-          )}
-
-          {onUpdateStatus && canModify && (
-            <select
-              value={task.status}
-              aria-label={`Statut de ${task.title}`}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                e.stopPropagation();
-                onUpdateStatus(task.id, e.target.value as TaskStatus);
-              }}
-              className="text-[11px] font-semibold border border-[var(--cdh-border-hairline)] rounded-cdh-sm px-2 py-1 sm:py-0.5 min-h-[32px] sm:min-h-0 bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-primary)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--cdh-accent-soft)]"
-              title="Changer rapidement de statut"
-            >
-              <option value="todo">À faire</option>
-              <option value="in_progress">En cours</option>
-              <option value="blocked">Bloqué</option>
-              <option value="done">Terminé</option>
-            </select>
-          )}
-        </div>
+      {/* Footer : Barre d'icônes unifiée (Responsable, Statut, Priorité, Échéance, Étoile) */}
+      <div
+        className="mt-3 pt-2.5 border-t border-[var(--cdh-border-hairline)] flex items-center justify-between gap-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <TaskMetaBar
+          size="sm"
+          users={assignableUsers}
+          assignedTo={task.assigned_to ?? ''}
+          onChangeAssignee={(userId) => onAssignTask?.(task.id, userId === '' ? null : userId)}
+          showAssignee={true}
+          assigneeEditable={isAdmin && canModify && !!onAssignTask}
+          allowUnassign={true}
+          fallbackAssignee={{
+            name: task.assigned_to_name,
+            initials: task.assigned_to_initials,
+            color: task.assigned_to_color
+          }}
+          status={task.status === 'pending' ? 'todo' : task.status}
+          onChangeStatus={(nextStatus) => onUpdateStatus?.(task.id, nextStatus)}
+          priority={task.priority}
+          onChangePriority={(nextPriority) => onQuickUpdateTask?.(task.id, { priority: nextPriority })}
+          dueDate={task.due_date || ''}
+          onChangeDueDate={(nextDate) => onQuickUpdateTask?.(task.id, { due_date: nextDate || null })}
+          markOverdue={task.status !== 'done'}
+          disabled={!canModify}
+          showStar={canStar || !!task.is_starred}
+          isStarred={!!task.is_starred}
+          canToggleStar={canStar && !!onToggleStar}
+          onToggleStar={() => onToggleStar?.(task.id)}
+        />
       </div>
       </div>
       {dropIndicator === 'after' && (
