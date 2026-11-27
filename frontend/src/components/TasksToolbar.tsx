@@ -1,7 +1,7 @@
 import React from 'react';
 import { User, Property, Task, TaskStatus } from '../types';
 import { AssigneeFilter, TASK_STATUS_OPTIONS } from '../hooks/useTaskFilters';
-import { MultiFilterDropdown, MultiFilterOption } from './MultiFilterDropdown';
+import { MultiFilterOption, UnifiedFilterDropdown } from './UnifiedFilterDropdown';
 import { Avatar, Button, SearchInput } from './ui';
 import { ensureWhiteTextContrast } from '../utils/color';
 import {
@@ -155,32 +155,32 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
         />
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <MultiFilterDropdown
-            defaultLabel="Logements"
-            filteredLabel={(vis, total) => `${vis}/${total}`}
-            headerTitle="Logements affichés"
-            icon={<Home className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />}
-            options={propertyOptions}
-            hiddenIds={hiddenPropertyIds}
-            onToggle={onToggleProperty}
-            onSelectAll={() => onSetHiddenProperties([])}
-            onSelectNone={() => onSetHiddenProperties(allPropertyFilterIds)}
+          <UnifiedFilterDropdown
+            label="Filtres"
             align="right"
-            title="Afficher ou masquer des logements"
-          />
-
-          <MultiFilterDropdown
-            defaultLabel="Statuts"
-            filteredLabel={(vis, total) => `${vis}/${total}`}
-            headerTitle="Statuts affichés"
-            icon={<SlidersHorizontal className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />}
-            options={statusOptions}
-            hiddenIds={hiddenStatuses}
-            onToggle={onToggleStatus}
-            onSelectAll={() => onSetHiddenStatuses([])}
-            onSelectNone={() => onSetHiddenStatuses(TASK_STATUS_OPTIONS.map(s => s.id))}
-            align="right"
-            title="Afficher ou masquer des statuts"
+            title="Filtrer par logement ou par statut"
+            sections={[
+              {
+                id: 'properties',
+                title: 'Logements',
+                icon: <Home className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
+                options: propertyOptions,
+                hiddenIds: hiddenPropertyIds,
+                onToggle: onToggleProperty,
+                onSelectAll: () => onSetHiddenProperties([]),
+                onSelectNone: () => onSetHiddenProperties(allPropertyFilterIds)
+              },
+              {
+                id: 'statuses',
+                title: 'Statuts',
+                icon: <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
+                options: statusOptions,
+                hiddenIds: hiddenStatuses,
+                onToggle: onToggleStatus,
+                onSelectAll: () => onSetHiddenStatuses([]),
+                onSelectNone: () => onSetHiddenStatuses(TASK_STATUS_OPTIONS.map(s => s.id))
+              }
+            ]}
           />
 
           {hasActiveFilters && (
