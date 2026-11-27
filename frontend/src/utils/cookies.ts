@@ -9,6 +9,7 @@ export interface UserUiPreferences {
   taskSearchQuery: string;
   hiddenPropertyIds: number[];
   hiddenStatuses: TaskStatus[];
+  hideEmptyProperties: boolean;
 }
 
 const VALID_TABS = new Set(['tasks', 'questions', 'meeting']);
@@ -83,6 +84,10 @@ export function getUserPreferences(userId: number): Partial<UserUiPreferences> {
       prefs.hiddenStatuses = parsed.hiddenStatuses.filter(
         (st: unknown): st is TaskStatus => typeof st === 'string' && VALID_STATUSES.has(st as TaskStatus)
       );
+    }
+
+    if (typeof parsed.hideEmptyProperties === 'boolean') {
+      prefs.hideEmptyProperties = parsed.hideEmptyProperties;
     }
 
     return prefs;

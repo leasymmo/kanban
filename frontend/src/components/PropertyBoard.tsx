@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Task, Property, User, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
 import { ensureWhiteTextContrast } from '../utils/color';
+import { getUserPreferences, saveUserPreferences } from '../utils/cookies';
 import { Badge, ProgressBar } from './ui';
 import { Home, Plus, EyeOff, Eye } from 'lucide-react';
 
@@ -41,9 +42,31 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
 }) => {
   const showQuickAddButtons =
     canAddTasks !== undefined ? canAddTasks : (!isReadOnly && currentUser?.role === 'admin');
-  const [hideEmptyProperties, setHideEmptyProperties] = useState(false);
+  const [hideEmptyProperties, setHideEmptyProperties] = useState<boolean>(() => {
+    if (!currentUser) return true;
+    return getUserPreferences(currentUser.id).hideEmptyProperties ?? true;
+  });
   const [activePropertyId, setActivePropertyId] = useState<number | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setHideEmptyProperties(true);
+      return;
+    }
+    const prefs = getUserPreferences(currentUser.id);
+    setHideEmptyProperties(prefs.hideEmptyProperties ?? true);
+  }, [currentUser?.id]);
+
+  const handleToggleHideEmpty = () => {
+    setHideEmptyProperties(prev => {
+      const next = !prev;
+      if (currentUser) {
+        saveUserPreferences(currentUser.id, { hideEmptyProperties: next });
+      }
+      return next;
+    });
+  };
 
   const allSections = [
     ...properties.map(p => ({
@@ -148,7 +171,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
         <button
           type="button"
           aria-pressed={hideEmptyProperties}
-          onClick={() => setHideEmptyProperties(prev => !prev)}
+          onClick={handleToggleHideEmpty}
           className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-full text-[11.5px] font-semibold transition-all cursor-pointer ${
             hideEmptyProperties
               ? 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
@@ -174,7 +197,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
           <p className="text-sm font-semibold text-[var(--cdh-text-primary)]">Aucun logement avec des tâches pour ces filtres.</p>
           <button
             type="button"
-            onClick={() => setHideEmptyProperties(false)}
+            onClick={handleToggleHideEmpty}
             className="mt-2 text-xs font-semibold text-[var(--cdh-accent)] hover:underline cursor-pointer"
           >
             Afficher aussi les logements vides
