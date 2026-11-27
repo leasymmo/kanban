@@ -158,7 +158,8 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     };
   }, []);
 
-  // Compatibilité universelle : trackpad Mac (deltaX), Shift+molette, molette souris sur colonne sans scroll vertical
+  // Trackpad (Mac/Windows) : seul le geste horizontal (deltaX) ou Shift+molette fait défiler le rail ;
+  // le geste vertical (haut/bas) ne déclenche jamais de scroll horizontal.
   useEffect(() => {
     const rail = railRef.current;
     if (!rail) return;
@@ -177,23 +178,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
       if (e.shiftKey && absY > 0) {
         rail.scrollLeft += e.deltaY;
         e.preventDefault();
-        return;
-      }
-
-      if (absY > 0) {
-        const target = e.target as HTMLElement | null;
-        const vList = target?.closest('.cdh-prop-scroll') as HTMLElement | null;
-        if (vList && vList.scrollHeight > vList.clientHeight + 1) {
-          const atTop = vList.scrollTop <= 0;
-          const atBottom = vList.scrollTop + vList.clientHeight >= vList.scrollHeight - 1;
-          if (!((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0))) {
-            return;
-          }
-        }
-        if (rail.scrollWidth > rail.clientWidth) {
-          rail.scrollLeft += e.deltaY;
-          e.preventDefault();
-        }
       }
     };
 
