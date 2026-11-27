@@ -28,6 +28,7 @@ export interface TaskMetaBarProps {
   };
   status: TaskStatus;
   onChangeStatus: (status: TaskStatus) => void;
+  showStatus?: boolean;
   priority: TaskPriority;
   onChangePriority: (priority: TaskPriority) => void;
   dueDate: string;
@@ -56,6 +57,7 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
   fallbackAssignee,
   status,
   onChangeStatus,
+  showStatus = true,
   priority,
   onChangePriority,
   dueDate,
@@ -201,21 +203,23 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
       )}
 
       {/* 2. Statut */}
-      <button
-        ref={statusBtnRef}
-        type="button"
-        disabled={disabled}
-        aria-expanded={!disabled ? openMenu === 'status' : undefined}
-        aria-label={`Statut : ${statusMeta.label}`}
-        title={`Statut : ${statusMeta.label}`}
-        onClick={() => !disabled && openPopoverFor('status', statusBtnRef.current)}
-        className={`${pillSizeClass} rounded-full flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
-          disabled ? 'cursor-default' : 'active:scale-95 cursor-pointer hover:opacity-85'
-        }`}
-        style={{ backgroundColor: statusMeta.bgSoft }}
-      >
-        <TaskStatusIcon status={status} className="w-3.5 h-3.5" />
-      </button>
+      {showStatus && (
+        <button
+          ref={statusBtnRef}
+          type="button"
+          disabled={disabled}
+          aria-expanded={!disabled ? openMenu === 'status' : undefined}
+          aria-label={`Statut : ${statusMeta.label}`}
+          title={`Statut : ${statusMeta.label}`}
+          onClick={() => !disabled && openPopoverFor('status', statusBtnRef.current)}
+          className={`${pillSizeClass} rounded-full flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
+            disabled ? 'cursor-default' : 'active:scale-95 cursor-pointer hover:opacity-85'
+          }`}
+          style={{ backgroundColor: statusMeta.bgSoft }}
+        >
+          <TaskStatusIcon status={status} className="w-3.5 h-3.5" />
+        </button>
+      )}
 
       {/* 3. Priorité */}
       <button
