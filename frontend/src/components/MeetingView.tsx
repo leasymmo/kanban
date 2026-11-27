@@ -5,6 +5,7 @@ import { hasFinalDecision } from '../utils/questions';
 import { ensureWhiteTextContrast, hexToSoftTint } from '../utils/color';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import { MeetingControlDock } from './MeetingControlDock';
+import { useModalDialog } from '../hooks/useModalDialog';
 import { TaskStatusIcon, useConfirm } from './ui';
 import {
   Users, CheckCircle2, UserPlus,
@@ -104,6 +105,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   // Navigation flottante par associé (scroll-spy + ancre directe)
   const [activeAnchor, setActiveAnchor] = useState<number | 'pool' | null>(null);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const shortcutsDialogRef = useModalDialog<HTMLDivElement>({
+    isOpen: isShortcutsModalOpen,
+    onClose: () => setIsShortcutsModalOpen(false),
+  });
   const lockSpyRef = useRef(false);
   const scrollLockTimerRef = useRef<number | null>(null);
 
@@ -1578,10 +1583,12 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           onClick={() => setIsShortcutsModalOpen(false)}
         >
           <div
+            ref={shortcutsDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="meeting-shortcuts-title"
-            className="cdh-glass-overlay rounded-cdh-2xl max-w-md w-full overflow-hidden animate-modal-in"
+            tabIndex={-1}
+            className="cdh-glass-overlay rounded-cdh-2xl max-w-md w-full overflow-hidden animate-modal-in focus:outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--cdh-border-hairline)]">

@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 
 let openModalCounter = 0;
 let previousBodyOverflow = '';
+let previousHtmlOverflow = '';
+let previousHtmlOverscroll = '';
 
 const FIRST_FIELD_SELECTOR = [
   'input:not([disabled]):not([type="hidden"])',
@@ -51,7 +53,11 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
 
     if (openModalCounter === 0) {
       previousBodyOverflow = document.body.style.overflow;
+      previousHtmlOverflow = document.documentElement.style.overflow;
+      previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      document.documentElement.style.overscrollBehavior = 'none';
     }
     openModalCounter += 1;
 
@@ -115,14 +121,29 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
       }
     };
 
+    const handleBackgroundScroll = (e: WheelEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const dialogEl = dialogRef.current;
+      if (dialogEl && dialogEl.contains(target)) return;
+      if (target.closest('.cdh-glass-overlay, [role="listbox"]')) return;
+      e.preventDefault();
+    };
+
     document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('wheel', handleBackgroundScroll, { passive: false });
+    document.addEventListener('touchmove', handleBackgroundScroll, { passive: false });
 
     return () => {
       window.cancelAnimationFrame(rafId);
       document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('wheel', handleBackgroundScroll);
+      document.removeEventListener('touchmove', handleBackgroundScroll);
       openModalCounter = Math.max(0, openModalCounter - 1);
       if (openModalCounter === 0) {
         document.body.style.overflow = previousBodyOverflow;
+        document.documentElement.style.overflow = previousHtmlOverflow;
+        document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
       }
       if (opener && document.contains(opener)) {
         opener.focus({ preventScroll: true });
