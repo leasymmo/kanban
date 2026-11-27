@@ -541,6 +541,91 @@ export const App: React.FC = () => {
 
   const activeSprint = sprints.find(s => s.id === currentSprintId) || sprints[0];
 
+  // Raccourcis clavier globaux pour les onglets Tâches & Questions (N / + / = et Q)
+  useEffect(() => {
+    if (!currentUser || isLoading || apiError || activeTab === 'meeting') return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const targetEl = e.target as HTMLElement | null;
+      if (targetEl && targetEl.closest('input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+
+      const hasModalOpen =
+        isTaskModalOpen ||
+        isCloseSprintModalOpen ||
+        isMeetingQuickModalOpen ||
+        (isAdminPanelOpen && currentUser.role === 'admin') ||
+        isQuestionModalOpen ||
+        !!document.querySelector('[role="dialog"], [role="alertdialog"]');
+      if (hasModalOpen) return;
+
+      if (isReadOnly || currentUser.role === 'read') return;
+
+      const keyLower = e.key.toLowerCase();
+
+      if (keyLower === 'n' || e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') {
+        e.preventDefault();
+        if (activeTab === 'questions') {
+          saveUserPreferences(currentUser.id, { taskFilter: 'me' });
+          handleChangeTab('tasks');
+          openCreateTaskModal({
+            status: 'todo',
+            propertyId: null,
+            assignedTo: currentUser.id,
+            source: 'tasks'
+          });
+          return;
+        }
+
+        const currentFilter = getUserPreferences(currentUser.id).taskFilter ?? 'me';
+        const contextualAssignedTo: number | null =
+          currentFilter === 'me'
+            ? currentUser.id
+            : typeof currentFilter === 'number' && allUsers.some(u => u.id === currentFilter)
+            ? currentFilter
+            : currentUser.role === 'write'
+            ? currentUser.id
+            : null;
+
+        openCreateTaskModal({
+          status: 'todo',
+          propertyId: null,
+          assignedTo: contextualAssignedTo,
+          source: 'tasks'
+        });
+        return;
+      }
+
+      if (keyLower === 'q' && activeSprint) {
+        e.preventDefault();
+        if (activeTab === 'tasks') {
+          handleChangeTab('questions');
+        }
+        setEditingMeetingQuestion(null);
+        setIsQuestionModalOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [
+    currentUser,
+    isLoading,
+    apiError,
+    activeTab,
+    activeSprint,
+    allUsers,
+    isReadOnly,
+    isTaskModalOpen,
+    isCloseSprintModalOpen,
+    isMeetingQuickModalOpen,
+    isAdminPanelOpen,
+    isQuestionModalOpen
+  ]);
+
   const sortProperties = (list: Property[]) =>
     [...list].sort(
       (a, b) =>
