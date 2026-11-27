@@ -267,7 +267,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
       <div className="shrink-0 flex items-center justify-between gap-2">
         <div
           ref={pillBarRef}
-          className="relative flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0"
+          className="relative flex items-center gap-1.5 overflow-x-auto no-scrollbar px-1.5 py-1 flex-1 min-w-0"
         >
           {sections.map((section) => {
             const isActive = effectiveActiveId === section.id;

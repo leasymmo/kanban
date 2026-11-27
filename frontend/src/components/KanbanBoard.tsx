@@ -196,7 +196,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       {/* Pills de sélection rapide de colonne sur mobile (< md) */}
       <div
         ref={statusPillBarRef}
-        className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 py-0.5"
+        className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 px-1.5 py-1"
       >
         {visibleColumns.map(col => {
           const count = tasks.filter(t => t.status === col.id).length;
