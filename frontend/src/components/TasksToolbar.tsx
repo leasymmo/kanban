@@ -96,19 +96,6 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
             </button>
           )}
 
-          <button
-            type="button"
-            aria-pressed={taskFilter === 'all'}
-            onClick={() => onChangeTaskFilter('all')}
-            className={`shrink-0 px-3 py-1.5 min-h-[38px] sm:min-h-[32px] rounded-full text-[12px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
-              taskFilter === 'all'
-                ? 'bg-[var(--cdh-text-primary)] text-[var(--cdh-text-inverted)] shadow-sm'
-                : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
-            }`}
-          >
-            Toutes ({facetFilteredTasks.length})
-          </button>
-
           {allUsers
             .filter(u => u.id !== currentUser?.id)
             .map(u => {
