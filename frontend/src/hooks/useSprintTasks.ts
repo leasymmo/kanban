@@ -50,7 +50,6 @@ export function useSprintTasks({
 
   const saveTask = async (taskData: any) => {
     const isUpdate = !!taskData.id;
-    const snapshot = isUpdate ? captureTaskSnapshot(taskData.id) : null;
     try {
       const res: any = isUpdate
         ? await api.updateTask(taskData.id, {
@@ -59,6 +58,7 @@ export function useSprintTasks({
           })
         : await api.createTask(taskData);
 
+      const snapshot = isUpdate ? captureTaskSnapshot(taskData.id) : null;
       if (currentSprintId) {
         await reloadSprintDetails(currentSprintId);
       }
@@ -66,7 +66,7 @@ export function useSprintTasks({
       if (isUpdate) {
         scheduleTaskMotionFeedback({
           taskId: taskData.id,
-          tone: taskData.status ? getToneForStatus(taskData.status) : 'accent',
+          tone: 'accent',
           mode: 'move',
           snapshot
         });
@@ -77,11 +77,10 @@ export function useSprintTasks({
             : res?.task_id
             ? [res.task_id]
             : [];
-        const appearTone = getToneForStatus(taskData.status);
         createdIds.forEach((createdId) => {
           scheduleTaskMotionFeedback({
             taskId: createdId,
-            tone: appearTone,
+            tone: 'accent',
             mode: 'appear'
           });
         });
@@ -94,6 +93,7 @@ export function useSprintTasks({
         notifyError(err, isUpdate ? 'Impossible de modifier cette tâche.' : 'Impossible de créer cette tâche.');
         throw err;
       }
+      const snapshot = isUpdate ? captureTaskSnapshot(taskData.id) : null;
       const isPendingMeeting =
         taskData.created_from === 'meeting_pending' ||
         taskData.status === 'pending';
@@ -382,7 +382,7 @@ export function useSprintTasks({
     setTasks(prev => prev.filter(t => t.id !== id));
     scheduleTaskMotionFeedback({
       taskId: id,
-      tone: 'danger',
+      tone: 'accent',
       mode: 'disappear',
       snapshot
     });
@@ -455,7 +455,7 @@ export function useSprintTasks({
     setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, is_starred: !t.is_starred } : t)));
     scheduleTaskMotionFeedback({
       taskId,
-      tone: wasStarred ? 'accent' : 'warning',
+      tone: 'accent',
       mode: 'move',
       snapshot,
       fallbackSelector

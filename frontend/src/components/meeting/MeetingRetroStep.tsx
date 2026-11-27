@@ -101,12 +101,10 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
       <article
         key={t.id}
         data-task-card-id={t.id}
-        className={`cdh-surface-card rounded-cdh-lg p-3.5 sm:p-4 transition-all space-y-2.5 ${
-          isHighlighted
-            ? 'cdh-card-starred'
-            : t.status === 'blocked'
-            ? 'border-[var(--cdh-danger-accent)]/40'
-            : ''
+        className={`cdh-surface-card rounded-cdh-lg p-3.5 sm:p-4 space-y-2.5 ${
+          isHighlighted ? 'cdh-card-starred' : ''
+        } ${
+          !isHighlighted && t.status === 'blocked' ? 'cdh-card-blocked' : ''
         }`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -149,6 +147,12 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
                   </span>
                 )}
 
+                {t.status === 'blocked' && (
+                  <Badge variant="danger" pill>
+                    Bloqué
+                  </Badge>
+                )}
+
                 {t.priority === 'high' && (
                   <Badge variant="danger" pill>
                     <TaskPriorityIcon priority="high" className="w-3 h-3" />
@@ -176,7 +180,7 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
                   canEditTask ? 'hover:text-[var(--cdh-accent)] cursor-pointer transition-colors' : ''
                 } ${
                   t.status === 'done'
-                    ? 'line-through text-[var(--cdh-text-tertiary)]'
+                    ? 'line-through text-[var(--cdh-text-secondary)]'
                     : 'text-[var(--cdh-text-primary)]'
                 }`}
               >
@@ -204,6 +208,7 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
               <button
                 type="button"
                 disabled={!canStarTask}
+                aria-pressed={!!t.is_starred}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (canStarTask && onToggleStar) onToggleStar(t.id);

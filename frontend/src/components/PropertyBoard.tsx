@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
+import { getScrollBehavior } from '../utils/taskMotion';
 import { ensureWhiteTextContrast } from '../utils/color';
 import { getUserPreferences, saveUserPreferences } from '../utils/cookies';
 import { Badge, ProgressBar } from './ui';
@@ -115,10 +116,11 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     const viewLeft = bar.scrollLeft;
     const viewRight = viewLeft + bar.clientWidth;
 
+    const behavior = getScrollBehavior();
     if (pillLeft < viewLeft + 8) {
-      bar.scrollTo({ left: Math.max(0, pillLeft - 12), behavior: 'smooth' });
+      bar.scrollTo({ left: Math.max(0, pillLeft - 12), behavior });
     } else if (pillRight > viewRight - 8) {
-      bar.scrollTo({ left: pillRight - bar.clientWidth + 12, behavior: 'smooth' });
+      bar.scrollTo({ left: pillRight - bar.clientWidth + 12, behavior });
     }
   }, [effectiveActiveId]);
 
@@ -248,7 +250,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
         : 0;
 
     programmaticTargetLeftRef.current = targetLeft;
-    rail.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    rail.scrollTo({ left: targetLeft, behavior: getScrollBehavior() });
   };
 
   if (allSections.length === 0) {

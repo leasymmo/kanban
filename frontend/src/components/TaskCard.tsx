@@ -130,7 +130,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 setAddingChildToId(addingChildToId === node.id ? null : node.id);
                 setChildTitle('');
               }}
-              className="opacity-100 sm:opacity-0 group-hover/item:opacity-100 group-focus-within/item:opacity-100 focus-visible:opacity-100 p-1 sm:p-0.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded transition-opacity cursor-pointer shrink-0"
+              aria-label={`Ajouter une sous-étape à ${node.title}`}
+              className="opacity-100 sm:opacity-0 group-hover/item:opacity-100 group-focus-within/item:opacity-100 focus-visible:opacity-100 p-1 sm:p-0.5 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-accent)] hover:bg-[var(--cdh-accent-soft)] rounded transition-opacity cursor-pointer shrink-0"
               title="Ajouter une sous-étape imbriquée"
             >
               <CornerDownRight className="w-3 h-3" strokeWidth={1.75} />
@@ -188,27 +189,26 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative cdh-card-slot">
       {dropIndicator === 'before' && (
-        <div className="pointer-events-none h-0.5 bg-[var(--cdh-accent)] rounded-full mb-1.5 shadow-sm animate-pulse" />
+        <div className="pointer-events-none h-0.5 bg-[var(--cdh-accent)] rounded-full mb-1.5 shadow-sm animate-pulse motion-reduce:animate-none" />
       )}
       <div
         data-task-card-id={task.id}
+        data-dragging={isDragging ? 'true' : undefined}
         draggable={canModify && !!onDragStart}
         onDragStart={(e) => canModify && onDragStart && onDragStart(e, task)}
         onDragEnd={() => onDragEnd && onDragEnd()}
         onDragOver={(e) => onDragOverCard && onDragOverCard(e, task)}
         onDrop={(e) => onDropOnCard && onDropOnCard(e, task)}
-        className={`cdh-surface-card rounded-cdh-lg p-3.5 group hover:-translate-y-0.5 ${
+        className={`cdh-surface-card cdh-surface-card--lift rounded-cdh-lg p-3.5 group ${
           canModify && onDragStart ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
         } ${
           isDragging ? 'opacity-45 scale-[0.98]' : ''
         } ${
-          task.is_starred
-            ? 'cdh-card-starred'
-            : task.status === 'blocked'
-            ? 'border-[var(--cdh-danger-accent)]/35'
-            : ''
+          task.is_starred ? 'cdh-card-starred' : ''
+        } ${
+          !task.is_starred && task.status === 'blocked' ? 'cdh-card-blocked' : ''
         }`}
       >
       {/* Top Badges (Logement & Priorité) */}
@@ -228,6 +228,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               />
               {task.property_name}
             </span>
+          )}
+
+          {task.status === 'blocked' && task.is_starred && (
+            <Badge variant="danger" pill>Bloqué</Badge>
           )}
 
           {getPriorityBadge(task.priority)}
@@ -280,10 +284,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       {/* Titre de la tâche */}
       <h4
         onClick={() => canModify && onEdit(task)}
-        className={`font-semibold text-[13.5px] text-[var(--cdh-text-primary)] leading-snug [text-wrap:balance] transition-colors break-words ${
+        className={`font-semibold text-[13.5px] leading-snug [text-wrap:balance] transition-colors break-words ${
           canModify ? 'hover:text-[var(--cdh-accent)] cursor-pointer' : ''
         } ${
-          task.status === 'done' ? 'line-through text-[var(--cdh-text-tertiary)]' : ''
+          task.status === 'done'
+            ? 'line-through text-[var(--cdh-text-secondary)]'
+            : 'text-[var(--cdh-text-primary)]'
         }`}
       >
         {task.title}
@@ -301,6 +307,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       {totalSubtasks > 0 && (
         <div className="mt-3 pt-2.5 border-t border-[var(--cdh-border-hairline)]">
           <button
+            type="button"
+            aria-expanded={showSubtasks}
             onClick={() => setShowSubtasks(!showSubtasks)}
             className="w-full flex items-center justify-between text-xs text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] font-medium cursor-pointer"
           >
@@ -362,7 +370,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       </div>
       </div>
       {dropIndicator === 'after' && (
-        <div className="pointer-events-none h-0.5 bg-[var(--cdh-accent)] rounded-full mt-1.5 shadow-sm animate-pulse" />
+        <div className="pointer-events-none h-0.5 bg-[var(--cdh-accent)] rounded-full mt-1.5 shadow-sm animate-pulse motion-reduce:animate-none" />
       )}
     </div>
   );

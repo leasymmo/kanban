@@ -1,42 +1,29 @@
 import { TaskStatus } from '../types';
 
-export type TaskHaloTone = 'accent' | 'todo' | 'progress' | 'success' | 'warning' | 'danger';
+export type TaskHaloTone = 'accent';
 export type TaskTransitionMode = 'appear' | 'move' | 'update' | 'disappear';
 
-const HALO_CLASSES = [
-  'cdh-task-halo',
-  'cdh-task-halo--accent',
-  'cdh-task-halo--todo',
-  'cdh-task-halo--progress',
-  'cdh-task-halo--success',
-  'cdh-task-halo--warning',
-  'cdh-task-halo--danger',
-] as const;
-
 const haloTimers = new WeakMap<HTMLElement, number>();
-const enterTimers = new WeakMap<HTMLElement, number>();
+const flipAnimations = new WeakMap<HTMLElement, Animation>();
+const enterAnimations = new WeakMap<HTMLElement, Animation>();
 
-export function getToneForStatus(status?: TaskStatus | 'pending' | null): TaskHaloTone {
-  switch (status) {
-    case 'done':
-      return 'success';
-    case 'in_progress':
-      return 'progress';
-    case 'blocked':
-      return 'danger';
-    case 'todo':
-    case 'pending':
-      return 'todo';
-    default:
-      return 'accent';
-  }
+/**
+ * Conserve un point d'extension unique ; le halo reste volontairement bleu Liquid Glass
+ * afin de ne jamais entrer en conflit visuel avec l'or des étoiles ou les statuts.
+ */
+export function getToneForStatus(_status?: TaskStatus | 'pending' | null): TaskHaloTone {
+  return 'accent';
 }
 
-function prefersReducedMotion(): boolean {
+export function prefersReducedMotion(): boolean {
   return (
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
+}
+
+export function getScrollBehavior(): ScrollBehavior {
+  return prefersReducedMotion() ? 'auto' : 'smooth';
 }
 
 function isRectInViewport(rect: DOMRect): boolean {
@@ -50,105 +37,154 @@ function isRectInViewport(rect: DOMRect): boolean {
   );
 }
 
-/**
- * Capture synchrone O(1) de la position et d'un clone léger avant mutation DOM.
- */
+function isVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
+  if (!isRectInViewport(rect)) return false;
+
+  let parent = el.parentElement;
+  while (parent && parent !== document.body && parent !== document.documentElement) {
+    const style = window.getComputedStyle(parent);
+    const clipsY =
+      style.overflowY === 'auto' ||
+      style.overflowY === 'scroll' ||
+      style.overflowY === 'hidden' ||
+      style.overflowY === 'clip';
+    const clipsX =
+      style.overflowX === 'auto' ||
+      style.overflowX === 'scroll' ||
+      style.overflowX === 'hidden' ||
+      style.overflowX === 'clip';
+
+    if (clipsY || clipsX) {
+      const pRect = parent.getBoundingClientRect();
+      if (clipsY && (rect.bottom <= pRect.top || rect.top >= pRect.bottom)) return false;
+      if (clipsX && (rect.right <= pRect.left || rect.left >= pRect.right)) return false;
+    }
+    parent = parent.parentElement;
+  }
+
+  return true;
+}
+
 export interface TaskDepartureSnapshot {
   rect: DOMRect;
   clone: HTMLElement | null;
 }
 
+/**
+ * Capture synchrone O(1) de la position et d'un clone visuel si la carte est visible à l'écran.
+ */
 export function captureTaskSnapshot(taskId: number): TaskDepartureSnapshot | null {
   if (typeof document === 'undefined') return null;
   const el = document.querySelector<HTMLElement>(`[data-task-card-id="${taskId}"]`);
   if (!el) return null;
+
   const rect = el.getBoundingClientRect();
-  if (!isRectInViewport(rect)) return null;
+  if (!isVisibleInScrollAncestors(el, rect)) return null;
 
   let clone: HTMLElement | null = null;
   if (!prefersReducedMotion()) {
     clone = el.cloneNode(true) as HTMLElement;
     clone.removeAttribute('data-task-card-id');
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
     clone.setAttribute('aria-hidden', 'true');
   }
   return { rect, clone };
 }
 
 /**
- * Déclenche un halo lumineux Liquid Glass GPU-only sur un élément cible (ré-entrant).
+ * Déclenche une onde lumineuse Liquid Glass interne sans double bordure ni reflow forcé.
  */
-export function triggerHaloOnElement(el: HTMLElement, tone: TaskHaloTone = 'accent'): void {
+export function triggerHaloOnElement(el: HTMLElement, _tone: TaskHaloTone = 'accent'): void {
   const prevTimer = haloTimers.get(el);
   if (prevTimer !== undefined) {
     window.clearTimeout(prevTimer);
   }
 
-  el.classList.remove(...HALO_CLASSES);
-  // Reflow ciblé sur un seul nœud pour permettre le redémarrage propre lors de clics rapides
-  void el.offsetWidth;
-  el.classList.add('cdh-task-halo', `cdh-task-halo--${tone}`);
+  const wasActive = el.classList.contains('cdh-task-halo');
+  el.classList.add('cdh-task-halo');
 
-  const durationMs = prefersReducedMotion() ? 480 : 980;
+  if (wasActive) {
+    const haloAnim =
+      typeof el.getAnimations === 'function'
+        ? el.getAnimations({ subtree: true }).find(
+            (anim) => (anim as CSSAnimation).animationName === 'cdh-halo-fade'
+          )
+        : undefined;
+
+    if (haloAnim) {
+      haloAnim.currentTime = 0;
+      haloAnim.play();
+    } else {
+      el.classList.remove('cdh-task-halo');
+      window.requestAnimationFrame(() => {
+        if (el.isConnected) el.classList.add('cdh-task-halo');
+      });
+    }
+  }
+
+  const durationMs = prefersReducedMotion() ? 450 : 750;
   const timer = window.setTimeout(() => {
-    el.classList.remove(...HALO_CLASSES);
+    el.classList.remove('cdh-task-halo');
     haloTimers.delete(el);
   }, durationMs);
   haloTimers.set(el, timer);
 }
 
 function triggerEnterOnElement(el: HTMLElement): void {
-  if (prefersReducedMotion()) return;
-  const prevTimer = enterTimers.get(el);
-  if (prevTimer !== undefined) {
-    window.clearTimeout(prevTimer);
-  }
-  el.classList.remove('cdh-task-enter');
-  void el.offsetWidth;
-  el.classList.add('cdh-task-enter');
+  if (prefersReducedMotion() || typeof el.animate !== 'function') return;
 
-  const timer = window.setTimeout(() => {
-    el.classList.remove('cdh-task-enter');
-    enterTimers.delete(el);
-  }, 240);
-  enterTimers.set(el, timer);
+  enterAnimations.get(el)?.cancel();
+  const anim = el.animate(
+    [
+      { opacity: 0.35, transform: 'translate3d(0, 4px, 0) scale(0.975)' },
+      { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
+    ],
+    {
+      duration: 210,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    }
+  );
+  enterAnimations.set(el, anim);
+
+  const cleanup = () => {
+    if (enterAnimations.get(el) === anim) enterAnimations.delete(el);
+  };
+  anim.finished.then(cleanup, cleanup);
 }
 
-/**
- * Affiche un bref écho sortant GPU à la position quittée lorsque la carte disparaît ou change de conteneur.
- */
-function spawnDepartureGhost(snapshot: TaskDepartureSnapshot, tone: TaskHaloTone): void {
+function spawnDepartureGhost(snapshot: TaskDepartureSnapshot): void {
   if (prefersReducedMotion() || !snapshot.clone || typeof document === 'undefined') return;
   const { rect, clone } = snapshot;
 
-  clone.classList.remove(...HALO_CLASSES, 'cdh-task-enter');
-  clone.classList.add('cdh-task-ghost', 'cdh-task-halo', `cdh-task-halo--${tone}`);
+  clone.classList.remove('cdh-task-halo');
+  clone.classList.add('cdh-task-ghost');
   clone.style.top = `${rect.top}px`;
   clone.style.left = `${rect.left}px`;
   clone.style.width = `${rect.width}px`;
   clone.style.height = `${rect.height}px`;
 
   document.body.appendChild(clone);
-  window.setTimeout(() => {
-    clone.remove();
-  }, 240);
+
+  if (typeof clone.animate === 'function') {
+    const anim = clone.animate(
+      [
+        { opacity: 0.72, transform: 'scale(1)' },
+        { opacity: 0, transform: 'scale(0.96)' },
+      ],
+      {
+        duration: 200,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        fill: 'forwards',
+      }
+    );
+    const removeClone = () => clone.remove();
+    anim.finished.then(removeClone, removeClone);
+  } else {
+    window.setTimeout(() => clone.remove(), 210);
+  }
 }
 
-export function pulseTargetSelector(selector: string, tone: TaskHaloTone = 'accent'): void {
-  if (typeof document === 'undefined') return;
-  window.requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(selector);
-    if (el) {
-      triggerHaloOnElement(el, tone);
-    }
-  });
-}
-
-/**
- * Orchestre le retour visuel après commit React :
- * - FLIP O(1) si la carte reste visible et glisse dans la même colonne/liste
- * - Écho sortant + entrée douce si la carte change de conteneur ou disparaît
- * - Halo lumineux Liquid Glass sur la cible (ou sur le repli si accordéon/colonne masqué)
- */
 export function scheduleTaskMotionFeedback(options: {
   taskId: number;
   tone?: TaskHaloTone;
@@ -164,7 +200,7 @@ export function scheduleTaskMotionFeedback(options: {
 
     if (!el || mode === 'disappear') {
       if (snapshot) {
-        spawnDepartureGhost(snapshot, tone);
+        spawnDepartureGhost(snapshot);
       }
       if (fallbackSelector) {
         const fallbackEl = document.querySelector<HTMLElement>(fallbackSelector);
@@ -182,14 +218,20 @@ export function scheduleTaskMotionFeedback(options: {
     }
 
     if (mode === 'move' && snapshot) {
+      const prevFlip = flipAnimations.get(el);
+      if (prevFlip) {
+        prevFlip.cancel();
+        flipAnimations.delete(el);
+      }
+
       const nextRect = el.getBoundingClientRect();
       const dx = snapshot.rect.left - nextRect.left;
       const dy = snapshot.rect.top - nextRect.top;
       const sameColumnVerticalMove =
-        Math.abs(dx) < 60 && Math.abs(dy) > 3 && Math.abs(dy) < 700;
+        Math.abs(dx) < 60 && Math.abs(dy) > 3 && Math.abs(dy) < 900;
 
       if (sameColumnVerticalMove && !prefersReducedMotion() && typeof el.animate === 'function') {
-        el.animate(
+        const anim = el.animate(
           [
             { transform: `translate3d(${dx}px, ${dy}px, 0)` },
             { transform: 'translate3d(0, 0, 0)' },
@@ -199,8 +241,13 @@ export function scheduleTaskMotionFeedback(options: {
             easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
           }
         );
-      } else if (Math.abs(dx) >= 60 || Math.abs(dy) >= 700) {
-        spawnDepartureGhost(snapshot, tone);
+        flipAnimations.set(el, anim);
+        const cleanup = () => {
+          if (flipAnimations.get(el) === anim) flipAnimations.delete(el);
+        };
+        anim.finished.then(cleanup, cleanup);
+      } else if (Math.abs(dx) >= 60 || Math.abs(dy) >= 900) {
+        spawnDepartureGhost(snapshot);
         triggerEnterOnElement(el);
       }
       triggerHaloOnElement(el, tone);

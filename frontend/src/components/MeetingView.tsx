@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Sprint, Task, TaskStatus, Question, User, Property } from '../types';
 import { hasFinalDecision } from '../utils/questions';
+import { getScrollBehavior } from '../utils/taskMotion';
 import { MeetingControlDock } from './MeetingControlDock';
 import { useConfirm } from './ui';
 import { MeetingHeader, MeetingStepId } from './meeting/MeetingHeader';
@@ -352,7 +353,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       const nextEl = decisionInputRefs.current[nextQ.id];
       if (nextEl) {
         nextEl.focus();
-        nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        nextEl.scrollIntoView({ behavior: getScrollBehavior(), block: 'center' });
       }
     }, 50);
   };

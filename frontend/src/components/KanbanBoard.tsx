@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Task, TaskPriority, TaskStatus, User } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
+import { getScrollBehavior } from '../utils/taskMotion';
 import { TaskStatusIcon } from './ui';
 import { Plus, EyeOff } from 'lucide-react';
 
@@ -110,10 +111,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     const viewLeft = bar.scrollLeft;
     const viewRight = viewLeft + bar.clientWidth;
 
+    const behavior = getScrollBehavior();
     if (pillLeft < viewLeft + 8) {
-      bar.scrollTo({ left: Math.max(0, pillLeft - 12), behavior: 'smooth' });
+      bar.scrollTo({ left: Math.max(0, pillLeft - 12), behavior });
     } else if (pillRight > viewRight - 8) {
-      bar.scrollTo({ left: pillRight - bar.clientWidth + 12, behavior: 'smooth' });
+      bar.scrollTo({ left: pillRight - bar.clientWidth + 12, behavior });
     }
   }, [effectiveMobileColumn]);
 
@@ -174,7 +176,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         : 0;
 
     programmaticTargetLeftRef.current = targetLeft;
-    container.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    container.scrollTo({ left: targetLeft, behavior: getScrollBehavior() });
   };
 
   if (visibleColumns.length === 0) {
@@ -243,7 +245,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               onDragOver={(e) => handleDragOverContainer(e, col.id)}
               onDragLeave={handleDragLeaveContainer}
               onDrop={(e) => handleDropOnContainer(e, col.id)}
-              className={`cdh-glass-column flex flex-col rounded-cdh-2xl p-3 sm:p-3.5 h-full min-h-0 w-[calc(100vw-2.25rem)] max-w-[360px] md:max-w-none md:w-auto shrink-0 snap-center md:shrink transition-all duration-200 ${
+              className={`cdh-glass-column flex flex-col rounded-cdh-2xl p-3 sm:p-3.5 h-full min-h-0 w-[calc(100vw-2.25rem)] max-w-[360px] md:max-w-none md:w-auto shrink-0 snap-center md:shrink transition-[border-color,box-shadow] duration-200 ${
                 isHovered
                   ? 'ring-2 ring-[var(--cdh-accent)]/50 border-[var(--cdh-accent)]'
                   : ''
@@ -275,7 +277,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               </div>
 
               {/* Liste des cartes avec scroll interne unique */}
-              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 -mx-2.5 pt-2.5 pb-4">
+              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 -mx-2.5 pt-2.5 pb-4">
                 {colTasks.length > 0 ? (
                   colTasks.map((task) => {
                     const indicator =
