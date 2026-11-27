@@ -596,8 +596,10 @@ export const App: React.FC = () => {
     );
   }
 
+  const isFixedViewportTab = activeTab === 'tasks' && !isLoading && !apiError;
+
   return (
-    <div className="min-h-dvh cdh-canvas-bg text-[var(--cdh-text-primary)] flex flex-col">
+    <div className={`${isFixedViewportTab ? 'h-dvh overflow-hidden' : 'min-h-dvh'} cdh-canvas-bg text-[var(--cdh-text-primary)] flex flex-col`}>
       <Navbar
         currentUser={currentUser}
         sprints={sprints}
@@ -612,7 +614,11 @@ export const App: React.FC = () => {
         onToggleTheme={toggleTheme}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <main
+        className={`flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 ${
+          isFixedViewportTab ? 'min-h-0 flex flex-col py-2.5 sm:py-3.5' : 'py-4 sm:py-6'
+        }`}
+      >
         <ToastContainer
           toasts={toasts}
           onDismiss={dismissToast}

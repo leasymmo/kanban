@@ -138,9 +138,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex-1 min-h-0 flex flex-col gap-2.5">
       {/* Pills de sélection rapide de colonne sur mobile (< md) */}
-      <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+      <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 pb-0.5">
         {visibleColumns.map(col => {
           const count = tasks.filter(t => t.status === col.id).length;
           const isActive = effectiveMobileColumn === col.id;
@@ -150,7 +150,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               key={col.id}
               type="button"
               onClick={() => scrollToColumn(col.id)}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 min-h-[38px] rounded-full text-xs font-semibold transition-all active:scale-[0.98] shrink-0 cursor-pointer tabular-nums ${
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-3 min-h-[36px] rounded-full text-xs font-semibold transition-all active:scale-[0.98] shrink-0 cursor-pointer tabular-nums ${
                 isActive
                   ? 'bg-[var(--cdh-text-primary)] text-[var(--cdh-text-inverted)] shadow-sm'
                   : 'cdh-glass-chrome text-[var(--cdh-text-primary)]'
@@ -168,11 +168,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         })}
       </div>
 
-      {/* Colonnes Liquid Glass (Couche 1) */}
+      {/* Colonnes Liquid Glass à hauteur fixe plein écran (sans scroll de page) */}
       <div
         ref={scrollContainerRef}
         onScroll={handleMobileCarouselScroll}
-        className={`flex md:grid ${getGridClass(visibleColumns.length)} gap-3.5 sm:gap-4 items-start overflow-x-auto no-scrollbar md:overflow-visible snap-x snap-mandatory pb-2 md:pb-4 -mx-3 px-3 sm:mx-0 sm:px-0`}
+        className={`flex-1 min-h-0 flex md:grid ${getGridClass(visibleColumns.length)} gap-3.5 sm:gap-4 items-stretch overflow-x-auto no-scrollbar md:overflow-visible snap-x snap-mandatory -mx-3 px-3 sm:mx-0 sm:px-0`}
       >
         {visibleColumns.map((col) => {
           const colTasks = tasks.filter((t) => t.status === col.id);
@@ -185,14 +185,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               onDragOver={(e) => handleDragOverContainer(e, col.id)}
               onDragLeave={handleDragLeaveContainer}
               onDrop={(e) => handleDropOnContainer(e, col.id)}
-              className={`cdh-glass-column flex flex-col rounded-cdh-2xl p-3 sm:p-3.5 min-h-[260px] md:min-h-[480px] w-[calc(100vw-2.25rem)] max-w-[360px] md:max-w-none md:w-auto shrink-0 snap-center md:shrink transition-all duration-200 ${
+              className={`cdh-glass-column flex flex-col rounded-cdh-2xl p-3 sm:p-3.5 h-full min-h-0 w-[calc(100vw-2.25rem)] max-w-[360px] md:max-w-none md:w-auto shrink-0 snap-center md:shrink transition-all duration-200 ${
                 isHovered
                   ? 'ring-2 ring-[var(--cdh-accent)]/50 border-[var(--cdh-accent)]'
                   : ''
               }`}
             >
-              {/* En-tête Colonne épuré */}
-              <div className="flex items-center justify-between px-1.5 pb-2.5 mb-2.5 border-b border-[var(--cdh-border-hairline)]">
+              {/* En-tête Colonne fixe */}
+              <div className="flex items-center justify-between px-1.5 pb-2.5 mb-2.5 border-b border-[var(--cdh-border-hairline)] shrink-0">
                 <h3 className="flex items-center gap-2 min-w-0">
                   <span
                     aria-hidden="true"
@@ -220,8 +220,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 )}
               </div>
 
-              {/* Liste des cartes */}
-              <div className="space-y-2.5 flex-1 md:overflow-y-auto md:max-h-[calc(100dvh-260px)] md:pr-0.5">
+              {/* Liste des cartes avec scroll interne unique */}
+              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overscroll-contain pr-0.5">
                 {colTasks.length > 0 ? (
                   colTasks.map((task) => {
                     const indicator =

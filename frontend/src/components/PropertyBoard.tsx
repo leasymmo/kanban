@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Task, Property, User, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
 import { ensureWhiteTextContrast } from '../utils/color';
 import { Badge, ProgressBar } from './ui';
-import { Home, Plus, EyeOff } from 'lucide-react';
+import { Home, Plus, EyeOff, Eye } from 'lucide-react';
 
 interface PropertyBoardProps {
   tasks: Task[];
@@ -41,7 +41,11 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
 }) => {
   const showQuickAddButtons =
     canAddTasks !== undefined ? canAddTasks : (!isReadOnly && currentUser?.role === 'admin');
-  const sections = [
+  const [hideEmptyProperties, setHideEmptyProperties] = useState(false);
+  const [activePropertyId, setActivePropertyId] = useState<number | null>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+
+  const allSections = [
     ...properties.map(p => ({
       id: p.id,
       name: p.name,
@@ -59,6 +63,10 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
       tasks: tasks.filter(t => !t.property_id)
     }
   ].filter(section => !hiddenPropertyIds.includes(section.id));
+
+  const sections = hideEmptyProperties
+    ? allSections.filter(s => s.tasks.length > 0)
+    : allSections;
 
   const {
     draggedTaskId,
@@ -83,16 +91,17 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     }
   });
 
-  const getGridClass = (count: number) => {
-    if (count <= 1) return 'grid-cols-1';
-    if (count === 2) return 'grid-cols-1 md:grid-cols-2';
-    return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
+  const scrollToProperty = (propertyId: number) => {
+    setActivePropertyId(propertyId);
+    const el = document.getElementById(`property-col-${propertyId}`);
+    const container = railRef.current;
+    if (el && container) {
+      const targetLeft = el.offsetLeft - (container.clientWidth - el.clientWidth) / 2;
+      container.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+    }
   };
 
-  const listMaxHeightClass =
-    sections.length <= 2 ? 'md:max-h-[calc(100dvh-300px)]' : 'md:max-h-[480px]';
-
-  if (sections.length === 0) {
+  if (allSections.length === 0) {
     return (
       <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center">
         <EyeOff className="w-8 h-8 mx-auto mb-2.5 text-[var(--cdh-text-tertiary)]" strokeWidth={1.75} />
@@ -103,105 +112,182 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   }
 
   return (
-    <div className="space-y-6">
-      <div className={`grid ${getGridClass(sections.length)} gap-4`}>
-        {sections.map((section) => {
-          const total = section.tasks.length;
-          const doneCount = section.tasks.filter(t => t.status === 'done').length;
-          const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-          const isHovered = activeDropContainer === section.id;
+    <div className="flex-1 min-h-0 flex flex-col gap-2.5">
+      {/* Barre d'accès rapide par logement + toggle masquer vides */}
+      <div className="shrink-0 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
+          {sections.map((section) => {
+            const isActive = activePropertyId === section.id;
+            const remaining = section.tasks.filter(t => t.status !== 'done').length;
 
-          return (
-            <div
-              key={section.id}
-              onDragOver={(e) => handleDragOverContainer(e, section.id)}
-              onDragLeave={handleDragLeaveContainer}
-              onDrop={(e) => handleDropOnContainer(e, section.id)}
-              className={`cdh-glass-column rounded-cdh-2xl p-3.5 sm:p-4 flex flex-col min-h-[160px] md:min-h-[340px] transition-all duration-200 ${
-                isHovered ? 'ring-2 ring-[var(--cdh-accent)]/50 border-[var(--cdh-accent)]' : ''
-              }`}
-            >
-              {/* Entête du Logement */}
-              <div className="flex items-center justify-between pb-3 border-b border-[var(--cdh-border-hairline)] mb-3">
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className="w-8 h-8 rounded-cdh-md flex items-center justify-center text-white shadow-xs shrink-0"
-                    style={{ backgroundColor: ensureWhiteTextContrast(section.color) }}
-                  >
-                    <Home className="w-4 h-4" strokeWidth={2} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="font-semibold text-sm text-[var(--cdh-text-primary)] leading-tight">
-                        {section.name}
-                      </h3>
-                      {section.isDeactivated && (
-                        <Badge variant="neutral">Désactivé</Badge>
-                      )}
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => scrollToProperty(section.id)}
+                className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-full text-[11.5px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
+                  isActive
+                    ? 'bg-[var(--cdh-text-primary)] text-[var(--cdh-text-inverted)] shadow-sm'
+                    : 'cdh-glass-chrome text-[var(--cdh-text-primary)] hover:opacity-85'
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: section.color || '#007AFF' }}
+                />
+                <span className="truncate max-w-[140px]">{section.name}</span>
+                <span className="opacity-70 text-[10.5px]">
+                  {remaining > 0 ? remaining : section.tasks.length}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          aria-pressed={hideEmptyProperties}
+          onClick={() => setHideEmptyProperties(prev => !prev)}
+          className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-full text-[11.5px] font-semibold transition-all cursor-pointer ${
+            hideEmptyProperties
+              ? 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
+              : 'cdh-glass-chrome text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
+          }`}
+          title="Afficher ou masquer les logements sans tâche"
+        >
+          {hideEmptyProperties ? (
+            <Eye className="w-3.5 h-3.5" strokeWidth={2} />
+          ) : (
+            <EyeOff className="w-3.5 h-3.5" strokeWidth={2} />
+          )}
+          <span className="hidden sm:inline">
+            {hideEmptyProperties ? 'Tout afficher' : 'Masquer vides'}
+          </span>
+        </button>
+      </div>
+
+      {/* Rail horizontal en colonnes à hauteur fixe plein écran (Option A) */}
+      {sections.length === 0 ? (
+        <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center">
+          <EyeOff className="w-8 h-8 mx-auto mb-2.5 text-[var(--cdh-text-tertiary)]" strokeWidth={1.75} />
+          <p className="text-sm font-semibold text-[var(--cdh-text-primary)]">Aucun logement avec des tâches pour ces filtres.</p>
+          <button
+            type="button"
+            onClick={() => setHideEmptyProperties(false)}
+            className="mt-2 text-xs font-semibold text-[var(--cdh-accent)] hover:underline cursor-pointer"
+          >
+            Afficher aussi les logements vides
+          </button>
+        </div>
+      ) : (
+        <div
+          ref={railRef}
+          className="flex-1 min-h-0 flex gap-3.5 sm:gap-4 items-stretch overflow-x-auto snap-x snap-mandatory pb-1 -mx-3 px-3 sm:mx-0 sm:px-0"
+        >
+          {sections.map((section) => {
+            const total = section.tasks.length;
+            const doneCount = section.tasks.filter(t => t.status === 'done').length;
+            const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+            const isHovered = activeDropContainer === section.id;
+
+            return (
+              <div
+                key={section.id}
+                id={`property-col-${section.id}`}
+                onDragOver={(e) => handleDragOverContainer(e, section.id)}
+                onDragLeave={handleDragLeaveContainer}
+                onDrop={(e) => handleDropOnContainer(e, section.id)}
+                className={`cdh-glass-column rounded-cdh-2xl p-3 sm:p-3.5 flex flex-col h-full min-h-0 w-[calc(100vw-2.25rem)] max-w-[350px] sm:w-[330px] shrink-0 snap-center sm:snap-start transition-all duration-200 ${
+                  isHovered ? 'ring-2 ring-[var(--cdh-accent)]/50 border-[var(--cdh-accent)]' : ''
+                }`}
+              >
+                {/* Entête fixe du Logement */}
+                <div className="shrink-0">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-[var(--cdh-border-hairline)] mb-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-7 h-7 rounded-cdh-sm flex items-center justify-center text-white shadow-xs shrink-0"
+                        style={{ backgroundColor: ensureWhiteTextContrast(section.color) }}
+                      >
+                        <Home className="w-3.5 h-3.5" strokeWidth={2} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="font-semibold text-[13px] text-[var(--cdh-text-primary)] leading-tight truncate">
+                            {section.name}
+                          </h3>
+                          {section.isDeactivated && (
+                            <Badge variant="neutral">Désactivé</Badge>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-[var(--cdh-text-secondary)] font-medium tabular-nums">
+                          {doneCount}/{total} terminées ({percent}%)
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-[11.5px] text-[var(--cdh-text-secondary)] font-medium tabular-nums">
-                      {doneCount}/{total} terminées ({percent}%)
-                    </p>
+
+                    {showQuickAddButtons && (
+                      <button
+                        type="button"
+                        onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
+                        aria-label={`Ajouter une tâche pour ${section.name}`}
+                        className="p-1.5 text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] rounded-full transition-colors cursor-pointer shrink-0"
+                        title={`Ajouter une tâche pour ${section.name}`}
+                      >
+                        <Plus className="w-4 h-4" strokeWidth={2} />
+                      </button>
+                    )}
                   </div>
+
+                  <ProgressBar value={percent} label={`Progression ${section.name}`} className="mb-2.5" />
                 </div>
 
-                {showQuickAddButtons && (
-                  <button
-                    onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
-                    aria-label={`Ajouter une tâche pour ${section.name}`}
-                    className="p-1.5 text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] rounded-full transition-colors cursor-pointer"
-                    title={`Ajouter une tâche pour ${section.name}`}
-                  >
-                    <Plus className="w-4 h-4" strokeWidth={2} />
-                  </button>
-                )}
+                {/* Liste des cartes avec scroll interne unique */}
+                <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overscroll-contain pr-0.5">
+                  {section.tasks.length > 0 ? (
+                    section.tasks.map((task) => {
+                      const indicator =
+                        dropTarget?.containerId === section.id && dropTarget?.taskId === task.id
+                          ? dropTarget.position
+                          : null;
+                      return (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          isReadOnly={isReadOnly}
+                          onEdit={onEditTask}
+                          onDelete={onDeleteTask}
+                          onToggleSubtask={onToggleSubtask}
+                          onAddSubtask={onAddSubtask}
+                          onUpdateStatus={onUpdateStatus}
+                          onToggleStar={onToggleStar}
+                          onDragStart={handleDragStart}
+                          onDragEnd={resetDragState}
+                          onDragOverCard={(e, t) => handleDragOverCard(e, t, section.id)}
+                          onDropOnCard={(e, t) => handleDropOnCard(e, t, section.id)}
+                          dropIndicator={indicator}
+                          isDragging={draggedTaskId === task.id}
+                        />
+                      );
+                    })
+                  ) : (
+                    <p
+                      className={`py-8 px-3 text-center text-xs text-[var(--cdh-text-tertiary)] font-medium select-none transition-colors rounded-cdh-lg ${
+                        isHovered
+                          ? 'border-2 border-dashed border-[var(--cdh-accent)] bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
+                          : 'border border-dashed border-[var(--cdh-border-hairline)]'
+                      }`}
+                    >
+                      {isReadOnly || currentUser?.role === 'read' ? 'Aucune tâche' : 'Déposer une tâche ici'}
+                    </p>
+                  )}
+                </div>
               </div>
-
-              {/* Mini barre de progression */}
-              <ProgressBar value={percent} label={`Progression ${section.name}`} className="mb-3" />
-
-              {/* Cartes de tâches du logement */}
-              <div className={`space-y-2.5 flex-1 md:overflow-y-auto ${listMaxHeightClass} md:pr-0.5`}>
-                {section.tasks.length > 0 ? (
-                  section.tasks.map((task) => {
-                    const indicator =
-                      dropTarget?.containerId === section.id && dropTarget?.taskId === task.id
-                        ? dropTarget.position
-                        : null;
-                    return (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        isReadOnly={isReadOnly}
-                        onEdit={onEditTask}
-                        onDelete={onDeleteTask}
-                        onToggleSubtask={onToggleSubtask}
-                        onAddSubtask={onAddSubtask}
-                        onUpdateStatus={onUpdateStatus}
-                        onToggleStar={onToggleStar}
-                        onDragStart={handleDragStart}
-                        onDragEnd={resetDragState}
-                        onDragOverCard={(e, t) => handleDragOverCard(e, t, section.id)}
-                        onDropOnCard={(e, t) => handleDropOnCard(e, t, section.id)}
-                        dropIndicator={indicator}
-                        isDragging={draggedTaskId === task.id}
-                      />
-                    );
-                  })
-                ) : (
-                  <p className={`py-8 px-3 text-center text-xs text-[var(--cdh-text-tertiary)] font-medium select-none transition-colors rounded-cdh-lg ${
-                    isHovered
-                      ? 'border-2 border-dashed border-[var(--cdh-accent)] bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
-                      : 'border border-dashed border-[var(--cdh-border-hairline)]'
-                  }`}>
-                    {isReadOnly || currentUser?.role === 'read' ? 'Aucune tâche' : 'Déposer une tâche ici'}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
