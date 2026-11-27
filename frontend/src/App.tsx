@@ -32,6 +32,7 @@ export const App: React.FC = () => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastIdRef = useRef(0);
   const toastTimersRef = useRef<Map<number, number>>(new Map());
+  const crossTabModalTimerRef = useRef<number | null>(null);
 
   // Onglets
   const [activeTab, setActiveTab] = useState<'tasks' | 'questions' | 'meeting'>('tasks');
@@ -94,6 +95,9 @@ export const App: React.FC = () => {
     return () => {
       toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       toastTimersRef.current.clear();
+      if (crossTabModalTimerRef.current !== null) {
+        window.clearTimeout(crossTabModalTimerRef.current);
+      }
     };
   }, []);
 
@@ -586,14 +590,20 @@ export const App: React.FC = () => {
       if (keyLower === 'n' || e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') {
         e.preventDefault();
         if (activeTab === 'questions') {
+          if (crossTabModalTimerRef.current !== null) {
+            window.clearTimeout(crossTabModalTimerRef.current);
+          }
           saveUserPreferences(currentUser.id, { taskFilter: 'me' });
           handleChangeTab('tasks');
-          openCreateTaskModal({
-            status: 'todo',
-            propertyId: null,
-            assignedTo: currentUser.id,
-            source: 'tasks'
-          });
+          crossTabModalTimerRef.current = window.setTimeout(() => {
+            crossTabModalTimerRef.current = null;
+            openCreateTaskModal({
+              status: 'todo',
+              propertyId: null,
+              assignedTo: currentUser.id,
+              source: 'tasks'
+            });
+          }, 220);
           return;
         }
 
@@ -619,7 +629,16 @@ export const App: React.FC = () => {
       if (keyLower === 'q' && activeSprint) {
         e.preventDefault();
         if (activeTab === 'tasks') {
+          if (crossTabModalTimerRef.current !== null) {
+            window.clearTimeout(crossTabModalTimerRef.current);
+          }
           handleChangeTab('questions');
+          crossTabModalTimerRef.current = window.setTimeout(() => {
+            crossTabModalTimerRef.current = null;
+            setEditingMeetingQuestion(null);
+            setIsQuestionModalOpen(true);
+          }, 220);
+          return;
         }
         setEditingMeetingQuestion(null);
         setIsQuestionModalOpen(true);
