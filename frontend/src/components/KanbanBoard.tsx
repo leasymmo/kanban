@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Task, TaskPriority, TaskStatus, User } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
-import { getScrollBehavior } from '../utils/taskMotion';
+import {
+  CreatedTaskBatch,
+  getScrollBehavior,
+  scrollContainersAndHighlightTasks,
+} from '../utils/taskMotion';
 import { TaskStatusIcon } from './ui';
 import { Plus, EyeOff } from 'lucide-react';
 
@@ -23,6 +27,9 @@ interface KanbanBoardProps {
   onAddNewTask: (initialStatus?: TaskStatus) => void;
   canAddTasks?: boolean;
   isReadOnly: boolean;
+  lastCreatedBatch?: CreatedTaskBatch | null;
+  isModalOpen?: boolean;
+  onConsumeCreatedBatch?: () => void;
 }
 
 interface ColumnConfig {
@@ -54,7 +61,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onToggleStar,
   onAddNewTask,
   canAddTasks,
-  isReadOnly
+  isReadOnly,
+  lastCreatedBatch,
+  isModalOpen = false,
+  onConsumeCreatedBatch
 }) => {
   const showQuickAddButtons =
     canAddTasks !== undefined ? canAddTasks : (!isReadOnly && currentUser?.role === 'admin');
@@ -179,6 +189,34 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     container.scrollTo({ left: targetLeft, behavior: getScrollBehavior() });
   };
 
+  useEffect(() => {
+    if (!lastCreatedBatch || isModalOpen) return;
+
+    const targetStatus: TaskStatus =
+      lastCreatedBatch.status === 'pending' ? 'todo' : lastCreatedBatch.status;
+    const isVisibleColumn = visibleColumns.some((c) => c.id === targetStatus);
+    const hasVisibleTask = tasks.some((t) => lastCreatedBatch.ids.includes(t.id));
+
+    onConsumeCreatedBatch?.();
+    if (!isVisibleColumn || !hasVisibleTask) return;
+
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) {
+      scrollToColumn(targetStatus);
+    }
+
+    window.requestAnimationFrame(() => {
+      const colScrollEl = document.querySelector<HTMLElement>(
+        `[data-kanban-col-scroll="${targetStatus}"]`
+      );
+      scrollContainersAndHighlightTasks({
+        horizontalEl: isMobile ? scrollContainerRef.current : null,
+        verticalEl: colScrollEl,
+        taskIds: lastCreatedBatch.ids,
+      });
+    });
+  }, [lastCreatedBatch, isModalOpen, tasks, visibleColumns]);
+
   if (visibleColumns.length === 0) {
     return (
       <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center">
@@ -277,7 +315,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               </div>
 
               {/* Liste des cartes avec scroll interne unique */}
-              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 -mx-2.5 pt-2.5 pb-4">
+              <div
+                data-kanban-col-scroll={col.id}
+                className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 -mx-2.5 pt-2.5 pb-4"
+              >
                 {colTasks.length > 0 ? (
                   colTasks.map((task) => {
                     const indicator =

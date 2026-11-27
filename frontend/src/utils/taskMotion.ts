@@ -263,6 +263,89 @@ function scrollAndPlayAppear(el: HTMLElement, tone: TaskHaloTone): void {
   window.requestAnimationFrame(waitUntilSettled);
 }
 
+export interface CreatedTaskBatch {
+  ids: number[];
+  status: TaskStatus | 'pending';
+  propertyId: number | null;
+  seq: number;
+}
+
+/**
+ * Fait défiler verticalement le conteneur cible jusqu'à la dernière carte créée,
+ * attend la stabilisation des scrolls horizontal et vertical, puis joue l'onde Liquid Glass.
+ */
+export function scrollContainersAndHighlightTasks(options: {
+  horizontalEl?: HTMLElement | null;
+  verticalEl?: HTMLElement | null;
+  taskIds: number[];
+  tone?: TaskHaloTone;
+}): void {
+  if (typeof window === 'undefined' || options.taskIds.length === 0) return;
+  const { horizontalEl = null, verticalEl = null, taskIds, tone = 'accent' } = options;
+
+  const behavior = getScrollBehavior();
+
+  if (verticalEl && verticalEl.scrollHeight > verticalEl.clientHeight + 2) {
+    verticalEl.scrollTo({
+      top: verticalEl.scrollHeight,
+      behavior,
+    });
+  }
+
+  const playHighlights = () => {
+    taskIds.forEach((id) => {
+      const cardEl = document.querySelector<HTMLElement>(`[data-task-card-id="${id}"]`);
+      if (cardEl && cardEl.isConnected) {
+        triggerEnterOnElement(cardEl);
+        triggerHaloOnElement(cardEl, tone);
+      }
+    });
+  };
+
+  if (prefersReducedMotion()) {
+    window.requestAnimationFrame(playHighlights);
+    return;
+  }
+
+  const start = performance.now();
+  let lastTop = verticalEl ? verticalEl.scrollTop : 0;
+  let lastLeft = horizontalEl ? horizontalEl.scrollLeft : 0;
+  let settledFrames = 0;
+  const needsScroll =
+    (verticalEl !== null && verticalEl.scrollHeight > verticalEl.clientHeight + 2) ||
+    (horizontalEl !== null && horizontalEl.scrollWidth > horizontalEl.clientWidth + 2);
+
+  if (!needsScroll) {
+    window.requestAnimationFrame(playHighlights);
+    return;
+  }
+
+  const waitUntilSettled = () => {
+    const elapsed = performance.now() - start;
+    const curTop = verticalEl ? verticalEl.scrollTop : 0;
+    const curLeft = horizontalEl ? horizontalEl.scrollLeft : 0;
+
+    const moved = Math.abs(curTop - lastTop) > 0.75 || Math.abs(curLeft - lastLeft) > 0.75;
+    if (!moved) {
+      settledFrames += 1;
+    } else {
+      settledFrames = 0;
+    }
+
+    lastTop = curTop;
+    lastLeft = curLeft;
+
+    if ((settledFrames >= 2 && elapsed >= 80) || elapsed >= 600) {
+      playHighlights();
+      return;
+    }
+
+    window.requestAnimationFrame(waitUntilSettled);
+  };
+
+  window.requestAnimationFrame(waitUntilSettled);
+}
+
 export function scheduleTaskMotionFeedback(options: {
   taskId: number;
   tone?: TaskHaloTone;

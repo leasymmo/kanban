@@ -3,6 +3,7 @@ import { User, Sprint, Task, Question, Property, TaskStatus } from './types';
 import { api } from './api/client';
 import { useSprintTasks } from './hooks/useSprintTasks';
 import { getUserPreferences, saveUserPreferences } from './utils/cookies';
+import { scheduleTaskMotionFeedback } from './utils/taskMotion';
 import { Navbar } from './components/Navbar';
 import { TasksTab } from './components/TasksTab';
 import { QuestionsView } from './components/QuestionsView';
@@ -120,6 +121,8 @@ export const App: React.FC = () => {
   const {
     tasks,
     setTasks,
+    lastCreatedBatch,
+    consumeLastCreatedBatch,
     saveTask,
     updateTaskStatus,
     quickUpdateTask,
@@ -541,6 +544,20 @@ export const App: React.FC = () => {
 
   const activeSprint = sprints.find(s => s.id === currentSprintId) || sprints[0];
 
+  // Si une tâche est créée hors de l'onglet Tâches, consommer le batch pour jouer le halo sur la vue active
+  useEffect(() => {
+    if (!lastCreatedBatch || isTaskModalOpen || activeTab === 'tasks') return;
+    consumeLastCreatedBatch();
+    lastCreatedBatch.ids.forEach((createdId, idx) => {
+      scheduleTaskMotionFeedback({
+        taskId: createdId,
+        tone: 'accent',
+        mode: 'appear',
+        scrollIfOffscreen: idx === 0,
+      });
+    });
+  }, [lastCreatedBatch, isTaskModalOpen, activeTab, consumeLastCreatedBatch]);
+
   // Raccourcis clavier globaux pour les onglets Tâches & Questions (N / + / = et Q)
   useEffect(() => {
     if (!currentUser || isLoading || apiError || activeTab === 'meeting') return;
@@ -755,6 +772,9 @@ export const App: React.FC = () => {
                 allUsers={allUsers}
                 currentUser={currentUser}
                 isReadOnly={isReadOnly}
+                lastCreatedBatch={lastCreatedBatch}
+                isTaskModalOpen={isTaskModalOpen}
+                onConsumeCreatedBatch={consumeLastCreatedBatch}
                 onEditTask={(t) => {
                   setEditingTask(t);
                   setIsTaskModalOpen(true);

@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { reorderTasksInSubset } from '../utils/subtasks';
 import {
   captureTaskSnapshot,
+  CreatedTaskBatch,
   getToneForStatus,
   scheduleTaskMotionFeedback,
 } from '../utils/taskMotion';
@@ -36,6 +37,7 @@ export function useSprintTasks({
   onError
 }: UseSprintTasksOptions) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [lastCreatedBatch, setLastCreatedBatch] = useState<CreatedTaskBatch | null>(null);
   const confirm = useConfirm();
 
   const notifySuccess = (msg: string) => {
@@ -77,14 +79,31 @@ export function useSprintTasks({
             : res?.task_id
             ? [res.task_id]
             : [];
-        createdIds.forEach((createdId, idx) => {
-          scheduleTaskMotionFeedback({
-            taskId: createdId,
-            tone: 'accent',
-            mode: 'appear',
-            scrollIfOffscreen: idx === 0
-          });
-        });
+        const targetStatus = (res?.status || taskData.status || 'todo') as TaskStatus | 'pending';
+        const firstPropId: number | null =
+          Array.isArray(taskData.property_ids) && taskData.property_ids.length > 0
+            ? (taskData.property_ids[0] ?? null)
+            : (taskData.property_id ?? null);
+
+        if (createdIds.length > 0) {
+          if (targetStatus === 'pending') {
+            createdIds.forEach((createdId, idx) => {
+              scheduleTaskMotionFeedback({
+                taskId: createdId,
+                tone: 'accent',
+                mode: 'appear',
+                scrollIfOffscreen: idx === 0
+              });
+            });
+          } else {
+            setLastCreatedBatch({
+              ids: createdIds,
+              status: targetStatus,
+              propertyId: firstPropId,
+              seq: Date.now()
+            });
+          }
+        }
       }
 
       notifySuccess(res?.message || (isUpdate ? 'Tâche mise à jour.' : 'Tâche créée avec succès.'));
@@ -155,14 +174,23 @@ export function useSprintTasks({
           };
         });
         setTasks(prev => [...prev, ...createdTasks]);
-        createdTasks.forEach((created, idx) => {
-          scheduleTaskMotionFeedback({
-            taskId: created.id,
-            tone: 'accent',
-            mode: 'appear',
-            scrollIfOffscreen: idx === 0
+        if (isPendingMeeting) {
+          createdTasks.forEach((created, idx) => {
+            scheduleTaskMotionFeedback({
+              taskId: created.id,
+              tone: 'accent',
+              mode: 'appear',
+              scrollIfOffscreen: idx === 0
+            });
           });
-        });
+        } else if (createdTasks.length > 0) {
+          setLastCreatedBatch({
+            ids: createdTasks.map(c => c.id),
+            status: createdTasks[0].status,
+            propertyId: createdTasks[0].property_id ?? null,
+            seq: Date.now()
+          });
+        }
         notifySuccess(createdTasks.length > 1 ? `${createdTasks.length} tâches créées localement.` : 'Tâche créée localement.');
       }
     }
@@ -472,9 +500,13 @@ export function useSprintTasks({
     }
   };
 
+  const consumeLastCreatedBatch = () => setLastCreatedBatch(null);
+
   return {
     tasks,
     setTasks,
+    lastCreatedBatch,
+    consumeLastCreatedBatch,
     saveTask,
     updateTaskStatus,
     quickUpdateTask,

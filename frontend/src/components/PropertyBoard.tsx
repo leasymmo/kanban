@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
-import { getScrollBehavior } from '../utils/taskMotion';
+import {
+  CreatedTaskBatch,
+  getScrollBehavior,
+  scrollContainersAndHighlightTasks,
+} from '../utils/taskMotion';
 import { ensureWhiteTextContrast } from '../utils/color';
 import { getUserPreferences, saveUserPreferences } from '../utils/cookies';
 import { Badge, ProgressBar } from './ui';
@@ -26,6 +30,9 @@ interface PropertyBoardProps {
   onAddNewTask: (propertyId?: number) => void;
   canAddTasks?: boolean;
   isReadOnly: boolean;
+  lastCreatedBatch?: CreatedTaskBatch | null;
+  isModalOpen?: boolean;
+  onConsumeCreatedBatch?: () => void;
 }
 
 export const PropertyBoard: React.FC<PropertyBoardProps> = ({
@@ -45,7 +52,10 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   onToggleStar,
   onAddNewTask,
   canAddTasks,
-  isReadOnly
+  isReadOnly,
+  lastCreatedBatch,
+  isModalOpen = false,
+  onConsumeCreatedBatch
 }) => {
   const showQuickAddButtons =
     canAddTasks !== undefined ? canAddTasks : (!isReadOnly && currentUser?.role === 'admin');
@@ -253,6 +263,30 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     rail.scrollTo({ left: targetLeft, behavior: getScrollBehavior() });
   };
 
+  useEffect(() => {
+    if (!lastCreatedBatch || isModalOpen) return;
+
+    const firstSectionId = lastCreatedBatch.propertyId ?? 0;
+    const hasSection = sections.some((s) => s.id === firstSectionId);
+    const hasVisibleTask = tasks.some((t) => lastCreatedBatch.ids.includes(t.id));
+
+    onConsumeCreatedBatch?.();
+    if (!hasSection || !hasVisibleTask) return;
+
+    scrollToProperty(firstSectionId);
+
+    window.requestAnimationFrame(() => {
+      const propScrollEl = document.querySelector<HTMLElement>(
+        `[data-property-scroll="${firstSectionId}"]`
+      );
+      scrollContainersAndHighlightTasks({
+        horizontalEl: railRef.current,
+        verticalEl: propScrollEl,
+        taskIds: lastCreatedBatch.ids,
+      });
+    });
+  }, [lastCreatedBatch, isModalOpen, sections, tasks]);
+
   if (allSections.length === 0) {
     return (
       <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center">
@@ -401,7 +435,10 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                 </div>
 
                 {/* Liste des cartes avec scroll vertical interne uniquement */}
-                <div className="cdh-prop-scroll space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 -mx-2.5 pt-2.5 pb-4">
+                <div
+                  data-property-scroll={section.id}
+                  className="cdh-prop-scroll space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 -mx-2.5 pt-2.5 pb-4"
+                >
                   {section.tasks.length > 0 ? (
                     section.tasks.map((task) => {
                       const indicator =

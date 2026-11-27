@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
+import { CreatedTaskBatch } from '../utils/taskMotion';
 import { useTaskFilters } from '../hooks/useTaskFilters';
 import { getUserPreferences, saveUserPreferences } from '../utils/cookies';
 import { TasksToolbar } from './TasksToolbar';
@@ -12,6 +13,9 @@ interface TasksTabProps {
   allUsers: User[];
   currentUser: User | null;
   isReadOnly: boolean;
+  lastCreatedBatch?: CreatedTaskBatch | null;
+  isTaskModalOpen?: boolean;
+  onConsumeCreatedBatch?: () => void;
   onEditTask: (task: Task) => void;
   onDeleteTask: (id: number) => void;
   onToggleSubtask: (subtaskId: number) => void;
@@ -36,6 +40,9 @@ export const TasksTab: React.FC<TasksTabProps> = ({
   allUsers,
   currentUser,
   isReadOnly,
+  lastCreatedBatch,
+  isTaskModalOpen = false,
+  onConsumeCreatedBatch,
   onEditTask,
   onDeleteTask,
   onToggleSubtask,
@@ -160,6 +167,9 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           }
           canAddTasks={canUseBoardQuickAdd}
           isReadOnly={isReadOnly}
+          lastCreatedBatch={lastCreatedBatch}
+          isModalOpen={isTaskModalOpen}
+          onConsumeCreatedBatch={onConsumeCreatedBatch}
         />
       ) : (
         <PropertyBoard
@@ -187,6 +197,9 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           }
           canAddTasks={canUseBoardQuickAdd}
           isReadOnly={isReadOnly}
+          lastCreatedBatch={lastCreatedBatch}
+          isModalOpen={isTaskModalOpen}
+          onConsumeCreatedBatch={onConsumeCreatedBatch}
         />
       )}
     </div>
