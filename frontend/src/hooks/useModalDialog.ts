@@ -62,13 +62,16 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
     openModalCounter += 1;
 
     const rafId = window.requestAnimationFrame(() => {
+      const dialogEl = dialogRef.current;
+      if (!dialogEl) return;
+      if (dialogEl.contains(document.activeElement) && document.activeElement !== dialogEl) {
+        return;
+      }
       const target = initialFocusRef?.current;
       if (target && document.contains(target)) {
         target.focus({ preventScroll: true });
         return;
       }
-      const dialogEl = dialogRef.current;
-      if (!dialogEl) return;
       const firstField = dialogEl.querySelector<HTMLElement>(FIRST_FIELD_SELECTOR);
       if (firstField) {
         firstField.focus({ preventScroll: true });
@@ -81,6 +84,32 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
         dialogEl.focus({ preventScroll: true });
       }
     });
+
+    const syncVisualViewport = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      const keyboardBottom = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
+      document.documentElement.style.setProperty('--cdh-vv-bottom', `${keyboardBottom}px`);
+      document.documentElement.style.setProperty('--cdh-vv-height', `${Math.round(vv.height)}px`);
+
+      if (keyboardBottom > 40) {
+        const dialogEl = dialogRef.current;
+        const activeEl = document.activeElement;
+        if (
+          dialogEl &&
+          activeEl instanceof HTMLElement &&
+          dialogEl.contains(activeEl) &&
+          activeEl.matches('input, textarea, select')
+        ) {
+          activeEl.scrollIntoView({ block: 'nearest' });
+        }
+      }
+    };
+
+    syncVisualViewport();
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', syncVisualViewport);
+    vv?.addEventListener('scroll', syncVisualViewport);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -136,6 +165,8 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
 
     return () => {
       window.cancelAnimationFrame(rafId);
+      vv?.removeEventListener('resize', syncVisualViewport);
+      vv?.removeEventListener('scroll', syncVisualViewport);
       document.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('wheel', handleBackgroundScroll);
       document.removeEventListener('touchmove', handleBackgroundScroll);
@@ -144,6 +175,8 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
         document.body.style.overflow = previousBodyOverflow;
         document.documentElement.style.overflow = previousHtmlOverflow;
         document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
+        document.documentElement.style.removeProperty('--cdh-vv-bottom');
+        document.documentElement.style.removeProperty('--cdh-vv-height');
       }
       if (opener && document.contains(opener)) {
         opener.focus({ preventScroll: true });

@@ -37,7 +37,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 pb-[var(--cdh-vv-bottom,0px)] sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
       onMouseDown={(e) => {
         if (canClose && e.target === e.currentTarget) {
           onClose();
@@ -50,7 +50,7 @@ export const Modal: React.FC<ModalProps> = ({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`cdh-glass-overlay w-full ${maxWidthClass} rounded-t-cdh-2xl sm:rounded-cdh-2xl overflow-hidden animate-sheet-up sm:animate-modal-in focus:outline-none`}
+        className={`cdh-glass-overlay w-full ${maxWidthClass} rounded-t-cdh-2xl sm:rounded-cdh-2xl overflow-hidden max-h-[min(92dvh,calc(var(--cdh-vv-height,100dvh)-16px))] sm:max-h-[90dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none`}
       >
         <div className="px-5 py-4 border-b border-[var(--cdh-border-hairline)] flex items-start justify-between gap-3">
           <div className="min-w-0">

@@ -113,7 +113,7 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 pb-[var(--cdh-vv-bottom,0px)] sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
       onClick={() => !isSubmitting && onClose()}
     >
       <div
@@ -123,7 +123,7 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
         aria-labelledby="close-sprint-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
+        className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full overflow-hidden max-h-[min(92dvh,calc(var(--cdh-vv-height,100dvh)-16px))] sm:max-h-[90dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
         {/* Header compact */}
         <div className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-3 border-b border-[var(--cdh-border-hairline)] shrink-0">

@@ -110,7 +110,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 pb-[var(--cdh-vv-bottom,0px)] sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
       onClick={() => !isSubmitting && onClose()}
     >
       <div
@@ -120,7 +120,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
         aria-labelledby="question-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
+        className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full overflow-hidden max-h-[min(92dvh,calc(var(--cdh-vv-height,100dvh)-16px))] sm:max-h-[90dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
 
         {/* Header Liquid Glass */}
