@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { User, Sprint } from '../types';
 import { SprintSelector } from './SprintSelector';
 import { Avatar, Badge } from './ui';
+import { useModalDialog } from '../hooks/useModalDialog';
 import {
   CheckSquare, HelpCircle, Users, Shield, UserCheck, Eye,
-  LogOut, ChevronDown, Sun, Moon
+  LogOut, ChevronDown, Sun, Moon, Menu, X, Lock
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -35,7 +37,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleTheme
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMobileCenterOpen, setIsMobileCenterOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const mobileCenterRef = useModalDialog<HTMLDivElement>({
+    isOpen: isMobileCenterOpen,
+    onClose: () => setIsMobileCenterOpen(false),
+  });
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -100,11 +108,59 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   ];
 
+  const activeSprint = sprints.find((s) => s.id === currentSprintId) || null;
+  const activeNavItem = navItems.find((item) => item.id === activeTab) || navItems[0];
+
   return (
     <header className="sticky top-0 z-30 px-2 sm:px-5 lg:px-8 pt-[max(0.5rem,env(safe-area-inset-top))]">
-      <div className="max-w-7xl mx-auto cdh-glass-chrome rounded-cdh-xl px-3 sm:px-4 transition-colors">
-        {/* Ligne principale */}
-        <div className="flex items-center justify-between h-13 sm:h-14 gap-2 lg:gap-4">
+      <div className="max-w-7xl mx-auto cdh-glass-chrome rounded-cdh-xl px-2.5 sm:px-4 transition-colors">
+        {/* Barre mobile ultra-compacte (<md) — 1 seule ligne pour maximiser l'espace des tâches */}
+        <div className="md:hidden flex items-center justify-between h-11 gap-2">
+          <button
+            type="button"
+            onClick={() => setIsMobileCenterOpen(true)}
+            className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer active:opacity-80"
+            aria-label="Ouvrir le menu principal"
+          >
+            <div className="w-7 h-7 rounded-[9px] bg-gradient-to-b from-[#0A84FF] to-[#007AFF] flex items-center justify-center shadow-sm font-bold text-white text-xs ring-1 ring-white/25 shrink-0">
+              C
+            </div>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-semibold text-[13.5px] tracking-[-0.015em] text-[var(--cdh-text-primary)] shrink-0">
+                {activeNavItem.mobileLabel}
+              </span>
+              {activeSprint && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--cdh-text-tertiary)] truncate">
+                  <span aria-hidden="true">·</span>
+                  <span className="truncate">{activeSprint.name}</span>
+                  {isReadOnly && <Lock className="w-2.5 h-2.5 text-[var(--cdh-warning)] shrink-0" strokeWidth={2.25} />}
+                </span>
+              )}
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsMobileCenterOpen(true)}
+            aria-expanded={isMobileCenterOpen}
+            aria-haspopup="dialog"
+            aria-label="Ouvrir le centre de contrôle"
+            className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[34px] rounded-full bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] border border-[var(--cdh-border-hairline)] transition-all active:scale-95 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)]"
+          >
+            {currentUser && (
+              <Avatar
+                initials={currentUser.initials}
+                name={currentUser.name}
+                color={currentUser.avatar_color || '#007AFF'}
+                size="xs"
+              />
+            )}
+            <Menu className="w-4 h-4 text-[var(--cdh-text-primary)]" strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Barre principale Tablette (md+) & Desktop (inchangée) */}
+        <div className="hidden md:flex items-center justify-between h-14 gap-2 lg:gap-4">
           {/* Logo & Sélecteur de Sprint */}
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="flex items-center gap-2.5 shrink-0">
@@ -271,33 +327,170 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Barre de navigation mobile (<md) intégrée */}
-        <nav
-          aria-label="Navigation mobile"
-          className="md:hidden flex items-center gap-1 py-1.5 border-t border-[var(--cdh-border-hairline)]"
-        >
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onChangeTab(item.id)}
-                aria-current={isActive ? 'page' : undefined}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 min-h-[44px] rounded-cdh-md text-xs font-semibold transition-all active:scale-[0.98] cursor-pointer ${
-                  isActive
-                    ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-cdh-card'
-                    : 'text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
-                }`}
-              >
-                <span className={isActive ? 'text-[var(--cdh-accent)]' : ''}>{item.icon}</span>
-                <span>{item.mobileLabel}</span>
-              </button>
-            );
-          })}
-        </nav>
       </div>
+
+      {/* Control Center Liquid Glass sur Mobile (<md) */}
+      {isMobileCenterOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 md:hidden flex flex-col items-center px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[10px] animate-backdrop-in"
+            onClick={() => setIsMobileCenterOpen(false)}
+          >
+            <div
+              ref={mobileCenterRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Centre de contrôle"
+              tabIndex={-1}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md cdh-glass-overlay rounded-cdh-2xl p-3.5 space-y-3 animate-modal-in focus:outline-none max-h-[calc(100dvh-1.5rem)] overflow-y-auto"
+            >
+              {/* En-tête du Control Center */}
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-[var(--cdh-border-hairline)]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[10px] bg-gradient-to-b from-[#0A84FF] to-[#007AFF] flex items-center justify-center shadow-sm font-bold text-white text-sm ring-1 ring-white/25 shrink-0">
+                    C
+                  </div>
+                  <div className="min-w-0 leading-tight">
+                    <p className="font-semibold text-[14px] text-[var(--cdh-text-primary)] truncate">
+                      Carré d'Hôtes
+                    </p>
+                    <p className="text-[11px] text-[var(--cdh-text-tertiary)] font-medium">
+                      Menu principal
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileCenterOpen(false)}
+                  aria-label="Fermer le menu principal"
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] active:scale-95 transition-all cursor-pointer shrink-0"
+                >
+                  <X className="w-4 h-4" strokeWidth={2} />
+                </button>
+              </div>
+
+              {/* Tuiles Navigation (Tâches / Questions / Réunion) */}
+              <nav aria-label="Navigation mobile" className="grid grid-cols-3 gap-2">
+                {navItems.map((item) => {
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        onChangeTab(item.id);
+                        setIsMobileCenterOpen(false);
+                      }}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`flex flex-col items-center justify-center gap-1.5 py-3 px-2 min-h-[64px] rounded-cdh-lg text-[12px] font-semibold transition-all active:scale-95 cursor-pointer border ${
+                        isActive
+                          ? 'bg-[var(--cdh-accent)] text-white border-transparent shadow-sm'
+                          : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] border-[var(--cdh-border-hairline)] hover:bg-[var(--cdh-surface-control-hover)]'
+                      }`}
+                    >
+                      <span className={isActive ? 'text-white' : 'text-[var(--cdh-accent)]'}>
+                        {item.icon}
+                      </span>
+                      <span>{item.mobileLabel}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              {/* Tuile Semaine / Sprint + Thème */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <SprintSelector
+                    sprints={sprints}
+                    currentSprintId={currentSprintId}
+                    onSelectSprint={onSelectSprint}
+                    isReadOnly={isReadOnly}
+                    fullWidth
+                  />
+                </div>
+                {onToggleTheme && (
+                  <button
+                    type="button"
+                    onClick={onToggleTheme}
+                    aria-label={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+                    className="flex items-center justify-center gap-1.5 px-3 min-h-[38px] rounded-cdh-md bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] border border-[var(--cdh-border-hairline)] text-[12px] font-semibold text-[var(--cdh-text-primary)] transition-all active:scale-95 cursor-pointer shrink-0"
+                  >
+                    {theme === 'dark' ? (
+                      <>
+                        <Sun className="w-4 h-4 text-[var(--cdh-warning)]" strokeWidth={2} />
+                        <span>Clair</span>
+                      </>
+                    ) : (
+                      <>
+                        <Moon className="w-4 h-4 text-[var(--cdh-accent)]" strokeWidth={2} />
+                        <span>Sombre</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Compte & Actions */}
+              {currentUser && (
+                <div className="pt-2 border-t border-[var(--cdh-border-hairline)] space-y-2">
+                  <div className="flex items-center gap-3 px-2 py-1.5 rounded-cdh-lg bg-[var(--cdh-surface-control)]">
+                    <Avatar
+                      initials={currentUser.initials}
+                      name={currentUser.name}
+                      color={currentUser.avatar_color || '#007AFF'}
+                      size="md"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-[13px] text-[var(--cdh-text-primary)] truncate">
+                        {currentUser.name}
+                      </p>
+                      <p className="text-[11px] text-[var(--cdh-text-secondary)] truncate">
+                        {currentUser.email}
+                      </p>
+                    </div>
+                    {getSecondaryRoleBadge(currentUser.role)}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {currentUser.role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileCenterOpen(false);
+                          onOpenAdminPanel?.();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-cdh-md text-[12.5px] font-semibold text-[var(--cdh-text-primary)] bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-accent-soft)] transition-colors cursor-pointer text-left"
+                      >
+                        <Shield className="w-4 h-4 text-[var(--cdh-secondary)] shrink-0" strokeWidth={2} />
+                        <div className="min-w-0 flex-1">
+                          <p className="leading-tight">Administration</p>
+                          <p className="text-[11px] font-normal text-[var(--cdh-text-secondary)]">
+                            Sprints, associés &amp; logements
+                          </p>
+                        </div>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileCenterOpen(false);
+                        onLogout();
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-cdh-md text-[12.5px] font-semibold text-[var(--cdh-danger)] bg-[var(--cdh-danger-soft)] hover:opacity-90 transition-opacity cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4 shrink-0" strokeWidth={2} />
+                      <span>Se déconnecter</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
     </header>
   );
 };

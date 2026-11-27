@@ -7,23 +7,33 @@ interface SprintSelectorProps {
   currentSprintId: number | null;
   onSelectSprint: (id: number) => void;
   isReadOnly: boolean;
+  fullWidth?: boolean;
 }
 
 export const SprintSelector: React.FC<SprintSelectorProps> = ({
   sprints,
   currentSprintId,
   onSelectSprint,
-  isReadOnly
+  isReadOnly,
+  fullWidth = false
 }) => {
   return (
-    <div className="relative inline-flex items-center min-w-0 max-w-full">
-      <div className="relative flex items-center gap-1.5 sm:gap-2 bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-primary)] px-2.5 sm:px-3 py-1.5 min-h-[38px] sm:min-h-[34px] rounded-cdh-md border border-[var(--cdh-border-hairline)] focus-within:ring-2 focus-within:ring-[var(--cdh-accent-soft)] focus-within:border-[var(--cdh-border-focus)] text-xs sm:text-[13px] transition-all min-w-0 overflow-hidden">
+    <div className={`relative inline-flex items-center min-w-0 ${fullWidth ? 'w-full' : 'max-w-full'}`}>
+      <div
+        className={`relative flex items-center gap-1.5 sm:gap-2 bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-primary)] px-2.5 sm:px-3 py-1.5 min-h-[38px] sm:min-h-[34px] rounded-cdh-md border border-[var(--cdh-border-hairline)] focus-within:ring-2 focus-within:ring-[var(--cdh-accent-soft)] focus-within:border-[var(--cdh-border-focus)] text-xs sm:text-[13px] transition-all min-w-0 overflow-hidden ${
+          fullWidth ? 'w-full' : ''
+        }`}
+      >
         <Calendar className="w-3.5 h-3.5 text-[var(--cdh-accent)] shrink-0" strokeWidth={2} />
         <select
           aria-label="Sélectionner le sprint"
           value={currentSprintId || ''}
           onChange={(e) => onSelectSprint(Number(e.target.value))}
-          className="appearance-none bg-transparent text-[var(--cdh-text-primary)] font-semibold focus:outline-none cursor-pointer pr-5 min-w-0 max-w-[160px] xs:max-w-[205px] sm:max-w-[230px] md:max-w-[185px] lg:max-w-[260px] truncate text-[13px]"
+          className={`appearance-none bg-transparent text-[var(--cdh-text-primary)] font-semibold focus:outline-none cursor-pointer pr-5 min-w-0 truncate text-[13px] ${
+            fullWidth
+              ? 'flex-1 w-full'
+              : 'max-w-[160px] xs:max-w-[205px] sm:max-w-[230px] md:max-w-[185px] lg:max-w-[260px]'
+          }`}
         >
           {sprints.map((sprint) => (
             <option
