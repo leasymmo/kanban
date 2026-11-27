@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Task, TaskStatus, Property, User } from '../types';
 import { api } from '../api/client';
 import { reorderTasksInSubset } from '../utils/subtasks';
+import { useConfirm } from '../components/ui';
 
 interface UseSprintTasksOptions {
   currentSprintId: number | null;
@@ -30,6 +31,7 @@ export function useSprintTasks({
   onError
 }: UseSprintTasksOptions) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const confirm = useConfirm();
 
   const notifySuccess = (msg: string) => {
     onSuccess?.(msg);
@@ -38,7 +40,7 @@ export function useSprintTasks({
   const notifyError = (err: any, fallbackMsg: string) => {
     const msg = err?.message || fallbackMsg;
     if (onError) onError(msg);
-    else alert(msg);
+    else console.error(msg);
   };
 
   const saveTask = async (taskData: any) => {
@@ -256,7 +258,13 @@ export function useSprintTasks({
   };
 
   const deleteTask = async (id: number) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer cette tâche ?')) return;
+    const confirmed = await confirm({
+      title: 'Supprimer la tâche',
+      message: 'Voulez-vous vraiment supprimer cette tâche ? Cette action est irréversible.',
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     const previousTasks = tasks;
     setTasks(prev => prev.filter(t => t.id !== id));
 

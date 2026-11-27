@@ -5,6 +5,7 @@ import { hasFinalDecision } from '../utils/questions';
 import { ensureWhiteTextContrast, hexToSoftTint } from '../utils/color';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import { MeetingControlDock } from './MeetingControlDock';
+import { useConfirm } from './ui';
 import {
   Users, CheckCircle2, UserPlus,
   Shield, CheckSquare, Square,
@@ -56,6 +57,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   isReadOnly
 }) => {
   const isAdmin = currentUser?.role === 'admin';
+  const confirm = useConfirm();
   const [meetingStep, setMeetingStep] = useState<'retro' | 'questions' | 'unassigned'>('retro');
 
   // Rôles de la réunion (Animateur & Rédacteur) - fidélité au process Carré d'Hôtes
@@ -572,7 +574,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                   <button
                     type="button"
                     onClick={async () => {
-                      if (window.confirm('Effacer la réponse définitive pour remettre cette question à trancher ?')) {
+                      const confirmed = await confirm({
+                        title: 'Effacer la décision',
+                        message: 'Effacer la réponse définitive pour remettre cette question à trancher ?',
+                        confirmLabel: 'Effacer',
+                        variant: 'warning',
+                      });
+                      if (confirmed) {
                         try {
                           await onSetQuestionDecision?.(q.id, '');
                           setDecisionInputs(prev => {

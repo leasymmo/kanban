@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Task, User, Property, TaskPriority } from '../types';
 import { ensureWhiteTextContrast } from '../utils/color';
 import { useModalDialog } from '../hooks/useModalDialog';
+import { DatePicker } from './ui';
 import {
   X, Sparkles, Plus, Trash2, Home, Check, AlertCircle, UserPlus
 } from 'lucide-react';
@@ -393,11 +394,10 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Échéance (optionnelle)
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-black/[0.12] rounded-xl text-sm text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  onChange={setDueDate}
+                  ariaLabel="Échéance de la tâche"
                 />
               </div>
             </div>

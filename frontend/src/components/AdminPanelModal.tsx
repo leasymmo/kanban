@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { User, Sprint, Property } from '../types';
 import { api } from '../api/client';
 import { useModalDialog } from '../hooks/useModalDialog';
+import { DatePicker } from './ui';
 import {
   X, Shield, RotateCcw, Edit2, Trash2, Plus, Check,
   AlertCircle, Calendar, Users, CheckCircle2, Clock, Lock,
@@ -837,11 +838,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Date de début
                         </label>
-                        <input
-                          type="date"
+                        <DatePicker
                           value={sprintFormData.started_at}
-                          onChange={(e) => setSprintFormData(prev => ({ ...prev, started_at: e.target.value }))}
-                          className="w-full px-3 py-2 text-xs border border-black/[0.12] rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
+                          onChange={(val) => setSprintFormData(prev => ({ ...prev, started_at: val }))}
+                          ariaLabel="Date de début du sprint"
                         />
                       </div>
 

@@ -14,9 +14,11 @@ import { CloseSprintModal } from './components/CloseSprintModal';
 import { LoginPage } from './components/LoginPage';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { ToastContainer, ToastItem, ToastType } from './components/ToastContainer';
+import { useConfirm } from './components/ui';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 
 export const App: React.FC = () => {
+  const confirm = useConfirm();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -335,7 +337,13 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteQuestion = async (id: number) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer cette question ?')) return;
+    const confirmed = await confirm({
+      title: 'Supprimer la question',
+      message: 'Voulez-vous vraiment supprimer cette question ?',
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     let previousQuestions: Question[] = [];
     setQuestions(prev => {
       previousQuestions = prev;
@@ -378,7 +386,13 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteAnswer = async (answerId: number) => {
-    if (!window.confirm('Supprimer cette proposition de réponse ?')) return;
+    const confirmed = await confirm({
+      title: 'Supprimer la proposition',
+      message: 'Supprimer cette proposition de réponse ?',
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await api.deleteQuestionAnswer(answerId);
       if (currentSprintId) await loadSprintDetails(currentSprintId);

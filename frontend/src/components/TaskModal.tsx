@@ -3,6 +3,7 @@ import { Task, User, Property, TaskPriority, TaskStatus } from '../types';
 import { buildSubtaskTree, HierarchicalSubtask, SUBTASK_DEPTH_THEME } from '../utils/subtasks';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import { useModalDialog } from '../hooks/useModalDialog';
+import { DatePicker } from './ui';
 import {
   X, Plus, Trash2, Home, CheckSquare, Square,
   AlertCircle, CornerDownRight, Check, Star,
@@ -916,11 +917,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                   Échéance
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+                  onChange={setDueDate}
+                  ariaLabel="Date d'échéance"
                 />
               </div>
             </div>

@@ -18,3 +18,9 @@ export type { ModalProps } from './Modal';
 
 export { ProgressBar } from './ProgressBar';
 export type { ProgressBarProps } from './ProgressBar';
+
+export { ConfirmProvider, useConfirm } from './ConfirmDialog';
+export type { ConfirmOptions } from './ConfirmDialog';
+
+export { DatePicker } from './DatePicker';
+export type { DatePickerProps } from './DatePicker';
