@@ -138,6 +138,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       })
     : '';
 
+  const isOverdue = !!selectedDate && value < todayIso;
+
   return (
     <div className={`relative ${className}`.trim()}>
       {variant === 'icon-pill' ? (
@@ -151,16 +153,18 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           onClick={() => {
             if (!disabled) setIsOpen(prev => !prev);
           }}
-          className={`h-9 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-semibold transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] disabled:opacity-45 disabled:cursor-not-allowed ${
+          className={`h-8 flex items-center justify-center gap-1 rounded-full text-[11.5px] font-semibold transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] disabled:opacity-45 disabled:cursor-not-allowed ${
             selectedDate
-              ? 'px-2.5 bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
-              : 'w-9 bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
+              ? isOverdue
+                ? 'px-2.5 bg-[var(--cdh-danger-soft)] text-[var(--cdh-danger)]'
+                : 'px-2.5 bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
+              : 'w-8 bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
           }`}
         >
           {selectedDate ? (
             <span className="tabular-nums whitespace-nowrap">{shortFormattedLabel}</span>
           ) : (
-            <CalendarIcon className="w-4 h-4 shrink-0" strokeWidth={2} />
+            <CalendarIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
           )}
         </button>
       ) : (

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, UserPlus } from 'lucide-react';
+import { Check, UserPlus } from 'lucide-react';
 import { TaskPriority, TaskStatus, User } from '../../types';
 import { Avatar } from './Avatar';
 import { DatePicker } from './DatePicker';
@@ -14,12 +14,10 @@ import {
 type ActivePopover = 'assignee' | 'status' | 'priority' | null;
 
 export interface TaskMetaBarProps {
-  isStarred: boolean;
-  onToggleStar: () => void;
   users: User[];
   assignedTo: number | '';
   onChangeAssignee: (userId: number | '') => void;
-  canEditAssignee?: boolean;
+  showAssignee?: boolean;
   status: TaskStatus;
   onChangeStatus: (status: TaskStatus) => void;
   priority: TaskPriority;
@@ -30,15 +28,13 @@ export interface TaskMetaBarProps {
 
 /**
  * Barre d'icônes unifiée Apple Liquid Glass pour piloter les métadonnées d'une tâche
- * (Étoile, Responsable, Statut, Priorité, Échéance) en un clic depuis le footer de modale.
+ * (Responsable pour admin, Statut, Priorité, Échéance) en un clic depuis le footer de modale.
  */
 export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
-  isStarred,
-  onToggleStar,
   users,
   assignedTo,
   onChangeAssignee,
-  canEditAssignee = true,
+  showAssignee = true,
   status,
   onChangeStatus,
   priority,
@@ -111,54 +107,35 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      {/* 1. Étoile (mise en avant) */}
-      <button
-        type="button"
-        onClick={onToggleStar}
-        aria-pressed={isStarred}
-        aria-label={isStarred ? 'Retirer la mise en avant pour la réunion' : 'Mettre en avant pour la réunion'}
-        title={isStarred ? 'Mise en avant activée' : 'Mettre en avant pour la réunion'}
-        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
-          isStarred
-            ? 'bg-[var(--cdh-warning-soft)] text-amber-500'
-            : 'bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-tertiary)] hover:text-amber-500'
-        }`}
-      >
-        <Star className={`w-4 h-4 ${isStarred ? 'fill-amber-400 text-amber-500' : ''}`} strokeWidth={2} />
-      </button>
+      {/* 1. Responsable (visible uniquement pour les administrateurs) */}
+      {showAssignee && (
+        <button
+          ref={assigneeBtnRef}
+          type="button"
+          aria-expanded={openMenu === 'assignee'}
+          aria-label={selectedUser ? `Responsable : ${selectedUser.name}` : 'Choisir un responsable'}
+          title={selectedUser ? `Responsable : ${selectedUser.name}` : 'Choisir un responsable'}
+          onClick={() => openPopoverFor('assignee', assigneeBtnRef.current)}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer hover:ring-2 hover:ring-[var(--cdh-accent-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
+            !selectedUser
+              ? 'bg-[var(--cdh-warning-soft)] text-[var(--cdh-warning)]'
+              : 'bg-[var(--cdh-surface-control)]'
+          }`}
+        >
+          {selectedUser ? (
+            <Avatar
+              initials={selectedUser.initials}
+              name={selectedUser.name}
+              color={selectedUser.avatar_color}
+              size="sm"
+            />
+          ) : (
+            <UserPlus className="w-3.5 h-3.5" strokeWidth={2} />
+          )}
+        </button>
+      )}
 
-      {/* 2. Responsable (Avatar ou UserPlus) */}
-      <button
-        ref={assigneeBtnRef}
-        type="button"
-        disabled={!canEditAssignee}
-        aria-expanded={openMenu === 'assignee'}
-        aria-label={selectedUser ? `Responsable : ${selectedUser.name}` : 'Choisir un responsable'}
-        title={selectedUser ? `Responsable : ${selectedUser.name}` : 'Choisir un responsable'}
-        onClick={() => canEditAssignee && openPopoverFor('assignee', assigneeBtnRef.current)}
-        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
-          canEditAssignee
-            ? 'cursor-pointer hover:ring-2 hover:ring-[var(--cdh-accent-soft)]'
-            : 'cursor-not-allowed opacity-70'
-        } ${
-          !selectedUser
-            ? 'bg-[var(--cdh-warning-soft)] text-[var(--cdh-warning)]'
-            : 'bg-[var(--cdh-surface-control)]'
-        }`}
-      >
-        {selectedUser ? (
-          <Avatar
-            initials={selectedUser.initials}
-            name={selectedUser.name}
-            color={selectedUser.avatar_color}
-            size="md"
-          />
-        ) : (
-          <UserPlus className="w-4 h-4" strokeWidth={2} />
-        )}
-      </button>
-
-      {/* 3. Statut */}
+      {/* 2. Statut */}
       <button
         ref={statusBtnRef}
         type="button"
@@ -166,13 +143,13 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
         aria-label={`Statut : ${statusMeta.label}`}
         title={`Statut : ${statusMeta.label}`}
         onClick={() => openPopoverFor('status', statusBtnRef.current)}
-        className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)]"
+        className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)]"
         style={{ backgroundColor: statusMeta.bgSoft }}
       >
-        <TaskStatusIcon status={status} className="w-4 h-4" />
+        <TaskStatusIcon status={status} className="w-3.5 h-3.5" />
       </button>
 
-      {/* 4. Priorité */}
+      {/* 3. Priorité */}
       <button
         ref={priorityBtnRef}
         type="button"
@@ -180,13 +157,13 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
         aria-label={`Priorité : ${priorityMeta.label}`}
         title={`Priorité : ${priorityMeta.label}`}
         onClick={() => openPopoverFor('priority', priorityBtnRef.current)}
-        className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)]"
+        className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)]"
         style={{ backgroundColor: priorityMeta.bgSoft }}
       >
-        <TaskPriorityIcon priority={priority} className="w-4 h-4" />
+        <TaskPriorityIcon priority={priority} className="w-3.5 h-3.5" />
       </button>
 
-      {/* 5. Échéance (icône calendrier -> pilule date au choix) */}
+      {/* 4. Échéance (icône calendrier -> pilule date au choix, rouge si dépassée) */}
       <DatePicker
         variant="icon-pill"
         value={dueDate}

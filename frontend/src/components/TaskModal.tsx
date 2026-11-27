@@ -901,12 +901,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           {/* Footer fixe compact avec barre d'icônes unifiée */}
           <div className="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-slate-50 border-t border-[var(--cdh-border-hairline)] flex items-center justify-between gap-2.5 shrink-0">
             <TaskMetaBar
-              isStarred={isStarred}
-              onToggleStar={() => setIsStarred(prev => !prev)}
               users={assignableUsers}
               assignedTo={assignedTo}
               onChangeAssignee={setAssignedTo}
-              canEditAssignee={canEditAssignee && isAdmin}
+              showAssignee={isAdmin && canEditAssignee}
               status={status}
               onChangeStatus={setStatus}
               priority={priority}
