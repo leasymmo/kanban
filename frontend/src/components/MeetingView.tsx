@@ -1564,10 +1564,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             className="cdh-glass-overlay rounded-cdh-2xl max-w-md w-full overflow-hidden animate-modal-in"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800">
+            <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--cdh-border-hairline)]">
               <div className="flex items-center gap-2">
-                <Keyboard className="w-4 h-4 text-indigo-300" strokeWidth={2} />
-                <h3 id="meeting-shortcuts-title" className="text-sm font-bold">
+                <Keyboard className="w-4 h-4 text-[var(--cdh-accent)]" strokeWidth={2} />
+                <h3 id="meeting-shortcuts-title" className="text-[15px] font-semibold text-[var(--cdh-text-primary)]">
                   Raccourcis clavier — Vue Réunion
                 </h3>
               </div>
@@ -1575,7 +1575,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
                 type="button"
                 onClick={() => setIsShortcutsModalOpen(false)}
                 aria-label="Fermer le mémo"
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors"
+                className="text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] p-1.5 rounded-full hover:bg-[var(--cdh-surface-control)] cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" strokeWidth={1.75} />
               </button>

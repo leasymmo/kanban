@@ -645,21 +645,21 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-5xl w-full overflow-hidden flex flex-col max-h-[92dvh] animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
         
-        {/* Header Modal */}
-        <div className="bg-slate-900 p-4 sm:p-6 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
+        {/* Header Liquid Glass */}
+        <div className="p-4 sm:p-6 flex items-center justify-between shrink-0 border-b border-[var(--cdh-border-hairline)]">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-brand-600 flex items-center justify-center shadow-sm ring-1 ring-white/15">
+            <div className="w-11 h-11 rounded-[14px] bg-gradient-to-b from-[#0A84FF] to-[#007AFF] flex items-center justify-center shadow-sm ring-1 ring-white/25">
               <Shield className="w-6 h-6 text-white" strokeWidth={2.25} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 id="admin-panel-modal-title" className="text-lg sm:text-xl font-black tracking-tight">Panneau d'Administration</h2>
-                <span className="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30">
+                <h2 id="admin-panel-modal-title" className="text-lg sm:text-xl font-bold tracking-[-0.02em] text-[var(--cdh-text-primary)]">Panneau d'Administration</h2>
+                <span className="text-[11px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]">
                   Carré d'Hôtes
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-0.5">
-                Contrôle central des Sprints, réouverture des points fermés par erreur & gestion des associés.
+              <p className="text-xs text-[var(--cdh-text-secondary)] mt-0.5">
+                Contrôle central des Sprints, réouverture des points fermés par erreur &amp; gestion des associés.
               </p>
             </div>
           </div>
@@ -667,10 +667,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           <button
             onClick={onClose}
             aria-label="Fermer le panneau d'administration"
-            className="p-2 text-slate-300 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-2 text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] rounded-full hover:bg-[var(--cdh-surface-control)] transition-colors cursor-pointer"
             title="Fermer"
           >
-            <X className="w-5 h-5" strokeWidth={1.75} />
+            <X className="w-5 h-5" strokeWidth={2} />
           </button>
         </div>
 

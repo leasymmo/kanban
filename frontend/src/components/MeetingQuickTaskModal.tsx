@@ -187,21 +187,21 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
         className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-xl w-full overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
 
-        {/* Header spécifique Réunion */}
-        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-start justify-between gap-3 shrink-0 border-b border-slate-800">
+        {/* Header Liquid Glass */}
+        <div className="p-4 sm:p-5 flex items-start justify-between gap-3 shrink-0 border-b border-[var(--cdh-border-hairline)]">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-[11px] font-bold uppercase tracking-wider mb-1.5">
-              <Sparkles className="w-3 h-3 text-blue-200" strokeWidth={2.25} />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] text-[11px] font-semibold uppercase tracking-wider mb-1.5">
+              <Sparkles className="w-3 h-3" strokeWidth={2.25} />
               <span>
                 {assignedTo === ''
                   ? `En attente (pending) • Sans responsable`
                   : `En attente pour le Point ${nextSprintNumber} • Tag « Nouveau »`}
               </span>
             </div>
-            <h2 id="meeting-quick-task-modal-title" className="text-base sm:text-lg font-bold leading-tight">
+            <h2 id="meeting-quick-task-modal-title" className="text-base sm:text-lg font-semibold tracking-[-0.015em] text-[var(--cdh-text-primary)] leading-tight">
               {isEdit ? 'Modifier la tâche en attente' : 'Ajout rapide — Nouvelle tâche en séance'}
             </h2>
-            <p className="text-xs text-slate-300 mt-1">
+            <p className="text-xs text-[var(--cdh-text-secondary)] mt-1">
               {assignedTo === ''
                 ? `Cette tâche reste au statut pending et suivra sur le Point ${nextSprintNumber} tant qu'elle n'est pas attribuée.`
                 : `À la validation de la réunion, cette tâche attribuée passera sur le Point ${nextSprintNumber} avec le tag « Nouveau ».`}
@@ -211,7 +211,7 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer shrink-0"
+            className="text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] p-1.5 rounded-full hover:bg-[var(--cdh-surface-control)] cursor-pointer shrink-0 transition-colors"
           >
             <X className="w-5 h-5" strokeWidth={1.75} />
           </button>

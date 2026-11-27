@@ -122,13 +122,13 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
         className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
 
-        {/* Header compact */}
-        <div className="bg-slate-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 border-b border-slate-800 shrink-0">
+        {/* Header Liquid Glass */}
+        <div className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-3 border-b border-[var(--cdh-border-hairline)] shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <h3 id="question-modal-title" className="text-sm sm:text-base font-bold truncate">
+            <h3 id="question-modal-title" className="text-[15px] sm:text-[16px] font-semibold tracking-[-0.015em] text-[var(--cdh-text-primary)] truncate">
               {isEdit ? 'Modifier la question' : 'Poser une question'}
             </h3>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 shrink-0">
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] shrink-0">
               Réunion
             </span>
           </div>
@@ -136,9 +136,9 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Fermer la fenêtre"
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
+            className="text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] p-1.5 rounded-full hover:bg-[var(--cdh-surface-control)] cursor-pointer shrink-0 transition-colors"
           >
-            <X className="w-4 h-4" strokeWidth={1.75} />
+            <X className="w-4 h-4" strokeWidth={2} />
           </button>
         </div>
 

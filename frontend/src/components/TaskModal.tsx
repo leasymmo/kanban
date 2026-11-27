@@ -677,10 +677,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-xl w-full overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
 
-        {/* Header compact & adaptatif */}
-        <div className="bg-slate-900 border-slate-800 text-white px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3 border-b shrink-0">
+        {/* Header Liquid Glass */}
+        <div className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-3 border-b border-[var(--cdh-border-hairline)] shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
-            <h2 id="task-modal-title" className="text-sm sm:text-base font-bold truncate">
+            <h2 id="task-modal-title" className="text-[15px] sm:text-[16px] font-semibold tracking-[-0.015em] text-[var(--cdh-text-primary)] truncate">
               {isEdit
                 ? task.title
                 : isMultiCreate
@@ -689,12 +689,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </h2>
 
             <span
-              className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
                 showUnplannedBadge
-                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  ? 'bg-[var(--cdh-success-soft)] text-[var(--cdh-success)]'
                   : isEdit && task?.is_new
-                  ? 'bg-violet-500/20 text-violet-200 border border-violet-400/30'
-                  : 'bg-blue-500/20 text-blue-200 border border-blue-400/30'
+                  ? 'bg-[var(--cdh-secondary-soft)] text-[var(--cdh-secondary)]'
+                  : 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
               }`}
             >
               {showUnplannedBadge ? (

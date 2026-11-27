@@ -83,23 +83,23 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
         className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
         
-        {/* Header */}
-        <div className="bg-slate-900 text-white p-4 sm:p-6 relative border-b border-slate-800 shrink-0">
+        {/* Header Liquid Glass */}
+        <div className="p-4 sm:p-6 relative border-b border-[var(--cdh-border-hairline)] shrink-0">
           <button
             type="button"
             onClick={onClose}
             aria-label="Fermer la fenêtre"
-            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-slate-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
+            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] p-1.5 rounded-full hover:bg-[var(--cdh-surface-control)] cursor-pointer transition-colors"
           >
-            <X className="w-5 h-5" strokeWidth={1.75} />
+            <X className="w-5 h-5" strokeWidth={2} />
           </button>
           
-          <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase tracking-wider mb-1 pr-8">
-            <RefreshCw className="w-4 h-4 shrink-0" strokeWidth={2.25} />
+          <div className="flex items-center gap-2 text-[var(--cdh-accent)] text-xs font-semibold uppercase tracking-wider mb-1 pr-8">
+            <RefreshCw className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
             <span>Fin de réunion hebdomadaire</span>
           </div>
-          <h2 id="close-sprint-modal-title" className="text-lg sm:text-xl font-bold pr-8">Valider & Clôturer {currentSprint.name}</h2>
-          <p className="text-xs text-slate-300 mt-1">
+          <h2 id="close-sprint-modal-title" className="text-lg sm:text-xl font-semibold tracking-[-0.02em] text-[var(--cdh-text-primary)] pr-8">Valider &amp; Clôturer {currentSprint.name}</h2>
+          <p className="text-xs text-[var(--cdh-text-secondary)] mt-1">
             Cette action fige le compte rendu actuel et ouvre immédiatement le sprint suivant.
           </p>
         </div>
