@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Task, Property, User, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
@@ -42,14 +42,17 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
 }) => {
   const showQuickAddButtons =
     canAddTasks !== undefined ? canAddTasks : (!isReadOnly && currentUser?.role === 'admin');
+
   const [hideEmptyProperties, setHideEmptyProperties] = useState<boolean>(() => {
     if (!currentUser) return true;
     return getUserPreferences(currentUser.id).hideEmptyProperties ?? true;
   });
+
   const [activePropertyId, setActivePropertyId] = useState<number | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const pillBarRef = useRef<HTMLDivElement>(null);
-  const isProgrammaticScrollRef = useRef(false);
+  const rafScrollRef = useRef<number | null>(null);
+  const programmaticTargetLeftRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!currentUser) {
@@ -60,30 +63,123 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     setHideEmptyProperties(prefs.hideEmptyProperties ?? true);
   }, [currentUser?.id]);
 
+  const allSections = useMemo(() => {
+    const propertySections = properties.map(p => ({
+      id: p.id,
+      name: p.name,
+      color: p.color,
+      isDeactivated: Number(p.is_active) === 0,
+      tasks: tasks.filter(t => t.property_id === p.id)
+    }));
+    const generalSection = {
+      id: 0,
+      name: 'Général / Sans logement',
+      color: '#64748B',
+      isDeactivated: false,
+      tasks: tasks.filter(t => !t.property_id)
+    };
+    return [...propertySections, generalSection].filter(
+      section => !hiddenPropertyIds.includes(section.id)
+    );
+  }, [properties, tasks, hiddenPropertyIds]);
+
+  const sections = useMemo(
+    () => (hideEmptyProperties ? allSections.filter(s => s.tasks.length > 0) : allSections),
+    [hideEmptyProperties, allSections]
+  );
+
+  // Garantir un activePropertyId toujours valide lorsque les sections changent
+  const effectiveActiveId = useMemo(() => {
+    if (sections.length === 0) return null;
+    if (activePropertyId !== null && sections.some(s => s.id === activePropertyId)) {
+      return activePropertyId;
+    }
+    return sections[0].id;
+  }, [sections, activePropertyId]);
+
+  // Maintenir la pilule active visible dans la barre horizontale sans animation concurrente
+  useEffect(() => {
+    if (effectiveActiveId === null) return;
+    const bar = pillBarRef.current;
+    const pill = document.getElementById(`property-pill-${effectiveActiveId}`);
+    if (!bar || !pill) return;
+
+    const pillLeft = pill.offsetLeft - bar.offsetLeft;
+    const pillRight = pillLeft + pill.offsetWidth;
+    const viewLeft = bar.scrollLeft;
+    const viewRight = viewLeft + bar.clientWidth;
+
+    if (pillLeft < viewLeft + 8) {
+      bar.scrollTo({ left: Math.max(0, pillLeft - 12), behavior: 'smooth' });
+    } else if (pillRight > viewRight - 8) {
+      bar.scrollTo({ left: pillRight - bar.clientWidth + 12, behavior: 'smooth' });
+    }
+  }, [effectiveActiveId]);
+
+  // Règle unique et monotone : l'index actif reflète directement la progression [0..1] sur le rail
+  const syncActiveFromRail = useCallback(() => {
+    const rail = railRef.current;
+    if (!rail || sections.length === 0) return;
+
+    const targetLeft = programmaticTargetLeftRef.current;
+    if (targetLeft !== null) {
+      if (Math.abs(rail.scrollLeft - targetLeft) <= 2) {
+        programmaticTargetLeftRef.current = null;
+      } else {
+        return;
+      }
+    }
+
+    const maxScroll = rail.scrollWidth - rail.clientWidth;
+    if (maxScroll <= 1 || sections.length === 1) {
+      setActivePropertyId(prev => (prev === sections[0].id ? prev : sections[0].id));
+      return;
+    }
+
+    const progress = Math.max(0, Math.min(1, rail.scrollLeft / maxScroll));
+    const idx = Math.round(progress * (sections.length - 1));
+    const nextId = sections[idx]?.id ?? sections[0].id;
+    setActivePropertyId(prev => (prev === nextId ? prev : nextId));
+  }, [sections]);
+
+  const handleRailScroll = useCallback(() => {
+    if (rafScrollRef.current !== null) return;
+    rafScrollRef.current = window.requestAnimationFrame(() => {
+      rafScrollRef.current = null;
+      syncActiveFromRail();
+    });
+  }, [syncActiveFromRail]);
+
+  useEffect(() => {
+    return () => {
+      if (rafScrollRef.current !== null) {
+        window.cancelAnimationFrame(rafScrollRef.current);
+      }
+    };
+  }, []);
+
+  // Compatibilité universelle : trackpad Mac (deltaX), Shift+molette, molette souris sur colonne sans scroll vertical
   useEffect(() => {
     const rail = railRef.current;
     if (!rail) return;
 
     const handleWheel = (e: WheelEvent) => {
+      programmaticTargetLeftRef.current = null;
       const absX = Math.abs(e.deltaX);
       const absY = Math.abs(e.deltaY);
 
-      // 1. Trackpad horizontal swipe (2 doigts gauche/droite) : toujours scroller le rail
       if (absX > absY && absX > 0) {
         rail.scrollLeft += e.deltaX;
         e.preventDefault();
         return;
       }
 
-      // 2. Shift + molette : scroll horizontal
       if (e.shiftKey && absY > 0) {
         rail.scrollLeft += e.deltaY;
         e.preventDefault();
         return;
       }
 
-      // 3. Molette souris verticale : si la colonne survolée n'a pas de scroll vertical utile,
-      //    scroller le rail horizontalement
       if (absY > 0) {
         const target = e.target as HTMLElement | null;
         const vList = target?.closest('.cdh-prop-scroll') as HTMLElement | null;
@@ -91,7 +187,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
           const atTop = vList.scrollTop <= 0;
           const atBottom = vList.scrollTop + vList.clientHeight >= vList.scrollHeight - 1;
           if (!((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0))) {
-            return; // Laisser la colonne scroller verticalement
+            return;
           }
         }
         if (rail.scrollWidth > rail.clientWidth) {
@@ -101,9 +197,17 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
       }
     };
 
+    const handleTouchStart = () => {
+      programmaticTargetLeftRef.current = null;
+    };
+
     rail.addEventListener('wheel', handleWheel, { passive: false });
-    return () => rail.removeEventListener('wheel', handleWheel);
-  }, [hideEmptyProperties, properties.length, tasks.length]);
+    rail.addEventListener('touchstart', handleTouchStart, { passive: true });
+    return () => {
+      rail.removeEventListener('wheel', handleWheel);
+      rail.removeEventListener('touchstart', handleTouchStart);
+    };
+  }, [sections.length]);
 
   const handleToggleHideEmpty = () => {
     setHideEmptyProperties(prev => {
@@ -113,78 +217,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
       }
       return next;
     });
-  };
-
-  const allSections = [
-    ...properties.map(p => ({
-      id: p.id,
-      name: p.name,
-      code: p.code,
-      color: p.color,
-      isDeactivated: Number(p.is_active) === 0,
-      tasks: tasks.filter(t => t.property_id === p.id)
-    })),
-    {
-      id: 0,
-      name: 'Général / Sans logement',
-      code: 'GEN',
-      color: '#64748B',
-      isDeactivated: false,
-      tasks: tasks.filter(t => !t.property_id)
-    }
-  ].filter(section => !hiddenPropertyIds.includes(section.id));
-
-  const sections = hideEmptyProperties
-    ? allSections.filter(s => s.tasks.length > 0)
-    : allSections;
-
-  useEffect(() => {
-    if (sections.length === 0) {
-      setActivePropertyId(null);
-      return;
-    }
-    if (activePropertyId === null || !sections.some(s => s.id === activePropertyId)) {
-      setActivePropertyId(sections[0].id);
-    }
-  }, [sections, activePropertyId]);
-
-  useEffect(() => {
-    if (activePropertyId === null || !pillBarRef.current) return;
-    const pill = document.getElementById(`property-pill-${activePropertyId}`);
-    if (pill) {
-      pill.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
-    }
-  }, [activePropertyId]);
-
-  const handleRailScroll = () => {
-    if (isProgrammaticScrollRef.current) return;
-    const rail = railRef.current;
-    if (!rail || sections.length === 0) return;
-
-    // Si on est tout au bout à droite, activer le dernier logement
-    if (rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 8) {
-      const lastId = sections[sections.length - 1].id;
-      if (lastId !== activePropertyId) setActivePropertyId(lastId);
-      return;
-    }
-
-    const anchorX = rail.scrollLeft + Math.min(rail.clientWidth * 0.35, 220);
-    let closestId: number | null = null;
-    let closestDistance = Infinity;
-
-    for (const s of sections) {
-      const el = document.getElementById(`property-col-${s.id}`);
-      if (!el) continue;
-      const dist = Math.abs(el.offsetLeft - anchorX);
-      if (dist < closestDistance) {
-        closestDistance = dist;
-        closestId = s.id;
-      }
-    }
-
-    if (closestId !== null && closestId !== activePropertyId) {
-      setActivePropertyId(closestId);
-    }
   };
 
   const {
@@ -210,18 +242,23 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     }
   });
 
+  // Alignement mathématique identique à syncActiveFromRail : zéro divergence au clic
   const scrollToProperty = (propertyId: number) => {
+    const idx = sections.findIndex(s => s.id === propertyId);
+    if (idx === -1) return;
     setActivePropertyId(propertyId);
-    const el = document.getElementById(`property-col-${propertyId}`);
-    const container = railRef.current;
-    if (el && container) {
-      isProgrammaticScrollRef.current = true;
-      const targetLeft = el.offsetLeft - (container.clientWidth - el.clientWidth) / 2;
-      container.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
-      window.setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 450);
-    }
+
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const maxScroll = Math.max(0, rail.scrollWidth - rail.clientWidth);
+    const targetLeft =
+      sections.length > 1
+        ? Math.round((idx / (sections.length - 1)) * maxScroll)
+        : 0;
+
+    programmaticTargetLeftRef.current = targetLeft;
+    rail.scrollTo({ left: targetLeft, behavior: 'smooth' });
   };
 
   if (allSections.length === 0) {
@@ -236,14 +273,14 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
 
   return (
     <div className="flex-1 min-h-0 min-w-0 w-full flex flex-col gap-2.5">
-      {/* Barre d'accès rapide par logement + toggle masquer vides */}
+      {/* Barre d'ancres visuelles de position horizontale + toggle masquer vides */}
       <div className="shrink-0 flex items-center justify-between gap-2">
         <div
           ref={pillBarRef}
-          className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0"
+          className="relative flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0"
         >
           {sections.map((section) => {
-            const isActive = activePropertyId === section.id;
+            const isActive = effectiveActiveId === section.id;
             const remaining = section.tasks.filter(t => t.status !== 'done').length;
 
             return (
@@ -251,8 +288,9 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                 key={section.id}
                 id={`property-pill-${section.id}`}
                 type="button"
+                aria-current={isActive ? 'location' : undefined}
                 onClick={() => scrollToProperty(section.id)}
-                className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-full text-[11.5px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
+                className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-full text-[11.5px] font-semibold transition-colors duration-150 cursor-pointer tabular-nums ${
                   isActive
                     ? 'bg-[var(--cdh-text-primary)] text-[var(--cdh-text-inverted)] shadow-sm'
                     : 'cdh-glass-chrome text-[var(--cdh-text-primary)] hover:opacity-85'
@@ -276,7 +314,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
           type="button"
           aria-pressed={hideEmptyProperties}
           onClick={handleToggleHideEmpty}
-          className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-full text-[11.5px] font-semibold transition-all cursor-pointer ${
+          className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-full text-[11.5px] font-semibold transition-colors duration-150 cursor-pointer ${
             hideEmptyProperties
               ? 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
               : 'cdh-glass-chrome text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
@@ -322,11 +360,10 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
             return (
               <div
                 key={section.id}
-                id={`property-col-${section.id}`}
                 onDragOver={(e) => handleDragOverContainer(e, section.id)}
                 onDragLeave={handleDragLeaveContainer}
                 onDrop={(e) => handleDropOnContainer(e, section.id)}
-                className={`cdh-glass-column rounded-cdh-2xl p-3 sm:p-3.5 flex flex-col h-full min-h-0 w-[calc(100vw-2.25rem)] max-w-[350px] sm:w-[330px] shrink-0 snap-center sm:snap-start transition-all duration-200 ${
+                className={`cdh-glass-column rounded-cdh-2xl p-3 sm:p-3.5 flex flex-col h-full min-h-0 w-[calc(100vw-2.25rem)] max-w-[350px] sm:w-[330px] shrink-0 snap-center sm:snap-start transition-colors duration-150 ${
                   isHovered ? 'ring-2 ring-[var(--cdh-accent)]/50 border-[var(--cdh-accent)]' : ''
                 }`}
               >
