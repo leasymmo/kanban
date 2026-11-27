@@ -198,17 +198,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   </p>
                 )}
               </div>
-
-              {/* Bouton rapide d'ajout */}
-              {showQuickAddButtons && (
-                <button
-                  onClick={() => onAddNewTask(section.id > 0 ? section.id : undefined)}
-                  className="mt-3 w-full py-2 rounded-cdh-md text-xs font-medium text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-                  Ajouter une tâche pour {section.name}
-                </button>
-              )}
             </div>
           );
         })}

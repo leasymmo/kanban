@@ -260,18 +260,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   </p>
                 )}
               </div>
-
-              {/* Bouton rapide bas de colonne */}
-              {showQuickAddButtons && (
-                <button
-                  type="button"
-                  onClick={() => onAddNewTask(col.id)}
-                  className="mt-2.5 w-full py-2 px-2 rounded-cdh-md text-xs font-medium text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-                  Ajouter une tâche
-                </button>
-              )}
             </div>
           );
         })}
