@@ -13,6 +13,22 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   });
 }
 
+// Empêcher le zoom par pincement sur iOS Safari / PWA standalone
+if (typeof document !== 'undefined') {
+  const preventPinchZoom = (e: Event) => e.preventDefault();
+  document.addEventListener('gesturestart', preventPinchZoom, { passive: false });
+  document.addEventListener('gesturechange', preventPinchZoom, { passive: false });
+  document.addEventListener(
+    'touchmove',
+    (e: TouchEvent) => {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    },
+    { passive: false }
+  );
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ConfirmProvider>

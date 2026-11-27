@@ -8,12 +8,14 @@
   html {
     scrollbar-gutter: stable;
     overflow-x: clip;
+    touch-action: pan-x pan-y;
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
     caret-color: oklch(0.49 0.19 260);
     overflow-x: clip;
+    touch-action: pan-x pan-y;
     overscroll-behavior-y: contain;
     text-size-adjust: 100%;
     -webkit-text-size-adjust: 100%;
