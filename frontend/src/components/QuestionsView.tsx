@@ -407,8 +407,8 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
             onClick={() => setSelectedFilter('all')}
             className={`shrink-0 inline-flex items-center min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
               selectedFilter === 'all'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'bg-[var(--cdh-text-primary)] text-[var(--cdh-text-inverted)] shadow-xs'
+                : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
             }`}
           >
             Toutes ({questions.length})

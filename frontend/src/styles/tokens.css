@@ -232,14 +232,47 @@
 [data-theme="dark"] .bg-slate-50\/80,
 [data-theme="dark"] .bg-slate-50\/70,
 [data-theme="dark"] .bg-slate-100,
+[data-theme="dark"] .bg-slate-200,
 [data-theme="dark"] .bg-slate-200\/70,
 .dark .bg-slate-50,
 .dark .bg-slate-50\/90,
 .dark .bg-slate-50\/80,
 .dark .bg-slate-50\/70,
 .dark .bg-slate-100,
+.dark .bg-slate-200,
 .dark .bg-slate-200\/70 {
   background-color: var(--cdh-surface-control);
+}
+
+[data-theme="dark"] .hover\:bg-slate-50:hover,
+[data-theme="dark"] .hover\:bg-slate-50\/80:hover,
+[data-theme="dark"] .hover\:bg-slate-100:hover,
+[data-theme="dark"] .hover\:bg-slate-200:hover,
+[data-theme="dark"] .hover\:bg-slate-200\/60:hover,
+[data-theme="dark"] .hover\:bg-slate-300:hover,
+[data-theme="dark"] .hover\:bg-slate-300\/60:hover,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-50\/80:hover,
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-slate-200:hover,
+.dark .hover\:bg-slate-200\/60:hover,
+.dark .hover\:bg-slate-300:hover,
+.dark .hover\:bg-slate-300\/60:hover {
+  background-color: var(--cdh-surface-control-hover);
+}
+
+[data-theme="dark"] .hover\:text-slate-800:hover,
+[data-theme="dark"] .hover\:text-slate-900:hover,
+[data-theme="dark"] .group:hover .group-hover\:text-slate-900,
+.dark .hover\:text-slate-800:hover,
+.dark .hover\:text-slate-900:hover,
+.dark .group:hover .group-hover\:text-slate-900 {
+  color: var(--cdh-text-primary);
+}
+
+[data-theme="dark"] .hover\:border-black\/\[0\.22\]:hover,
+.dark .hover\:border-black\/\[0\.22\]:hover {
+  border-color: var(--cdh-border-subtle);
 }
 
 /* Cartes & badges teintés (statuts, priorités, alertes) en Dark Mode */
