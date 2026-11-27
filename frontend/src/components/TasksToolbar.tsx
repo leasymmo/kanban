@@ -161,16 +161,6 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
             title="Filtrer par logement ou par statut"
             sections={[
               {
-                id: 'properties',
-                title: 'Logements',
-                icon: <Home className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
-                options: propertyOptions,
-                hiddenIds: hiddenPropertyIds,
-                onToggle: onToggleProperty,
-                onSelectAll: () => onSetHiddenProperties([]),
-                onSelectNone: () => onSetHiddenProperties(allPropertyFilterIds)
-              },
-              {
                 id: 'statuses',
                 title: 'Statuts',
                 icon: <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
@@ -179,6 +169,16 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
                 onToggle: onToggleStatus,
                 onSelectAll: () => onSetHiddenStatuses([]),
                 onSelectNone: () => onSetHiddenStatuses(TASK_STATUS_OPTIONS.map(s => s.id))
+              },
+              {
+                id: 'properties',
+                title: 'Logements',
+                icon: <Home className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
+                options: propertyOptions,
+                hiddenIds: hiddenPropertyIds,
+                onToggle: onToggleProperty,
+                onSelectAll: () => onSetHiddenProperties([]),
+                onSelectNone: () => onSetHiddenProperties(allPropertyFilterIds)
               }
             ]}
           />
