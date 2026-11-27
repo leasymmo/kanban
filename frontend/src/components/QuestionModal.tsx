@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Question, User } from '../types';
 import { useModalDialog } from '../hooks/useModalDialog';
 import { X, AlertCircle } from 'lucide-react';
@@ -107,7 +108,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
       onClick={() => !isSubmitting && onClose()}
@@ -222,6 +223,7 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
