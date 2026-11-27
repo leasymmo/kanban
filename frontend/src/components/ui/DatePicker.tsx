@@ -57,9 +57,9 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     }
   }, [value]);
 
-  const updatePosition = () => {
+  const computePosition = () => {
     const el = triggerRef.current;
-    if (!el) return;
+    if (!el) return { top: 0, left: 0 };
     const rect = el.getBoundingClientRect();
     const popoverWidth = 280;
     const popoverHeight = 310;
@@ -72,12 +72,23 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       8,
       Math.min(rect.left, window.innerWidth - popoverWidth - 8)
     );
-    setPopoverPos({ top, left });
+    return { top, left };
+  };
+
+  const toggleCalendar = () => {
+    if (disabled) return;
+    if (!isOpen) {
+      setPopoverPos(computePosition());
+      setIsOpen(true);
+    } else {
+      setIsOpen(false);
+    }
   };
 
   useEffect(() => {
     if (!isOpen) return;
-    updatePosition();
+
+    const handleResize = () => setPopoverPos(computePosition());
 
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -101,11 +112,11 @@ export const DatePicker: React.FC<DatePickerProps> = ({
 
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('resize', updatePosition);
+    window.addEventListener('resize', handleResize);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('resize', handleResize);
     };
   }, [isOpen]);
 
@@ -150,9 +161,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           aria-label={selectedDate ? `Échéance : ${formattedLabel}` : ariaLabel}
           title={selectedDate ? `Échéance : ${formattedLabel}` : 'Définir une échéance'}
           aria-expanded={isOpen}
-          onClick={() => {
-            if (!disabled) setIsOpen(prev => !prev);
-          }}
+          onClick={toggleCalendar}
           className={`h-8 flex items-center justify-center gap-1 rounded-full text-[11.5px] font-semibold transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] disabled:opacity-45 disabled:cursor-not-allowed ${
             selectedDate
               ? isOverdue
@@ -175,11 +184,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
             disabled={disabled}
             aria-label={ariaLabel}
             aria-expanded={isOpen}
-            onClick={() => {
-              if (!disabled) {
-                setIsOpen(prev => !prev);
-              }
-            }}
+            onClick={toggleCalendar}
             className={`w-full flex items-center gap-2 px-3 py-2 min-h-[38px] rounded-cdh-md bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] text-left text-[13px] transition-all cursor-pointer focus:outline-none focus:border-[var(--cdh-border-focus)] focus:ring-[3px] focus:ring-[var(--cdh-accent-soft)] disabled:opacity-45 disabled:cursor-not-allowed ${
               selectedDate ? 'text-[var(--cdh-text-primary)] font-medium pr-8' : 'text-[var(--cdh-text-tertiary)]'
             }`}
