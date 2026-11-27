@@ -754,7 +754,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </div>
 
             {/* Notes */}
-            <div>
+            <div className="pt-2.5 border-t border-black/[0.12]">
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                 Notes
               </label>
@@ -812,7 +812,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </div>
 
             {/* Logement concerné (Multi-sélection en création / Simple en édition) */}
-            <div className="min-w-0">
+            <div className="pt-2.5 border-t border-black/[0.12] min-w-0">
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   {isEdit ? 'Logement concerné' : 'Logement(s) concerné(s)'}
