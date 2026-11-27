@@ -292,8 +292,8 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                 onClick={() => scrollToProperty(section.id)}
                 className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] rounded-full text-[11.5px] font-semibold transition-colors duration-150 cursor-pointer tabular-nums ${
                   isActive
-                    ? 'bg-[var(--cdh-text-primary)] text-[var(--cdh-text-inverted)] shadow-sm'
-                    : 'cdh-glass-chrome text-[var(--cdh-text-primary)] hover:opacity-85'
+                    ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-cdh-card ring-1 ring-[var(--cdh-accent)]/35'
+                    : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
                 }`}
               >
                 <span
