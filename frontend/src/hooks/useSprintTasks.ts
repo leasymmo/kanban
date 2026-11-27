@@ -15,10 +15,10 @@ interface UseSprintTasksOptions {
 }
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
-  todo: '⏳ À faire',
-  in_progress: '🚧 En cours',
-  blocked: '❌ Bloqué',
-  done: '✅ Fait'
+  todo: 'À faire',
+  in_progress: 'En cours',
+  blocked: 'Bloqué',
+  done: 'Terminé'
 };
 
 export function useSprintTasks({

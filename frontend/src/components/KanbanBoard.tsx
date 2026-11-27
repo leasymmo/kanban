@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Task, TaskStatus, User } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
+import { TaskStatusIcon } from './ui';
 import { Plus, EyeOff } from 'lucide-react';
 
 interface KanbanBoardProps {
@@ -208,11 +209,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
               }`}
             >
-              <span
-                aria-hidden="true"
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: col.dotColor }}
-              />
+              <TaskStatusIcon status={col.id} className="w-3.5 h-3.5 shrink-0" />
               <span>{col.title}</span>
               <span className="text-[11px] opacity-75">{count}</span>
             </button>
@@ -249,11 +246,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               {/* En-tête Colonne fixe */}
               <div className="flex items-center justify-between px-1.5 pb-2.5 mb-2.5 border-b border-[var(--cdh-border-hairline)] shrink-0">
                 <h3 className="flex items-center gap-2 min-w-0">
-                  <span
-                    aria-hidden="true"
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: col.dotColor }}
-                  />
+                  <TaskStatusIcon status={col.id} className="w-4 h-4 shrink-0" />
                   <span className="font-semibold text-[13px] tracking-[-0.01em] text-[var(--cdh-text-primary)] truncate">
                     {col.title}
                   </span>

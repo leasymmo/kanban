@@ -3,10 +3,10 @@ import { Task, User, Property, TaskPriority, TaskStatus } from '../types';
 import { buildSubtaskTree, HierarchicalSubtask, SUBTASK_DEPTH_THEME } from '../utils/subtasks';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import { useModalDialog } from '../hooks/useModalDialog';
-import { DatePicker } from './ui';
+import { TaskMetaBar } from './ui';
 import {
   X, Plus, Trash2, Home, CheckSquare, Square,
-  AlertCircle, CornerDownRight, Check, Star,
+  AlertCircle, CornerDownRight, Check,
   GripVertical, Zap, ClipboardList, Sparkles
 } from 'lucide-react';
 
@@ -852,79 +852,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               )}
             </div>
 
-            {/* Grille unifiée 2×2 : Responsable, Statut, Priorité, Échéance */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Responsable
-                </label>
-                <select
-                  required
-                  value={assignedTo}
-                  disabled={!canEditAssignee || !isAdmin}
-                  onChange={(e) => setAssignedTo(e.target.value === '' ? '' : Number(e.target.value))}
-                  className={`w-full px-2.5 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none ${
-                    canEditAssignee && isAdmin
-                      ? 'border-black/[0.12] bg-white text-slate-800 cursor-pointer'
-                      : 'border-black/[0.12] bg-slate-100 text-slate-600 cursor-not-allowed'
-                  }`}
-                >
-                  {assignedTo === '' && (
-                    <option value="" disabled>
-                      Sélectionner un associé...
-                    </option>
-                  )}
-                  {assignableUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {isAdmin ? `${u.name} (${u.role})` : u.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Statut
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                  className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white cursor-pointer font-medium"
-                >
-                  <option value="todo">⏳ À faire</option>
-                  <option value="in_progress">🚧 En cours</option>
-                  <option value="blocked">❌ Bloqué / Litige</option>
-                  <option value="done">✅ Fait (Terminé)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Priorité
-                </label>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                  className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white cursor-pointer"
-                >
-                  <option value="low">Basse</option>
-                  <option value="medium">Moyenne</option>
-                  <option value="high">Haute / Urgente</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Échéance
-                </label>
-                <DatePicker
-                  value={dueDate}
-                  onChange={setDueDate}
-                  ariaLabel="Date d'échéance"
-                />
-              </div>
-            </div>
-
             {/* Sous-tâches hiérarchiques compactes */}
             <div className="pt-2.5 border-t border-black/[0.12] space-y-2">
               <div className="flex items-center justify-between">
@@ -971,24 +898,24 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
           </div>
 
-          {/* Footer fixe compact */}
-          <div className="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-slate-50 border-t border-black/[0.12] flex items-center justify-between gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsStarred(prev => !prev)}
-              aria-pressed={isStarred}
-              aria-label={isStarred ? 'Retirer la mise en avant pour la réunion' : 'Mettre en avant pour la réunion'}
-              title={isStarred ? 'Mise en avant activée' : 'Mettre en avant pour la réunion'}
-              className={`p-2 min-w-[38px] min-h-[38px] rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
-                isStarred
-                  ? 'bg-[var(--cdh-warning-soft)] text-amber-500'
-                  : 'text-[var(--cdh-text-tertiary)] hover:text-amber-500 hover:bg-[var(--cdh-surface-control)]'
-              }`}
-            >
-              <Star className={`w-4 h-4 ${isStarred ? 'fill-amber-400 text-amber-500' : ''}`} strokeWidth={1.75} />
-            </button>
+          {/* Footer fixe compact avec barre d'icônes unifiée */}
+          <div className="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-slate-50 border-t border-[var(--cdh-border-hairline)] flex items-center justify-between gap-2.5 shrink-0">
+            <TaskMetaBar
+              isStarred={isStarred}
+              onToggleStar={() => setIsStarred(prev => !prev)}
+              users={assignableUsers}
+              assignedTo={assignedTo}
+              onChangeAssignee={setAssignedTo}
+              canEditAssignee={canEditAssignee && isAdmin}
+              status={status}
+              onChangeStatus={setStatus}
+              priority={priority}
+              onChangePriority={setPriority}
+              dueDate={dueDate}
+              onChangeDueDate={setDueDate}
+            />
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={onClose}

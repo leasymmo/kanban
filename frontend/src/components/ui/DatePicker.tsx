@@ -8,6 +8,7 @@ export interface DatePickerProps {
   placeholder?: string;
   disabled?: boolean;
   ariaLabel?: string;
+  variant?: 'default' | 'icon-pill';
   className?: string;
 }
 
@@ -39,6 +40,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   placeholder = 'Choisir une date…',
   disabled = false,
   ariaLabel = 'Sélectionner une date',
+  variant = 'default',
   className = ''
 }) => {
   const selectedDate = useMemo(() => parseIsoDate(value), [value]);
@@ -129,42 +131,74 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       })
     : placeholder;
 
+  const shortFormattedLabel = selectedDate
+    ? selectedDate.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: 'short'
+      })
+    : '';
+
   return (
     <div className={`relative ${className}`.trim()}>
-      <div className="relative flex items-center">
+      {variant === 'icon-pill' ? (
         <button
           ref={triggerRef}
           type="button"
           disabled={disabled}
-          aria-label={ariaLabel}
+          aria-label={selectedDate ? `Échéance : ${formattedLabel}` : ariaLabel}
+          title={selectedDate ? `Échéance : ${formattedLabel}` : 'Définir une échéance'}
           aria-expanded={isOpen}
           onClick={() => {
-            if (!disabled) {
-              setIsOpen(prev => !prev);
-            }
+            if (!disabled) setIsOpen(prev => !prev);
           }}
-          className={`w-full flex items-center gap-2 px-3 py-2 min-h-[38px] rounded-cdh-md bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] text-left text-[13px] transition-all cursor-pointer focus:outline-none focus:border-[var(--cdh-border-focus)] focus:ring-[3px] focus:ring-[var(--cdh-accent-soft)] disabled:opacity-45 disabled:cursor-not-allowed ${
-            selectedDate ? 'text-[var(--cdh-text-primary)] font-medium pr-8' : 'text-[var(--cdh-text-tertiary)]'
+          className={`h-9 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-semibold transition-all active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] disabled:opacity-45 disabled:cursor-not-allowed ${
+            selectedDate
+              ? 'px-2.5 bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
+              : 'w-9 bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
           }`}
         >
-          <CalendarIcon className="w-3.5 h-3.5 text-[var(--cdh-accent)] shrink-0" strokeWidth={2} />
-          <span className="truncate">{formattedLabel}</span>
+          {selectedDate ? (
+            <span className="tabular-nums whitespace-nowrap">{shortFormattedLabel}</span>
+          ) : (
+            <CalendarIcon className="w-4 h-4 shrink-0" strokeWidth={2} />
+          )}
         </button>
-
-        {selectedDate && !disabled && (
+      ) : (
+        <div className="relative flex items-center">
           <button
+            ref={triggerRef}
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange('');
+            disabled={disabled}
+            aria-label={ariaLabel}
+            aria-expanded={isOpen}
+            onClick={() => {
+              if (!disabled) {
+                setIsOpen(prev => !prev);
+              }
             }}
-            aria-label="Effacer la date"
-            className="absolute right-1.5 p-1 rounded-full text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] cursor-pointer transition-colors"
+            className={`w-full flex items-center gap-2 px-3 py-2 min-h-[38px] rounded-cdh-md bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] text-left text-[13px] transition-all cursor-pointer focus:outline-none focus:border-[var(--cdh-border-focus)] focus:ring-[3px] focus:ring-[var(--cdh-accent-soft)] disabled:opacity-45 disabled:cursor-not-allowed ${
+              selectedDate ? 'text-[var(--cdh-text-primary)] font-medium pr-8' : 'text-[var(--cdh-text-tertiary)]'
+            }`}
           >
-            <X className="w-3.5 h-3.5" strokeWidth={2} />
+            <CalendarIcon className="w-3.5 h-3.5 text-[var(--cdh-accent)] shrink-0" strokeWidth={2} />
+            <span className="truncate">{formattedLabel}</span>
           </button>
-        )}
-      </div>
+
+          {selectedDate && !disabled && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              aria-label="Effacer la date"
+              className="absolute right-1.5 p-1 rounded-full text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] cursor-pointer transition-colors"
+            >
+              <X className="w-3.5 h-3.5" strokeWidth={2} />
+            </button>
+          )}
+        </div>
+      )}
 
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div

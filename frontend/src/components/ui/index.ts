@@ -24,3 +24,13 @@ export type { ConfirmOptions } from './ConfirmDialog';
 
 export { DatePicker } from './DatePicker';
 export type { DatePickerProps } from './DatePicker';
+
+export {
+  TASK_STATUS_META,
+  TASK_PRIORITY_META,
+  TaskStatusIcon,
+  TaskPriorityIcon,
+} from './TaskIcons';
+
+export { TaskMetaBar } from './TaskMetaBar';
+export type { TaskMetaBarProps } from './TaskMetaBar';
