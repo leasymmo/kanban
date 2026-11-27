@@ -1561,7 +1561,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="meeting-shortcuts-title"
-            className="bg-white/95 backdrop-blur-2xl rounded-cdh-2xl max-w-md w-full shadow-cdh-overlay border border-white/60 overflow-hidden animate-modal-in"
+            className="cdh-glass-overlay rounded-cdh-2xl max-w-md w-full overflow-hidden animate-modal-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800">

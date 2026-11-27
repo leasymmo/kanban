@@ -80,7 +80,7 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
         aria-labelledby="close-sprint-modal-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white/95 backdrop-blur-2xl rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full shadow-cdh-overlay border border-white/60 overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
+        className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
         
         {/* Header */}
