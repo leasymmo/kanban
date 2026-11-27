@@ -4,6 +4,7 @@ import { Check, UserPlus } from 'lucide-react';
 import { TaskPriority, TaskStatus, User } from '../../types';
 import { Avatar } from './Avatar';
 import { DatePicker } from './DatePicker';
+import { computePopoverPosition, PopoverStylePosition, toPopoverStyle } from './popoverPosition';
 import {
   TASK_PRIORITY_META,
   TASK_STATUS_META,
@@ -43,7 +44,7 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
   onChangeDueDate,
 }) => {
   const [openMenu, setOpenMenu] = useState<ActivePopover>(null);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [menuPos, setMenuPos] = useState<PopoverStylePosition>({ bottom: 0, left: 0, maxHeight: 300 });
 
   const assigneeBtnRef = useRef<HTMLButtonElement>(null);
   const statusBtnRef = useRef<HTMLButtonElement>(null);
@@ -54,27 +55,40 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
   const statusMeta = TASK_STATUS_META[status];
   const priorityMeta = TASK_PRIORITY_META[priority];
 
+  const computeMenuPosition = (btn: HTMLButtonElement | null): PopoverStylePosition =>
+    computePopoverPosition(btn, {
+      width: 220,
+      preferredPlacement: 'above',
+      minSpaceNeeded: 200,
+      gap: 8,
+      viewportPadding: 8
+    });
+
   const openPopoverFor = (type: Exclude<ActivePopover, null>, btn: HTMLButtonElement | null) => {
     if (openMenu === type) {
       setOpenMenu(null);
       return;
     }
     if (btn) {
-      const rect = btn.getBoundingClientRect();
-      const popWidth = 220;
-      const estimatedHeight = type === 'assignee' ? Math.min(260, users.length * 38 + 44) : 185;
-      const top =
-        rect.top >= estimatedHeight + 12
-          ? rect.top - estimatedHeight - 8
-          : Math.min(rect.bottom + 8, window.innerHeight - estimatedHeight - 8);
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - popWidth - 8));
-      setMenuPos({ top, left });
+      setMenuPos(computeMenuPosition(btn));
     }
     setOpenMenu(type);
   };
 
   useEffect(() => {
     if (!openMenu) return;
+
+    const handleResize = () => {
+      const activeBtn =
+        openMenu === 'assignee'
+          ? assigneeBtnRef.current
+          : openMenu === 'status'
+            ? statusBtnRef.current
+            : priorityBtnRef.current;
+      if (activeBtn) {
+        setMenuPos(computeMenuPosition(activeBtn));
+      }
+    };
 
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -99,9 +113,11 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
 
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('resize', handleResize);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('resize', handleResize);
     };
   }, [openMenu]);
 
@@ -178,8 +194,8 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
           <div
             ref={popoverRef}
             role="listbox"
-            style={{ top: menuPos.top, left: menuPos.left, width: 220 }}
-            className="fixed z-[80] cdh-glass-overlay rounded-cdh-xl p-1.5 animate-fade-in space-y-0.5"
+            style={toPopoverStyle(menuPos, 220)}
+            className="fixed z-[80] cdh-glass-overlay rounded-cdh-xl p-1.5 animate-fade-in space-y-0.5 overflow-y-auto"
           >
             {openMenu === 'assignee' && (
               <>

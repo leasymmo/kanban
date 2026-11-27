@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { computePopoverPosition, PopoverStylePosition, toPopoverStyle } from './popoverPosition';
 
 export interface DatePickerProps {
   value: string;
@@ -46,7 +47,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const selectedDate = useMemo(() => parseIsoDate(value), [value]);
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState<Date>(() => selectedDate || new Date());
-  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [popoverPos, setPopoverPos] = useState<PopoverStylePosition>({ bottom: 0, left: 0, maxHeight: 360 });
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -57,23 +58,14 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     }
   }, [value]);
 
-  const computePosition = () => {
-    const el = triggerRef.current;
-    if (!el) return { top: 0, left: 0 };
-    const rect = el.getBoundingClientRect();
-    const popoverWidth = 280;
-    const popoverHeight = 310;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const top =
-      spaceBelow >= popoverHeight || rect.top < popoverHeight
-        ? Math.min(rect.bottom + 6, window.innerHeight - popoverHeight - 8)
-        : Math.max(8, rect.top - popoverHeight - 6);
-    const left = Math.max(
-      8,
-      Math.min(rect.left, window.innerWidth - popoverWidth - 8)
-    );
-    return { top, left };
-  };
+  const computePosition = (): PopoverStylePosition =>
+    computePopoverPosition(triggerRef.current, {
+      width: 280,
+      preferredPlacement: variant === 'icon-pill' ? 'above' : 'below',
+      minSpaceNeeded: variant === 'icon-pill' ? 240 : 320,
+      gap: 8,
+      viewportPadding: 8
+    });
 
   const toggleCalendar = () => {
     if (disabled) return;
@@ -118,7 +110,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       document.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('resize', handleResize);
     };
-  }, [isOpen]);
+  }, [isOpen, variant]);
 
   const daysGrid = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -212,8 +204,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={popoverRef}
-          style={{ top: popoverPos.top, left: popoverPos.left, width: 280 }}
-          className="fixed z-[80] cdh-glass-overlay rounded-cdh-xl p-3 animate-fade-in select-none"
+          style={toPopoverStyle(popoverPos, 280)}
+          className="fixed z-[80] cdh-glass-overlay rounded-cdh-xl p-3 animate-fade-in select-none overflow-y-auto"
         >
           {/* En-tête Mois / Année */}
           <div className="flex items-center justify-between mb-2.5 px-1">
