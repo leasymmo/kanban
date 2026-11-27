@@ -203,6 +203,36 @@
   box-shadow: var(--cdh-shadow-card-hover);
 }
 
+.cdh-surface-card.cdh-card-starred {
+  border-color: rgba(255, 149, 0, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(255, 149, 0, 0.42),
+    var(--cdh-shadow-card);
+}
+
+.cdh-surface-card.cdh-card-starred:hover {
+  border-color: rgba(255, 149, 0, 0.82);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 149, 0, 0.65),
+    var(--cdh-shadow-card-hover);
+}
+
+[data-theme="dark"] .cdh-surface-card.cdh-card-starred,
+.dark .cdh-surface-card.cdh-card-starred {
+  border-color: rgba(255, 159, 10, 0.58);
+  box-shadow:
+    0 0 0 1px rgba(255, 159, 10, 0.45),
+    var(--cdh-shadow-card);
+}
+
+[data-theme="dark"] .cdh-surface-card.cdh-card-starred:hover,
+.dark .cdh-surface-card.cdh-card-starred:hover {
+  border-color: rgba(255, 159, 10, 0.86);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 159, 10, 0.68),
+    var(--cdh-shadow-card-hover);
+}
+
 .cdh-glass-chrome {
   background: var(--cdh-surface-chrome);
   backdrop-filter: blur(var(--cdh-blur-lg)) saturate(var(--cdh-glass-saturate));

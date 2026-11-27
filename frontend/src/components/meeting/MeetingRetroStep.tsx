@@ -103,7 +103,7 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
         data-task-card-id={t.id}
         className={`cdh-surface-card rounded-cdh-lg p-3.5 sm:p-4 transition-all space-y-2.5 ${
           isHighlighted
-            ? 'ring-1 ring-[var(--cdh-warning-accent)]/60 border-[var(--cdh-warning-accent)]/50'
+            ? 'cdh-card-starred'
             : t.status === 'blocked'
             ? 'border-[var(--cdh-danger-accent)]/40'
             : ''

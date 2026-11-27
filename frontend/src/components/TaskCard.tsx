@@ -205,7 +205,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           isDragging ? 'opacity-45 scale-[0.98]' : ''
         } ${
           task.is_starred
-            ? 'ring-1 ring-[var(--cdh-warning-accent)]/60 border-[var(--cdh-warning-accent)]/50'
+            ? 'cdh-card-starred'
             : task.status === 'blocked'
             ? 'border-[var(--cdh-danger-accent)]/35'
             : ''
