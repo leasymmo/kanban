@@ -969,24 +969,26 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               </div>
             </div>
 
-            {/* Option Mise en avant avec Étoile */}
-            <div className="pt-2 border-t border-black/[0.12]">
-              <label htmlFor="is_starred" className="inline-flex items-center gap-2 text-xs text-slate-700 select-none font-medium cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="is_starred"
-                  checked={isStarred}
-                  onChange={(e) => setIsStarred(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-500 border-black/[0.12] focus:ring-amber-400 cursor-pointer"
-                />
-                <Star className={`w-3.5 h-3.5 ${isStarred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'}`} strokeWidth={1.75} />
-                <span><strong>Mettre en avant</strong> pour la réunion</span>
-              </label>
-            </div>
           </div>
 
           {/* Footer fixe compact */}
-          <div className="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-slate-50 border-t border-black/[0.12] flex items-center justify-end gap-2.5 shrink-0">
+          <div className="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-slate-50 border-t border-black/[0.12] flex items-center justify-between gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsStarred(prev => !prev)}
+              aria-pressed={isStarred}
+              aria-label={isStarred ? 'Retirer la mise en avant pour la réunion' : 'Mettre en avant pour la réunion'}
+              title={isStarred ? 'Mise en avant activée' : 'Mettre en avant pour la réunion'}
+              className={`p-2 min-w-[38px] min-h-[38px] rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
+                isStarred
+                  ? 'bg-[var(--cdh-warning-soft)] text-amber-500'
+                  : 'text-[var(--cdh-text-tertiary)] hover:text-amber-500 hover:bg-[var(--cdh-surface-control)]'
+              }`}
+            >
+              <Star className={`w-4 h-4 ${isStarred ? 'fill-amber-400 text-amber-500' : ''}`} strokeWidth={1.75} />
+            </button>
+
+            <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={onClose}
@@ -1012,6 +1014,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 ? `Créer les ${multiCount} tâches`
                 : 'Créer la tâche'}
             </button>
+            </div>
           </div>
         </form>
 
