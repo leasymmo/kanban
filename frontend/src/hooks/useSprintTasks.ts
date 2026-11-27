@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { Task, TaskPriority, TaskStatus, Property, User } from '../types';
 import { api } from '../api/client';
 import { reorderTasksInSubset } from '../utils/subtasks';
+import {
+  captureTaskSnapshot,
+  getToneForStatus,
+  scheduleTaskMotionFeedback,
+} from '../utils/taskMotion';
 import { useConfirm } from '../components/ui';
 
 interface UseSprintTasksOptions {
@@ -45,6 +50,7 @@ export function useSprintTasks({
 
   const saveTask = async (taskData: any) => {
     const isUpdate = !!taskData.id;
+    const snapshot = isUpdate ? captureTaskSnapshot(taskData.id) : null;
     try {
       const res: any = isUpdate
         ? await api.updateTask(taskData.id, {
@@ -56,6 +62,31 @@ export function useSprintTasks({
       if (currentSprintId) {
         await reloadSprintDetails(currentSprintId);
       }
+
+      if (isUpdate) {
+        scheduleTaskMotionFeedback({
+          taskId: taskData.id,
+          tone: taskData.status ? getToneForStatus(taskData.status) : 'accent',
+          mode: 'move',
+          snapshot
+        });
+      } else {
+        const createdIds: number[] =
+          Array.isArray(res?.task_ids) && res.task_ids.length > 0
+            ? res.task_ids
+            : res?.task_id
+            ? [res.task_id]
+            : [];
+        const appearTone = getToneForStatus(taskData.status);
+        createdIds.forEach((createdId) => {
+          scheduleTaskMotionFeedback({
+            taskId: createdId,
+            tone: appearTone,
+            mode: 'appear'
+          });
+        });
+      }
+
       notifySuccess(res?.message || (isUpdate ? 'Tâche mise à jour.' : 'Tâche créée avec succès.'));
     } catch (err: any) {
       // Ne basculer en mode optimiste local que si l'API est injoignable (TypeError réseau)
@@ -82,6 +113,12 @@ export function useSprintTasks({
             };
           })
         );
+        scheduleTaskMotionFeedback({
+          taskId: taskData.id,
+          tone: taskData.status ? getToneForStatus(taskData.status) : 'accent',
+          mode: 'move',
+          snapshot
+        });
         notifySuccess('Tâche mise à jour localement.');
       } else {
         const targetProps: (number | null)[] =
@@ -117,6 +154,13 @@ export function useSprintTasks({
           };
         });
         setTasks(prev => [...prev, ...createdTasks]);
+        createdTasks.forEach((created) => {
+          scheduleTaskMotionFeedback({
+            taskId: created.id,
+            tone: getToneForStatus(created.status),
+            mode: 'appear'
+          });
+        });
         notifySuccess(createdTasks.length > 1 ? `${createdTasks.length} tâches créées localement.` : 'Tâche créée localement.');
       }
     }
@@ -124,7 +168,20 @@ export function useSprintTasks({
 
   const updateTaskStatus = async (taskId: number, newStatus: TaskStatus) => {
     const previousTasks = tasks;
+    const targetTask = previousTasks.find(t => t.id === taskId);
+    const snapshot = captureTaskSnapshot(taskId);
+    const fallbackSelector = targetTask?.assigned_to
+      ? `[data-retro-accordion-trigger="${targetTask.assigned_to}"]`
+      : null;
+
     setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, status: newStatus } : t)));
+    scheduleTaskMotionFeedback({
+      taskId,
+      tone: getToneForStatus(newStatus),
+      mode: 'move',
+      snapshot,
+      fallbackSelector
+    });
 
     try {
       await api.updateTaskStatus(taskId, newStatus, currentSprintId || undefined);
@@ -145,10 +202,17 @@ export function useSprintTasks({
     const previousTasks = tasks;
     const previousTask = previousTasks.find(t => t.id === taskId);
     const statusChanged = previousTask && previousTask.status !== targetStatus;
+    const snapshot = captureTaskSnapshot(taskId);
 
     setTasks(prev => {
       const updated = prev.map(t => (t.id === taskId ? { ...t, status: targetStatus } : t));
       return reorderTasksInSubset(updated, orderedColumnTaskIds);
+    });
+    scheduleTaskMotionFeedback({
+      taskId,
+      tone: statusChanged ? getToneForStatus(targetStatus) : 'accent',
+      mode: 'move',
+      snapshot
     });
 
     if (currentSprintId) {
@@ -182,6 +246,7 @@ export function useSprintTasks({
     const previousTask = previousTasks.find(t => t.id === taskId);
     const propertyChanged = (previousTask?.property_id ?? null) !== targetPropertyId;
     const targetProp = targetPropertyId ? properties.find(p => p.id === targetPropertyId) : null;
+    const snapshot = captureTaskSnapshot(taskId);
 
     setTasks(prev => {
       const updated = prev.map(t =>
@@ -196,6 +261,12 @@ export function useSprintTasks({
           : t
       );
       return reorderTasksInSubset(updated, orderedSectionTaskIds);
+    });
+    scheduleTaskMotionFeedback({
+      taskId,
+      tone: 'accent',
+      mode: 'move',
+      snapshot
     });
 
     if (currentSprintId) {
@@ -225,6 +296,7 @@ export function useSprintTasks({
   const assignTask = async (taskId: number, userId: number | null) => {
     const previousTasks = tasks;
     const targetUser = userId ? allUsers.find(u => u.id === userId) : undefined;
+    const snapshot = captureTaskSnapshot(taskId);
     setTasks(prev =>
       prev.map(t =>
         t.id === taskId
@@ -238,6 +310,12 @@ export function useSprintTasks({
           : t
       )
     );
+    scheduleTaskMotionFeedback({
+      taskId,
+      tone: 'accent',
+      mode: 'move',
+      snapshot
+    });
 
     try {
       await api.updateTask(taskId, {
@@ -262,9 +340,16 @@ export function useSprintTasks({
     patch: { priority?: TaskPriority; due_date?: string | null }
   ) => {
     const previousTasks = tasks;
+    const snapshot = captureTaskSnapshot(taskId);
     setTasks(prev =>
       prev.map(t => (t.id === taskId ? { ...t, ...patch } : t))
     );
+    scheduleTaskMotionFeedback({
+      taskId,
+      tone: patch.priority === 'high' ? 'warning' : 'accent',
+      mode: 'update',
+      snapshot
+    });
 
     try {
       await api.updateTask(taskId, {
@@ -293,7 +378,14 @@ export function useSprintTasks({
     });
     if (!confirmed) return;
     const previousTasks = tasks;
+    const snapshot = captureTaskSnapshot(id);
     setTasks(prev => prev.filter(t => t.id !== id));
+    scheduleTaskMotionFeedback({
+      taskId: id,
+      tone: 'danger',
+      mode: 'disappear',
+      snapshot
+    });
 
     try {
       await api.deleteTask(id, currentSprintId || undefined);
@@ -352,8 +444,22 @@ export function useSprintTasks({
 
   const toggleStar = async (taskId: number) => {
     const previousTasks = tasks;
-    const wasStarred = !!previousTasks.find(t => t.id === taskId)?.is_starred;
+    const prevTask = previousTasks.find(t => t.id === taskId);
+    const wasStarred = !!prevTask?.is_starred;
+    const snapshot = captureTaskSnapshot(taskId);
+    const fallbackSelector =
+      wasStarred && prevTask?.assigned_to
+        ? `[data-retro-accordion-trigger="${prevTask.assigned_to}"]`
+        : null;
+
     setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, is_starred: !t.is_starred } : t)));
+    scheduleTaskMotionFeedback({
+      taskId,
+      tone: wasStarred ? 'accent' : 'warning',
+      mode: 'move',
+      snapshot,
+      fallbackSelector
+    });
 
     try {
       await api.toggleTaskStar(taskId, currentSprintId || undefined);

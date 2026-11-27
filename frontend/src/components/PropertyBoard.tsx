@@ -399,7 +399,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                 </div>
 
                 {/* Liste des cartes avec scroll vertical interne uniquement */}
-                <div className="cdh-prop-scroll space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain pr-0.5">
+                <div className="cdh-prop-scroll space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-1 -mx-1 py-0.5">
                   {section.tasks.length > 0 ? (
                     section.tasks.map((task) => {
                       const indicator =

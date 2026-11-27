@@ -100,6 +100,7 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
     return (
       <article
         key={t.id}
+        data-task-card-id={t.id}
         className={`cdh-surface-card rounded-cdh-lg p-3.5 sm:p-4 transition-all space-y-2.5 ${
           isHighlighted
             ? 'ring-1 ring-[var(--cdh-warning-accent)]/60 border-[var(--cdh-warning-accent)]/50'
@@ -305,6 +306,7 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
                 <div className="pt-2 border-t border-[var(--cdh-border-hairline)]">
                   <button
                     type="button"
+                    data-retro-accordion-trigger={user.id}
                     aria-expanded={isAccordionOpen}
                     onClick={() => onToggleAccordion(user.id)}
                     className="w-full flex items-center justify-between px-3 py-2 rounded-cdh-md bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] border border-[var(--cdh-border-hairline)] text-[12.5px] font-semibold text-[var(--cdh-text-primary)] transition-colors cursor-pointer"

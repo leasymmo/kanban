@@ -143,6 +143,7 @@ export const MeetingActionPlanStep: React.FC<MeetingActionPlanStepProps> = ({
               {pendingUnassigned.map((t) => (
                 <article
                   key={t.id}
+                  data-task-card-id={t.id}
                   className="cdh-surface-card rounded-cdh-lg p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3.5"
                 >
                   <div className="flex-1 min-w-0 space-y-1.5">
@@ -226,6 +227,7 @@ export const MeetingActionPlanStep: React.FC<MeetingActionPlanStepProps> = ({
                 {userPending.map((t) => (
                   <article
                     key={t.id}
+                    data-task-card-id={t.id}
                     className="cdh-surface-card rounded-cdh-lg p-3.5 sm:p-4 space-y-2.5"
                   >
                     <div className="flex items-start justify-between gap-3">

@@ -275,7 +275,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               </div>
 
               {/* Liste des cartes avec scroll interne unique */}
-              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overscroll-contain pr-0.5">
+              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 -mx-1 py-0.5">
                 {colTasks.length > 0 ? (
                   colTasks.map((task) => {
                     const indicator =

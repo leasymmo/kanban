@@ -193,6 +193,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         <div className="h-0.5 bg-[var(--cdh-accent)] rounded-full mb-1.5 shadow-sm animate-pulse" />
       )}
       <div
+        data-task-card-id={task.id}
         draggable={canModify && !!onDragStart}
         onDragStart={(e) => canModify && onDragStart && onDragStart(e, task)}
         onDragEnd={() => onDragEnd && onDragEnd()}
