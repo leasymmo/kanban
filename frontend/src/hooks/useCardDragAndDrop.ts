@@ -48,6 +48,9 @@ export function useCardDragAndDrop<ContainerId>({
     if (activeDropContainer !== containerId) {
       setActiveDropContainer(containerId);
     }
+    if (dropTarget && dropTarget.containerId !== containerId) {
+      setDropTarget(null);
+    }
   };
 
   const handleDragLeaveContainer = (e: React.DragEvent) => {
@@ -134,7 +137,37 @@ export function useCardDragAndDrop<ContainerId>({
     const containerTaskIds = tasks
       .filter(t => getContainerId(t) === containerId && t.id !== draggedTask.id)
       .map(t => t.id);
-    containerTaskIds.push(draggedTask.id);
+
+    // Si un indicateur visuel existait déjà dans ce conteneur (drop dans l'interstice ou sur la ligne), respecter sa position exacte
+    if (dropTarget && dropTarget.containerId === containerId) {
+      const targetIndex = containerTaskIds.indexOf(dropTarget.taskId);
+      if (targetIndex !== -1) {
+        const insertIndex = dropTarget.position === 'after' ? targetIndex + 1 : targetIndex;
+        containerTaskIds.splice(insertIndex, 0, draggedTask.id);
+        onDropReorder(draggedTask, containerId, containerTaskIds);
+        resetDragState();
+        return;
+      }
+    }
+
+    // Sinon, calculer la position la plus proche d'après la coordonnée verticale du curseur
+    const cardEls = Array.from(
+      (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[data-task-card-id]')
+    ).filter(el => Number(el.dataset.taskCardId) !== draggedTask.id);
+
+    let insertIndex = containerTaskIds.length;
+    for (const el of cardEls) {
+      const cardId = Number(el.dataset.taskCardId);
+      const rect = el.getBoundingClientRect();
+      if (e.clientY < rect.top + rect.height / 2) {
+        const idx = containerTaskIds.indexOf(cardId);
+        if (idx !== -1) {
+          insertIndex = idx;
+          break;
+        }
+      }
+    }
+    containerTaskIds.splice(insertIndex, 0, draggedTask.id);
 
     onDropReorder(draggedTask, containerId, containerTaskIds);
     resetDragState();

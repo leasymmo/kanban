@@ -1,11 +1,12 @@
 import { TaskStatus } from '../types';
 
-export type TaskHaloTone = 'accent' | 'success' | 'warning' | 'danger';
+export type TaskHaloTone = 'accent' | 'todo' | 'success' | 'warning' | 'danger';
 export type TaskTransitionMode = 'appear' | 'move' | 'update' | 'disappear';
 
 const HALO_CLASSES = [
   'cdh-task-halo',
   'cdh-task-halo--accent',
+  'cdh-task-halo--todo',
   'cdh-task-halo--success',
   'cdh-task-halo--warning',
   'cdh-task-halo--danger',
@@ -22,6 +23,9 @@ export function getToneForStatus(status?: TaskStatus | 'pending' | null): TaskHa
       return 'warning';
     case 'blocked':
       return 'danger';
+    case 'todo':
+    case 'pending':
+      return 'todo';
     default:
       return 'accent';
   }

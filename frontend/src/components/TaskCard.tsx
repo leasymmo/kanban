@@ -190,7 +190,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   return (
     <div className="relative">
       {dropIndicator === 'before' && (
-        <div className="h-0.5 bg-[var(--cdh-accent)] rounded-full mb-1.5 shadow-sm animate-pulse" />
+        <div className="pointer-events-none h-0.5 bg-[var(--cdh-accent)] rounded-full mb-1.5 shadow-sm animate-pulse" />
       )}
       <div
         data-task-card-id={task.id}
@@ -362,7 +362,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       </div>
       </div>
       {dropIndicator === 'after' && (
-        <div className="h-0.5 bg-[var(--cdh-accent)] rounded-full mt-1.5 shadow-sm animate-pulse" />
+        <div className="pointer-events-none h-0.5 bg-[var(--cdh-accent)] rounded-full mt-1.5 shadow-sm animate-pulse" />
       )}
     </div>
   );

@@ -250,7 +250,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               }`}
             >
               {/* En-tête Colonne fixe */}
-              <div className="flex items-center justify-between px-1.5 pb-2.5 mb-2.5 border-b border-[var(--cdh-border-hairline)] shrink-0">
+              <div className="flex items-center justify-between px-1.5 pb-2.5 mb-1 border-b border-[var(--cdh-border-hairline)] shrink-0">
                 <h3 className="flex items-center gap-2 min-w-0">
                   <TaskStatusIcon status={col.id} className="w-4 h-4 shrink-0" />
                   <span className="font-semibold text-[13px] tracking-[-0.01em] text-[var(--cdh-text-primary)] truncate">
@@ -275,7 +275,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               </div>
 
               {/* Liste des cartes avec scroll interne unique */}
-              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 -mx-1 py-0.5">
+              <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 -mx-2.5 pt-2.5 pb-4">
                 {colTasks.length > 0 ? (
                   colTasks.map((task) => {
                     const indicator =
