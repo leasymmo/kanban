@@ -19,7 +19,13 @@ import {
   SUBTASK_DEPTH_THEME,
 } from '../utils/subtasks';
 import { hexToSoftTint, ensureWhiteTextContrast } from '../utils/color';
-import { CreatedTaskBatch, scrollContainersAndHighlightTasks } from '../utils/taskMotion';
+import {
+  CreatedTaskBatch,
+  findVisibleTaskCard,
+  getScrollBehavior,
+  prefersReducedMotion,
+  scrollContainersAndHighlightTasks,
+} from '../utils/taskMotion';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import { computePopoverPosition, PopoverStylePosition, toPopoverStyle } from './ui/popoverPosition';
 import {
@@ -185,6 +191,7 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
 
   // Accordéon exclusif (un seul id ouvert à la fois)
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
+  const prevExpandedIdRef = useRef<number | null>(null);
 
   // État d'ajout de sous-étape imbriquée dans la carte ouverte
   const [addingChildToId, setAddingChildToId] = useState<number | null>(null);
@@ -196,6 +203,7 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
   const [menuPos, setMenuPos] = useState<PopoverStylePosition>({ top: 0, left: 0, maxHeight: 320 });
   const [menuWidth, setMenuWidth] = useState<number>(256);
   const boardRef = useRef<HTMLDivElement>(null);
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -331,6 +339,83 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
     setChildTitle('');
     setExpandedTaskId((prev) => (prev === taskId ? null : taskId));
   }, []);
+
+  // Lorsqu'une carte s'ouvre, scroller si besoin pour la rendre entièrement visible :
+  // début aligné en haut du tableau si trop haute, ou fin alignée en bas du tableau si trop basse.
+  useEffect(() => {
+    const prevId = prevExpandedIdRef.current;
+    prevExpandedIdRef.current = expandedTaskId;
+
+    if (expandedTaskId === null) return;
+
+    const ensureExpandedCardVisible = (usePrediction: boolean) => {
+      const board = boardRef.current;
+      const cardEl = findVisibleTaskCard(expandedTaskId);
+      if (!board || !cardEl) return;
+
+      const boardRect = board.getBoundingClientRect();
+      const headerClearance =
+        stickyHeaderRef.current && window.innerWidth >= 768
+          ? stickyHeaderRef.current.getBoundingClientRect().height + 6
+          : 8;
+      const visibleTop = boardRect.top + headerClearance;
+      const visibleBottom = boardRect.bottom - 8;
+      const availableHeight = Math.max(0, visibleBottom - visibleTop);
+
+      const cardRect = cardEl.getBoundingClientRect();
+      let targetTopEdge = cardRect.top;
+      let targetBottomEdge = cardRect.bottom;
+
+      if (usePrediction) {
+        let collapsedAboveOffset = 0;
+        if (prevId !== null && prevId !== expandedTaskId) {
+          const prevEl = findVisibleTaskCard(prevId);
+          if (
+            prevEl &&
+            Boolean(prevEl.compareDocumentPosition(cardEl) & Node.DOCUMENT_POSITION_FOLLOWING)
+          ) {
+            collapsedAboveOffset =
+              prevEl.querySelector<HTMLElement>('.cdh-accordion-panel')?.getBoundingClientRect()
+                .height ?? 0;
+          }
+        }
+
+        const panelEl = cardEl.querySelector<HTMLElement>('.cdh-accordion-panel');
+        const contentEl = cardEl.querySelector<HTMLElement>('.cdh-accordion-content');
+        const currentPanelH = panelEl?.getBoundingClientRect().height ?? 0;
+        const fullContentH = contentEl?.offsetHeight ?? currentPanelH;
+
+        targetTopEdge = cardRect.top - collapsedAboveOffset;
+        targetBottomEdge = targetTopEdge + (cardRect.height - currentPanelH) + fullContentH;
+      }
+
+      const cardHeight = targetBottomEdge - targetTopEdge;
+      let delta = 0;
+
+      if (targetTopEdge < visibleTop - 1 || cardHeight > availableHeight) {
+        delta = targetTopEdge - visibleTop;
+      } else if (targetBottomEdge > visibleBottom + 1) {
+        delta = targetBottomEdge - visibleBottom;
+      }
+
+      if (Math.abs(delta) > 2) {
+        const maxScroll = Math.max(0, board.scrollHeight - board.clientHeight);
+        const nextTop = Math.max(0, Math.min(maxScroll, board.scrollTop + delta));
+        if (Math.abs(nextTop - board.scrollTop) > 2) {
+          board.scrollTo({ top: nextTop, behavior: getScrollBehavior() });
+        }
+      }
+    };
+
+    const rafId = window.requestAnimationFrame(() => ensureExpandedCardVisible(true));
+    const settleDelay = prefersReducedMotion() ? 25 : 300;
+    const settleTimer = window.setTimeout(() => ensureExpandedCardVisible(false), settleDelay);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(settleTimer);
+    };
+  }, [expandedTaskId]);
 
   const handleCreateChildSubtask = async (taskId: number, parentId: number) => {
     if (!childTitle.trim() || !onAddSubtask) return;
@@ -999,7 +1084,7 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
   return (
     <div
       ref={boardRef}
-      className="flex-1 min-h-0 flex flex-col cdh-glass-column rounded-cdh-2xl p-2 sm:p-3 gap-2 overflow-y-auto"
+      className="flex-1 min-h-0 flex flex-col cdh-glass-column rounded-cdh-2xl p-2 sm:p-3 gap-2 overflow-y-auto overflow-x-hidden md:overflow-x-auto"
     >
       {/* Contrôles Mobile : Tri + Bouton Colonnes en haut à droite */}
       <div className="flex md:hidden items-center gap-1.5">
@@ -1039,11 +1124,10 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
       ) : (
         <>
           {/* ==================== VUE DESKTOP (Cartes-Lignes alignées en colonnes) ==================== */}
-          <div className="hidden md:flex flex-col gap-1.5 min-w-0">
-            <div className="overflow-x-auto no-scrollbar pb-0.5">
-              <div className="min-w-[780px] flex flex-col gap-1.5">
+          <div className="hidden md:flex flex-col gap-1.5 min-w-[780px]">
                 {/* En-tête de colonnes sticky avec icône Colonnes en haut à droite */}
                 <div
+                  ref={stickyHeaderRef}
                   className="sticky top-0 z-20 cdh-glass-chrome rounded-cdh-lg px-3.5 py-2 grid items-center gap-2.5"
                   style={{ gridTemplateColumns: desktopGridTemplate }}
                 >
@@ -1144,8 +1228,6 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
                     </article>
                   );
                 })}
-              </div>
-            </div>
           </div>
 
           {/* ==================== VUE MOBILE PWA (Cards empilées sans scroll horizontal) ==================== */}
