@@ -115,7 +115,7 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
       </div>
 
       {/* Zone 2 : Trio de contrôle unifié (Responsable, Filtres, Vue) + CTA desktop */}
-      <div className="flex items-center justify-between lg:justify-end gap-1.5 sm:gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+      <div className="flex items-center justify-between lg:justify-end gap-1 sm:gap-2 shrink-0 flex-nowrap min-w-0">
         <AssigneeFilterDropdown
           value={taskFilter}
           onChange={onChangeTaskFilter}
@@ -124,7 +124,7 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
           facetFilteredTasks={facetFilteredTasks}
         />
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           <UnifiedFilterDropdown
             label="Filtres"
             align="right"
@@ -169,7 +169,7 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
               onClick={onResetFilters}
               aria-label="Réinitialiser les filtres"
               title="Réinitialiser les filtres"
-              className="p-2 min-h-[38px] sm:min-h-[34px] min-w-[34px] rounded-cdh-md flex items-center justify-center text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 min-h-[38px] sm:min-h-[34px] min-w-[32px] sm:min-w-[34px] rounded-cdh-md flex items-center justify-center text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] transition-colors cursor-pointer shrink-0"
             >
               <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
             </button>

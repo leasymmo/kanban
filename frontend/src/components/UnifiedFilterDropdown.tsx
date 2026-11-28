@@ -82,7 +82,7 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = ({
         onClick={handleTogglePopover}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
-        className={`flex items-center gap-1.5 text-[12px] border rounded-cdh-md px-2.5 py-1.5 min-h-[38px] sm:min-h-[34px] font-semibold transition-all active:scale-[0.98] cursor-pointer ${
+        className={`flex items-center gap-1 sm:gap-1.5 text-[12px] border rounded-cdh-md px-2 sm:px-2.5 py-1.5 min-h-[38px] sm:min-h-[34px] font-semibold transition-all active:scale-[0.98] cursor-pointer whitespace-nowrap ${
           isFiltered
             ? 'bg-[var(--cdh-accent-soft)] border-[var(--cdh-accent)]/30 text-[var(--cdh-accent)]'
             : 'bg-[var(--cdh-surface-control)] border-[var(--cdh-border-hairline)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
@@ -102,7 +102,7 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = ({
           </span>
         )}
         <ChevronDown
-          className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+          className={`hidden xs:block w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
           strokeWidth={2}
         />
       </button>

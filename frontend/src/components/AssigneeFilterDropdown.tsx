@@ -109,7 +109,7 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = ({
     : 'Mes tâches';
 
   return (
-    <div className="relative min-w-0" ref={containerRef}>
+    <div className="relative min-w-0 flex-1 sm:flex-initial" ref={containerRef}>
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
@@ -117,7 +117,7 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = ({
         aria-haspopup="dialog"
         aria-label={`Responsable : ${activeDescription} (${activeCount}). Changer le filtre`}
         title={`Responsable : ${activeDescription} (${activeCount})`}
-        className={`flex items-center gap-1.5 text-[12px] border rounded-cdh-md px-2 sm:px-2.5 py-1.5 min-h-[38px] sm:min-h-[34px] font-semibold transition-all active:scale-[0.98] cursor-pointer max-w-full ${
+        className={`flex items-center gap-1 sm:gap-1.5 text-[12px] border rounded-cdh-md px-2 sm:px-2.5 py-1.5 min-h-[38px] sm:min-h-[34px] font-semibold transition-all active:scale-[0.98] cursor-pointer max-w-full ${
           isOpen || isNonDefault
             ? 'bg-[var(--cdh-accent-soft)] border-[var(--cdh-accent)]/30 text-[var(--cdh-info)]'
             : 'bg-[var(--cdh-surface-control)] border-[var(--cdh-border-hairline)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
@@ -129,7 +129,7 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = ({
           ({activeCount})
         </span>
         <ChevronDown
-          className={`w-3.5 h-3.5 shrink-0 text-[var(--cdh-text-tertiary)] transition-transform duration-150 ${
+          className={`hidden xs:block w-3.5 h-3.5 shrink-0 text-[var(--cdh-text-tertiary)] transition-transform duration-150 ${
             isOpen ? 'rotate-180' : ''
           }`}
           strokeWidth={2}
