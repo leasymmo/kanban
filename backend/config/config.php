@@ -44,9 +44,7 @@ return [
         'path' => __DIR__ . '/../database/kanban.sqlite',
     ],
     'app' => [
-        'name' => "Kanban Dashboard",
         'env' => getenv('APP_ENV') ?: 'production',
-        'session_lifetime_days' => 30,
-        'secret_key' => getenv('APP_SECRET') ?: 'kanban-app-secret-key-change-in-production',
+        'session_lifetime_days' => (int)(getenv('SESSION_LIFETIME_DAYS') ?: 30),
     ]
 ];

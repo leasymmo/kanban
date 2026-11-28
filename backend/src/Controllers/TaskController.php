@@ -5,6 +5,8 @@ namespace App\Controllers;
 use App\Database;
 use App\Response;
 use App\Auth;
+use App\Request;
+use App\SubtaskStateHelper;
 use PDO;
 
 class TaskController {
@@ -16,7 +18,7 @@ class TaskController {
         if ($sprintId && $sprintId > 0) {
             $stmt = $db->prepare("
                 SELECT t.id, t.title, t.description, t.created_by,
-                       t.property_id, t.priority, t.due_date, t.parent_task_id,
+                       t.property_id, t.priority, t.due_date,
                        st.id as sprint_task_id, st.sprint_id, st.status, st.assigned_to, st.position,
                        st.is_unplanned, st.is_starred, st.is_new,
                        s.status as sprint_status, s.number as sprint_number
@@ -30,7 +32,7 @@ class TaskController {
         } else {
             $stmt = $db->prepare("
                 SELECT t.id, t.title, t.description, t.created_by,
-                       t.property_id, t.priority, t.due_date, t.parent_task_id,
+                       t.property_id, t.priority, t.due_date,
                        st.id as sprint_task_id, st.sprint_id, st.status, st.assigned_to, st.position,
                        st.is_unplanned, st.is_starred, st.is_new,
                        s.status as sprint_status, s.number as sprint_number
@@ -98,17 +100,27 @@ class TaskController {
     }
 
     /**
-     * Vérifie que tous les logements non-null fournis existent en base
+     * Vérifie que tous les logements non-null fournis sont valides et existent en base
      */
     private function assertPropertiesExist(PDO $db, array $propertyIds, bool $requireActive = false): void {
-        $ids = array_values(array_unique(array_filter($propertyIds, fn($id) => $id !== null && (int)$id > 0)));
+        $ids = [];
+        foreach ($propertyIds as $rawId) {
+            if ($rawId === null || $rawId === '') continue;
+            $intId = (int)$rawId;
+            if ($intId <= 0) {
+                Response::error('Identifiant de logement invalide.', 400);
+            }
+            if (!in_array($intId, $ids, true)) {
+                $ids[] = $intId;
+            }
+        }
         if (empty($ids)) {
             return;
         }
         $inClause = implode(',', array_fill(0, count($ids), '?'));
         $sql = "SELECT id FROM properties WHERE id IN ($inClause)" . ($requireActive ? " AND is_active = 1" : "");
         $stmt = $db->prepare($sql);
-        $stmt->execute(array_map('intval', $ids));
+        $stmt->execute($ids);
         $found = $stmt->fetchAll(PDO::FETCH_COLUMN);
         if (count($found) !== count($ids)) {
             $msg = $requireActive
@@ -116,6 +128,61 @@ class TaskController {
                 : 'Un ou plusieurs logements sélectionnés sont introuvables.';
             Response::error($msg, 400);
         }
+    }
+
+    /**
+     * Aplatit une liste de sous-tâches potentiellement imbriquées (`children`) en liste ordonnée avec temp_id / parent_temp_id.
+     */
+    private function flattenIncomingSubtasks(array $subtasksList): array {
+        $flat = [];
+        $autoSeq = 0;
+
+        $walk = function(array $items, ?int $parentId = null, ?string $parentTempId = null) use (&$walk, &$flat, &$autoSeq) {
+            foreach ($items as $idx => $raw) {
+                if (is_string($raw)) {
+                    $title = trim($raw);
+                    if ($title === '') continue;
+                    $autoSeq++;
+                    $flat[] = [
+                        'id' => null,
+                        'temp_id' => 'auto_' . $autoSeq,
+                        'parent_id' => $parentId,
+                        'parent_temp_id' => $parentTempId,
+                        'title' => mb_substr($title, 0, 255),
+                        'is_done' => 0,
+                        'position' => $idx + 1,
+                    ];
+                    continue;
+                }
+                if (!is_array($raw)) continue;
+
+                $title = trim((string)($raw['title'] ?? ''));
+                if ($title === '') continue;
+
+                $autoSeq++;
+                $stId = !empty($raw['id']) ? (int)$raw['id'] : null;
+                $tempId = !empty($raw['temp_id']) ? (string)$raw['temp_id'] : ('auto_' . $autoSeq);
+                $stParentId = $parentId ?? (!empty($raw['parent_id']) ? (int)$raw['parent_id'] : null);
+                $stParentTempId = $parentTempId ?? (!empty($raw['parent_temp_id']) ? (string)$raw['parent_temp_id'] : null);
+
+                $flat[] = [
+                    'id' => $stId,
+                    'temp_id' => $tempId,
+                    'parent_id' => $stParentId,
+                    'parent_temp_id' => $stParentTempId,
+                    'title' => mb_substr($title, 0, 255),
+                    'is_done' => !empty($raw['is_done']) ? 1 : 0,
+                    'position' => isset($raw['position']) ? (int)$raw['position'] : ($idx + 1),
+                ];
+
+                if (!empty($raw['children']) && is_array($raw['children'])) {
+                    $walk($raw['children'], $stId, $stId === null ? $tempId : null);
+                }
+            }
+        };
+
+        $walk($subtasksList);
+        return $flat;
     }
 
     /**
@@ -184,12 +251,15 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $title = trim($body['title'] ?? '');
+        $body = Request::jsonBody();
+        $title = Request::string($body, 'title');
         $sprintId = (int)($body['sprint_id'] ?? 0);
 
         if ($title === '' || $sprintId <= 0) {
             Response::error('Titre et sprint requis', 400);
+        }
+        if (mb_strlen($title) > 255) {
+            Response::error('Le titre de la tâche ne doit pas dépasser 255 caractères.', 400);
         }
 
         // Vérification du sprint
@@ -225,7 +295,15 @@ class TaskController {
         $targetPropertyIds = [];
         if (isset($body['property_ids']) && is_array($body['property_ids'])) {
             foreach ($body['property_ids'] as $pid) {
-                $val = ($pid !== null && $pid !== '' && (int)$pid > 0) ? (int)$pid : null;
+                if ($pid === null || $pid === '') {
+                    $val = null;
+                } else {
+                    $intPid = (int)$pid;
+                    if ($intPid <= 0) {
+                        Response::error('Identifiant de logement invalide.', 400);
+                    }
+                    $val = $intPid;
+                }
                 if (!in_array($val, $targetPropertyIds, true)) {
                     $targetPropertyIds[] = $val;
                 }
@@ -234,7 +312,11 @@ class TaskController {
                 $targetPropertyIds = [null];
             }
         } else {
-            $targetPropertyIds = [!empty($body['property_id']) ? (int)$body['property_id'] : null];
+            $rawPid = $body['property_id'] ?? null;
+            if ($rawPid !== null && $rawPid !== '' && (int)$rawPid <= 0) {
+                Response::error('Identifiant de logement invalide.', 400);
+            }
+            $targetPropertyIds = [($rawPid !== null && $rawPid !== '') ? (int)$rawPid : null];
         }
 
         $isMeetingPending = !empty($body['pending_for_next_sprint'])
@@ -267,7 +349,7 @@ class TaskController {
 
         $db->beginTransaction();
         try {
-            $stmtPos = $db->prepare("SELECT COALESCE(MAX(position), 0) as max_pos FROM sprint_tasks WHERE sprint_id = ?");
+            $stmtPos = $db->prepare("SELECT COALESCE(MAX(position), 0) as max_pos FROM sprint_tasks WHERE sprint_id = ? FOR UPDATE");
             $stmtPos->execute([$sprintId]);
             $position = (int)($stmtPos->fetch()['max_pos'] ?? 0);
 
@@ -326,7 +408,7 @@ class TaskController {
                 'message' => $isMeetingPending
                     ? ($count > 1 ? "{$count} tâches ajoutées en attente (pending) pour le prochain sprint" : 'Tâche ajoutée en attente (pending) pour le prochain sprint')
                     : ($count > 1 ? "{$count} tâches créées avec succès" : 'Tâche créée avec succès')
-            ]);
+            ], 201);
         } catch (\Throwable $e) {
             $db->rollBack();
             error_log('Erreur TaskController::create : ' . $e->getMessage());
@@ -342,7 +424,7 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $sprintId = !empty($body['sprint_id']) ? (int)$body['sprint_id'] : null;
 
         $task = $this->resolveTaskInSprint($db, $id, $sprintId);
@@ -352,14 +434,26 @@ class TaskController {
 
         $this->assertCanModifyTask($currentUser, $task, 'modifier');
 
-        $title = isset($body['title']) ? trim($body['title']) : $task['title'];
-        $description = isset($body['description']) ? trim($body['description']) : $task['description'];
-        $priority = in_array($body['priority'] ?? '', ['low', 'medium', 'high']) ? $body['priority'] : $task['priority'];
-        $propertyId = array_key_exists('property_id', $body)
-            ? (!empty($body['property_id']) ? (int)$body['property_id'] : null)
-            : $task['property_id'];
+        $title = array_key_exists('title', $body) ? Request::string($body, 'title') : $task['title'];
+        if ($title === '' || mb_strlen($title) > 255) {
+            Response::error('Le titre de la tâche est requis (255 caractères max).', 400);
+        }
+
+        $description = array_key_exists('description', $body) ? Request::string($body, 'description') : $task['description'];
+        $priority = in_array($body['priority'] ?? '', ['low', 'medium', 'high'], true) ? $body['priority'] : $task['priority'];
+
+        if (array_key_exists('property_id', $body)) {
+            $rawPid = $body['property_id'];
+            if ($rawPid !== null && $rawPid !== '' && (int)$rawPid <= 0) {
+                Response::error('Identifiant de logement invalide.', 400);
+            }
+            $propertyId = ($rawPid !== null && $rawPid !== '') ? (int)$rawPid : null;
+        } else {
+            $propertyId = $task['property_id'];
+        }
+
         $dueDate = array_key_exists('due_date', $body)
-            ? $this->validateDueDate($body['due_date'])
+            ? $this->validateDueDate($body['due_date'] !== null ? Request::string($body, 'due_date') : null)
             : $task['due_date'];
         $isStarred = array_key_exists('is_starred', $body)
             ? (!empty($body['is_starred']) ? 1 : 0)
@@ -381,12 +475,15 @@ class TaskController {
         }
 
         // Règle de statut et d'attribution :
-        // - Une tâche en attente ('pending') reste toujours au statut 'pending' (attribuée ou non) jusqu'à la clôture du sprint.
-        // - Une tâche active (non 'pending') doit obligatoirement avoir un responsable (assigned_to NOT NULL).
-        if ($task['status'] === 'pending' || (($body['status'] ?? '') === 'pending')) {
+        // - Une tâche en attente ('pending') reste toujours au statut 'pending' jusqu'à la clôture du sprint.
+        // - Une tâche active ne peut pas repasser au statut 'pending' via update().
+        if ($task['status'] === 'pending') {
             $status = 'pending';
             $isStarred = 0;
         } else {
+            if (($body['status'] ?? '') === 'pending') {
+                Response::error("Une tâche active ne peut pas être repassée en attente (pending).", 400);
+            }
             if ($assignedTo === null && $task['sprint_status'] === 'active') {
                 Response::error("Une tâche active doit obligatoirement être attribuée à un associé.", 400);
             }
@@ -424,98 +521,151 @@ class TaskController {
                 $status, $assignedTo, $isStarred, $task['sprint_task_id']
             ]);
 
-            // Synchronisation des sous-tâches si transmises dans la mise à jour
+            // Synchronisation des sous-tâches si transmises dans la mise à jour (plat ou imbriqué children)
             if (array_key_exists('subtasks', $body) && is_array($body['subtasks'])) {
                 $effectiveSprintId = (int)$task['sprint_id'];
                 $effectiveSprintNumber = (int)$task['sprint_number'];
                 $isClosedSprint = ($task['sprint_status'] === 'closed');
                 $subtaskCreatedSprintId = $effectiveSprintId;
-                $sprintNumMap = \App\SubtaskStateHelper::getSprintNumberMap($db);
+                $sprintNumMap = SubtaskStateHelper::getSprintNumberMap($db);
 
                 $stmtExisting = $db->prepare("SELECT id, created_sprint_id, deleted_sprint_id FROM subtasks WHERE task_id = ?");
                 $stmtExisting->execute([$id]);
                 $existingIds = [];
                 foreach ($stmtExisting->fetchAll(PDO::FETCH_ASSOC) as $exSub) {
-                    if (\App\SubtaskStateHelper::isVisibleInSprint($exSub, $effectiveSprintNumber, $sprintNumMap)) {
+                    if (SubtaskStateHelper::isVisibleInSprint($exSub, $effectiveSprintNumber, $sprintNumMap)) {
                         $existingIds[] = (int)$exSub['id'];
                     }
                 }
 
+                $flatIncoming = $this->flattenIncomingSubtasks($body['subtasks']);
                 $keptIds = [];
                 $tempIdMap = [];
                 $depthMap = [];
+                $resolvedParentMap = []; // childId => parentId pour détecter les cycles
 
-                foreach ($body['subtasks'] as $idx => $st) {
-                    if (is_string($st)) {
-                        $st = ['title' => $st, 'is_done' => 0, 'position' => $idx + 1];
+                $wouldCreateCycle = function(?int $childId, ?int $parentId) use (&$resolvedParentMap): bool {
+                    if ($childId === null || $parentId === null) return false;
+                    $cursor = $parentId;
+                    $guard = 0;
+                    while ($cursor !== null && $guard < 16) {
+                        if ($cursor === $childId) return true;
+                        $cursor = $resolvedParentMap[$cursor] ?? null;
+                        $guard++;
                     }
-                    $stTitle = trim($st['title'] ?? '');
-                    if ($stTitle === '') continue;
+                    return false;
+                };
 
-                    $stDone = !empty($st['is_done']) ? 1 : 0;
-                    $stPos = isset($st['position']) ? (int)$st['position'] : ($idx + 1);
-                    $stId = !empty($st['id']) ? (int)$st['id'] : null;
-                    $stParent = !empty($st['parent_id']) ? (int)$st['parent_id'] : null;
+                // Passe topologique : traite d'abord les racines et les nœuds dont le parent est déjà résolu
+                $pending = $flatIncoming;
+                $stmtUpClosed = $db->prepare("UPDATE subtasks SET title = ?, parent_id = ?, position = ? WHERE id = ? AND task_id = ?");
+                $stmtUpActive = $db->prepare("UPDATE subtasks SET title = ?, is_done = ?, parent_id = ?, position = ? WHERE id = ? AND task_id = ?");
+                $stmtIns = $db->prepare("INSERT INTO subtasks (task_id, parent_id, title, is_done, position, created_sprint_id) VALUES (?, ?, ?, ?, ?, ?)");
 
-                    if (!$stParent && !empty($st['parent_temp_id']) && isset($tempIdMap[$st['parent_temp_id']])) {
-                        $stParent = $tempIdMap[$st['parent_temp_id']];
-                    }
+                while (!empty($pending)) {
+                    $nextPending = [];
+                    $progressed = false;
 
-                    // Empêcher l'auto-référence ou le rattachement à une sous-tâche d'une autre tâche
-                    if ($stParent !== null) {
-                        if ($stId !== null && $stParent === $stId) {
-                            $stParent = null;
-                        } else if (!in_array($stParent, $existingIds, true) && !in_array($stParent, $keptIds, true)) {
-                            $stParent = null;
+                    foreach ($pending as $st) {
+                        $stId = $st['id'];
+                        $stParent = $st['parent_id'];
+                        $stParentTemp = $st['parent_temp_id'];
+
+                        // Attendre que le parent temporaire ou existant soit déjà traité dans cette passe si présent dans le lot
+                        if ($stParent === null && $stParentTemp !== null) {
+                            if (isset($tempIdMap[$stParentTemp])) {
+                                $stParent = $tempIdMap[$stParentTemp];
+                            } else {
+                                $parentStillPending = false;
+                                foreach ($pending as $cand) {
+                                    if ($cand['temp_id'] === $stParentTemp && $cand !== $st) {
+                                        $parentStillPending = true;
+                                        break;
+                                    }
+                                }
+                                if ($parentStillPending) {
+                                    $nextPending[] = $st;
+                                    continue;
+                                }
+                            }
+                        } elseif ($stParent !== null && !isset($depthMap[$stParent])) {
+                            $parentStillPending = false;
+                            foreach ($pending as $cand) {
+                                if ($cand['id'] === $stParent && $cand !== $st) {
+                                    $parentStillPending = true;
+                                    break;
+                                }
+                            }
+                            if ($parentStillPending) {
+                                $nextPending[] = $st;
+                                continue;
+                            }
                         }
-                    }
 
-                    $depth = $stParent !== null ? (($depthMap[$stParent] ?? 0) + 1) : 0;
-                    if ($depth > 3) {
-                        continue;
-                    }
-
-                    if ($stId && in_array($stId, $existingIds, true)) {
-                        if ($isClosedSprint) {
-                            // Ne pas altérer subtasks.is_done du sprint actif lors d'une retouche d'archive
-                            $stmtUp = $db->prepare("UPDATE subtasks SET title = ?, parent_id = ?, position = ? WHERE id = ? AND task_id = ?");
-                            $stmtUp->execute([$stTitle, $stParent, $stPos, $stId, $id]);
-                            \App\SubtaskStateHelper::setClosedSprintSubtaskDelta($db, $stId, $effectiveSprintId, $effectiveSprintNumber, $stDone);
-                        } else {
-                            $stmtUp = $db->prepare("UPDATE subtasks SET title = ?, is_done = ?, parent_id = ?, position = ? WHERE id = ? AND task_id = ?");
-                            $stmtUp->execute([$stTitle, $stDone, $stParent, $stPos, $stId, $id]);
+                        if ($stParent !== null) {
+                            if (($stId !== null && $stParent === $stId)
+                                || (!in_array($stParent, $existingIds, true) && !in_array($stParent, $keptIds, true))
+                                || $wouldCreateCycle($stId, $stParent)
+                            ) {
+                                $stParent = null;
+                            }
                         }
-                        $keptIds[] = $stId;
-                        $depthMap[$stId] = $depth;
-                        if (!empty($st['temp_id'])) {
+
+                        $depth = $stParent !== null ? (($depthMap[$stParent] ?? 0) + 1) : 0;
+                        if ($depth > 3) {
+                            $progressed = true;
+                            continue;
+                        }
+
+                        $progressed = true;
+                        if ($stId && in_array($stId, $existingIds, true)) {
+                            if ($isClosedSprint) {
+                                $stmtUpClosed->execute([$st['title'], $stParent, $st['position'], $stId, $id]);
+                                SubtaskStateHelper::setClosedSprintSubtaskDelta($db, $stId, $effectiveSprintId, $effectiveSprintNumber, $st['is_done']);
+                            } else {
+                                $stmtUpActive->execute([$st['title'], $st['is_done'], $stParent, $st['position'], $stId, $id]);
+                            }
+                            $keptIds[] = $stId;
+                            $depthMap[$stId] = $depth;
+                            $resolvedParentMap[$stId] = $stParent;
                             $tempIdMap[$st['temp_id']] = $stId;
-                        }
-                    } else {
-                        $liveDone = $isClosedSprint ? 0 : $stDone;
-                        $stmtIns = $db->prepare("INSERT INTO subtasks (task_id, parent_id, title, is_done, position, created_sprint_id) VALUES (?, ?, ?, ?, ?, ?)");
-                        $stmtIns->execute([$id, $stParent, $stTitle, $liveDone, $stPos, $subtaskCreatedSprintId]);
-                        $newId = (int)$db->lastInsertId();
-                        if ($isClosedSprint && $stDone === 1) {
-                            \App\SubtaskStateHelper::setClosedSprintSubtaskDelta($db, $newId, $effectiveSprintId, $effectiveSprintNumber, 1);
-                        }
-                        $keptIds[] = $newId;
-                        $depthMap[$newId] = $depth;
-                        if (!empty($st['temp_id'])) {
+                        } else {
+                            $liveDone = $isClosedSprint ? 0 : $st['is_done'];
+                            $stmtIns->execute([$id, $stParent, $st['title'], $liveDone, $st['position'], $subtaskCreatedSprintId]);
+                            $newId = (int)$db->lastInsertId();
+                            if ($isClosedSprint && $st['is_done'] === 1) {
+                                SubtaskStateHelper::setClosedSprintSubtaskDelta($db, $newId, $effectiveSprintId, $effectiveSprintNumber, 1);
+                            }
+                            $keptIds[] = $newId;
+                            $depthMap[$newId] = $depth;
+                            $resolvedParentMap[$newId] = $stParent;
                             $tempIdMap[$st['temp_id']] = $newId;
                         }
                     }
+
+                    if (!$progressed) {
+                        // Briser un éventuel cycle ou parent introuvable en rattachant à la racine
+                        foreach ($nextPending as &$orphan) {
+                            $orphan['parent_id'] = null;
+                            $orphan['parent_temp_id'] = null;
+                        }
+                        unset($orphan);
+                    }
+                    $pending = $nextPending;
                 }
 
                 $toDelete = array_diff($existingIds, $keptIds);
                 foreach ($toDelete as $delId) {
-                    \App\SubtaskStateHelper::deleteSubtreeInSprint($db, $id, (int)$delId, $effectiveSprintId);
+                    SubtaskStateHelper::deleteSubtreeInSprint($db, $id, (int)$delId, $effectiveSprintId);
                 }
             }
 
             $db->commit();
             Response::success(null, 'Tâche mise à jour');
         } catch (\Throwable $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             error_log('Erreur TaskController::update : ' . $e->getMessage());
             Response::error('Erreur interne lors de la mise à jour de la tâche.', 500);
         }
@@ -529,7 +679,7 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $sprintId = !empty($body['sprint_id']) ? (int)$body['sprint_id'] : null;
         $taskId = !empty($body['task_id']) ? (int)$body['task_id'] : 0;
 
@@ -544,50 +694,70 @@ class TaskController {
 
         $this->assertCanModifyTask($currentUser, $task, 'déplacer');
 
+        // Valider statut et logement AVANT d'ouvrir la transaction
+        $hasStatusChange = array_key_exists('status', $body) && $body['status'] !== null;
+        $targetStatus = null;
+        if ($hasStatusChange) {
+            if ($task['status'] === 'pending') {
+                Response::error("Une tâche en attente (pending) ne peut pas changer de statut avant la clôture du sprint.", 400);
+            }
+            $targetStatus = Request::string($body, 'status');
+            if (!in_array($targetStatus, ['todo', 'in_progress', 'blocked', 'done'], true)) {
+                Response::error('Statut invalide', 400);
+            }
+        }
+
+        $hasPropertyChange = array_key_exists('property_id', $body);
+        $newPropertyId = null;
+        if ($hasPropertyChange) {
+            $rawPid = $body['property_id'];
+            if ($rawPid !== null && $rawPid !== '' && (int)$rawPid <= 0) {
+                Response::error('Identifiant de logement invalide.', 400);
+            }
+            $newPropertyId = ($rawPid !== null && $rawPid !== '') ? (int)$rawPid : null;
+            if ($newPropertyId !== null) {
+                $mustBeActive = ($task['sprint_status'] === 'active' && (int)$newPropertyId !== (int)($task['property_id'] ?? 0));
+                $this->assertPropertiesExist($db, [$newPropertyId], $mustBeActive);
+            }
+        }
+
         $effectiveSprintId = (int)$task['sprint_id'];
 
         $db->beginTransaction();
         try {
-            // Changement de statut éventuel
-            if (isset($body['status'])) {
-                if ($task['status'] === 'pending') {
-                    Response::error("Une tâche en attente (pending) ne peut pas changer de statut avant la clôture du sprint.", 400);
-                }
-                if (!in_array($body['status'], ['todo', 'in_progress', 'blocked', 'done'])) {
-                    Response::error('Statut invalide', 400);
-                }
+            if ($hasStatusChange && $targetStatus !== null) {
                 $stmtStatus = $db->prepare("UPDATE sprint_tasks SET status = ? WHERE id = ?");
-                $stmtStatus->execute([$body['status'], $task['sprint_task_id']]);
+                $stmtStatus->execute([$targetStatus, $task['sprint_task_id']]);
             }
 
-            // Changement de logement éventuel (Vue par Logement)
-            if (array_key_exists('property_id', $body)) {
-                $newPropertyId = ($body['property_id'] !== null && $body['property_id'] !== '' && (int)$body['property_id'] > 0)
-                    ? (int)$body['property_id']
-                    : null;
-                if ($newPropertyId !== null) {
-                    $mustBeActive = ($task['sprint_status'] === 'active' && (int)$newPropertyId !== (int)($task['property_id'] ?? 0));
-                    $this->assertPropertiesExist($db, [$newPropertyId], $mustBeActive);
-                }
+            if ($hasPropertyChange) {
                 $stmtProp = $db->prepare("UPDATE tasks SET property_id = ? WHERE id = ?");
                 $stmtProp->execute([$newPropertyId, $taskId]);
             }
 
-            // Mise à jour de l'ordre des tâches en conservant les positions des tâches non affichées (filtres)
+            // Mise à jour de l'ordre des tâches en ne modifiant que les positions qui changent
             if (!empty($body['ordered_task_ids']) && is_array($body['ordered_task_ids'])) {
                 $stmtAll = $db->prepare("
-                    SELECT task_id
+                    SELECT task_id, position
                     FROM sprint_tasks
                     WHERE sprint_id = ?
                     ORDER BY position ASC, task_id ASC
                 ");
                 $stmtAll->execute([$effectiveSprintId]);
-                $allSprintTaskIds = array_map('intval', $stmtAll->fetchAll(PDO::FETCH_COLUMN));
+                $rows = $stmtAll->fetchAll();
+
+                $allSprintTaskIds = [];
+                $currentPosByTaskId = [];
+                foreach ($rows as $row) {
+                    $tid = (int)$row['task_id'];
+                    $allSprintTaskIds[] = $tid;
+                    $currentPosByTaskId[$tid] = (int)$row['position'];
+                }
 
                 $orderedSubset = [];
                 foreach ($body['ordered_task_ids'] as $rawId) {
                     $tid = (int)$rawId;
-                    if ($tid > 0 && in_array($tid, $allSprintTaskIds, true) && !in_array($tid, $orderedSubset, true)) {
+                    if ($tid > 0 && isset($currentPosByTaskId[$tid]) && !in_array($tid, $orderedSubset, true)) {
                         $orderedSubset[] = $tid;
                     }
                 }
@@ -609,7 +779,10 @@ class TaskController {
 
                     $stmtUpPos = $db->prepare("UPDATE sprint_tasks SET position = ? WHERE sprint_id = ? AND task_id = ?");
                     foreach ($allSprintTaskIds as $posIdx => $tid) {
-                        $stmtUpPos->execute([$posIdx + 1, $effectiveSprintId, $tid]);
+                        $newPos = $posIdx + 1;
+                        if (($currentPosByTaskId[$tid] ?? -1) !== $newPos) {
+                            $stmtUpPos->execute([$newPos, $effectiveSprintId, $tid]);
+                        }
                     }
                 }
             }
@@ -617,7 +790,9 @@ class TaskController {
             $db->commit();
             Response::success(null, 'Ordre mis à jour');
         } catch (\Throwable $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             error_log('Erreur TaskController::reorder : ' . $e->getMessage());
             Response::error('Erreur interne lors du réordonnancement.', 500);
         }
@@ -631,7 +806,7 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $sprintId = !empty($body['sprint_id']) ? (int)$body['sprint_id'] : null;
 
         $task = $this->resolveTaskInSprint($db, $id, $sprintId);
@@ -645,8 +820,8 @@ class TaskController {
             Response::error("Une tâche en attente (pending) ne peut pas changer de statut avant la clôture du sprint.", 400);
         }
 
-        $newStatus = $body['status'] ?? '';
-        if (!in_array($newStatus, ['todo', 'in_progress', 'blocked', 'done'])) {
+        $newStatus = Request::string($body, 'status');
+        if (!in_array($newStatus, ['todo', 'in_progress', 'blocked', 'done'], true)) {
             Response::error('Statut invalide', 400);
         }
 
@@ -664,7 +839,7 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $sprintId = !empty($body['sprint_id']) ? (int)$body['sprint_id'] : null;
 
         $task = $this->resolveTaskInSprint($db, $id, $sprintId);
@@ -697,7 +872,7 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $sprintId = !empty($_GET['sprint_id']) ? (int)$_GET['sprint_id'] : (!empty($body['sprint_id']) ? (int)$body['sprint_id'] : null);
 
         $task = $this->resolveTaskInSprint($db, $id, $sprintId);
@@ -737,7 +912,7 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $sprintId = !empty($body['sprint_id']) ? (int)$body['sprint_id'] : null;
 
         $task = $this->resolveTaskInSprint($db, $id, $sprintId);
@@ -747,29 +922,35 @@ class TaskController {
 
         $this->assertCanModifyTask($currentUser, $task, "ajouter des sous-tâches à");
 
-        $title = trim($body['title'] ?? '');
-        if ($title === '') {
-            Response::error('Titre de la sous-tâche requis', 400);
+        $title = Request::string($body, 'title');
+        if ($title === '' || mb_strlen($title) > 255) {
+            Response::error('Titre de la sous-tâche requis (255 caractères max).', 400);
         }
 
         $parentId = !empty($body['parent_id']) ? (int)$body['parent_id'] : null;
         if ($parentId) {
-            $stmtP = $db->prepare("SELECT id, parent_id FROM subtasks WHERE id = ? AND task_id = ?");
-            $stmtP->execute([$parentId, $id]);
-            $parentRow = $stmtP->fetch();
-            if (!$parentRow) {
+            $stmtTaskSubs = $db->prepare("SELECT id, parent_id, created_sprint_id, deleted_sprint_id FROM subtasks WHERE task_id = ?");
+            $stmtTaskSubs->execute([$id]);
+            $byId = [];
+            foreach ($stmtTaskSubs->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $byId[(int)$row['id']] = $row;
+            }
+
+            $sprintNumMap = SubtaskStateHelper::getSprintNumberMap($db);
+            $targetSprintNum = (int)$task['sprint_number'];
+
+            if (!isset($byId[$parentId]) || !SubtaskStateHelper::isVisibleInSprint($byId[$parentId], $targetSprintNum, $sprintNumMap)) {
                 Response::error('Sous-tâche parente introuvable pour cette tâche', 400);
             }
 
-            // Vérifier que la profondeur maximale (4 niveaux : 0..3) n'est pas dépassée
+            // Vérifier la profondeur maximale (4 niveaux : 0..3) en mémoire sans requêtes N+1
             $depth = 0;
-            $cursor = $parentRow['parent_id'] ? (int)$parentRow['parent_id'] : null;
-            $stmtAnc = $db->prepare("SELECT parent_id FROM subtasks WHERE id = ? AND task_id = ?");
-            while ($cursor !== null && $depth < 4) {
+            $cursor = $byId[$parentId]['parent_id'] ? (int)$byId[$parentId]['parent_id'] : null;
+            $visited = [$parentId => true];
+            while ($cursor !== null && isset($byId[$cursor]) && !isset($visited[$cursor]) && $depth < 4) {
+                $visited[$cursor] = true;
                 $depth++;
-                $stmtAnc->execute([$cursor, $id]);
-                $anc = $stmtAnc->fetch();
-                $cursor = ($anc && $anc['parent_id']) ? (int)$anc['parent_id'] : null;
+                $cursor = $byId[$cursor]['parent_id'] ? (int)$byId[$cursor]['parent_id'] : null;
             }
             if ($depth >= 3) {
                 Response::error('Profondeur maximale de 4 niveaux atteinte pour les sous-tâches.', 400);
@@ -814,7 +995,7 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $sprintId = !empty($body['sprint_id']) ? (int)$body['sprint_id'] : null;
 
         $stmt = $db->prepare("SELECT * FROM subtasks WHERE id = ?");
@@ -832,9 +1013,14 @@ class TaskController {
 
         $this->assertCanModifyTask($currentUser, $task, 'cocher les sous-tâches de');
 
+        $sprintNumMap = SubtaskStateHelper::getSprintNumberMap($db);
+        if (!SubtaskStateHelper::isVisibleInSprint($subtask, (int)$task['sprint_number'], $sprintNumMap)) {
+            Response::error('Sous-tâche introuvable dans ce sprint', 404);
+        }
+
         if ($task['sprint_status'] === 'closed') {
             // Action admin sur un sprint archivé : basculer uniquement le delta de ce sprint
-            $resolvedMap = \App\SubtaskStateHelper::fetchResolvedStatesBySubtaskIds(
+            $resolvedMap = SubtaskStateHelper::fetchResolvedStatesBySubtaskIds(
                 $db,
                 [$subtaskId],
                 (int)$task['sprint_number'],
@@ -842,7 +1028,7 @@ class TaskController {
             );
             $currentDone = $resolvedMap[$subtaskId] ?? 0;
             $newDone = $currentDone ? 0 : 1;
-            \App\SubtaskStateHelper::setClosedSprintSubtaskDelta(
+            SubtaskStateHelper::setClosedSprintSubtaskDelta(
                 $db,
                 $subtaskId,
                 (int)$task['sprint_id'],
@@ -869,7 +1055,7 @@ class TaskController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $sprintId = !empty($_GET['sprint_id'])
             ? (int)$_GET['sprint_id']
             : (!empty($body['sprint_id']) ? (int)$body['sprint_id'] : null);
@@ -889,7 +1075,12 @@ class TaskController {
 
         $this->assertCanModifyTask($currentUser, $task, 'supprimer les sous-tâches de');
 
-        \App\SubtaskStateHelper::deleteSubtreeInSprint(
+        $sprintNumMap = SubtaskStateHelper::getSprintNumberMap($db);
+        if (!SubtaskStateHelper::isVisibleInSprint($subtask, (int)$task['sprint_number'], $sprintNumMap)) {
+            Response::error('Sous-tâche introuvable dans ce sprint', 404);
+        }
+
+        SubtaskStateHelper::deleteSubtreeInSprint(
             $db,
             (int)$subtask['task_id'],
             $subtaskId,

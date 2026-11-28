@@ -5,20 +5,23 @@ namespace App\Controllers;
 use App\Database;
 use App\Response;
 use App\Auth;
-use PDO;
+use App\Request;
 
 class AuthController {
+    // Hash factice valide utilisé pour égaliser le temps de réponse quand l'utilisateur n'existe pas
+    private const DUMMY_BCRYPT_HASH = '$2y$10$usesomesillystringfore7hnbRJHxXVLeakoG8K30oukPsA.ztMG';
+
     /**
      * POST /api/auth/login
      * Body: { "email": "...", "password": "..." } ou { "user_id": 1, "password": "..." }
      */
     public function login(): void {
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $email = trim($body['email'] ?? '');
-        $userId = $body['user_id'] ?? null;
-        $password = $body['password'] ?? '';
+        $body = Request::jsonBody();
+        $email = strtolower(Request::string($body, 'email'));
+        $userId = isset($body['user_id']) && is_numeric($body['user_id']) ? (int)$body['user_id'] : null;
+        $password = Request::string($body, 'password', '', false);
 
-        if (empty($password)) {
+        if ($password === '') {
             Response::error('Mot de passe requis', 400);
         }
 
@@ -41,12 +44,14 @@ class AuthController {
             if ($failCount >= 10) {
                 Response::error('Trop de tentatives de connexion échouées. Veuillez patienter quelques minutes.', 429);
             }
-        } catch (\Throwable $t) {}
-        
-        if ($userId) {
+        } catch (\Throwable $t) {
+            error_log('AuthController::login rate-limit check failed: ' . $t->getMessage());
+        }
+
+        if ($userId !== null && $userId > 0) {
             $stmt = $db->prepare("SELECT * FROM users WHERE id = ? LIMIT 1");
-            $stmt->execute([(int)$userId]);
-        } else if (!empty($email)) {
+            $stmt->execute([$userId]);
+        } else if ($email !== '') {
             $stmt = $db->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
             $stmt->execute([$email]);
         } else {
@@ -55,9 +60,12 @@ class AuthController {
 
         $user = $stmt->fetch();
         if (!$user) {
+            password_verify($password, self::DUMMY_BCRYPT_HASH);
             try {
                 $db->prepare("INSERT INTO login_attempts (ip_address) VALUES (?)")->execute([$ip]);
-            } catch (\Throwable $t) {}
+            } catch (\Throwable $t) {
+                error_log('AuthController::login attempt log failed: ' . $t->getMessage());
+            }
             Response::error('Identifiants incorrects', 401);
         }
 
@@ -70,7 +78,7 @@ class AuthController {
                 $newHash = password_hash($password, PASSWORD_BCRYPT);
                 $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$newHash, $user['id']]);
             }
-        } else if (hash('sha256', $password) === $user['password_hash']) {
+        } else if (hash_equals($user['password_hash'], hash('sha256', $password))) {
             $passwordValid = true;
             $newHash = password_hash($password, PASSWORD_BCRYPT);
             $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$newHash, $user['id']]);
@@ -79,36 +87,31 @@ class AuthController {
         if (!$passwordValid) {
             try {
                 $db->prepare("INSERT INTO login_attempts (ip_address) VALUES (?)")->execute([$ip]);
-            } catch (\Throwable $t) {}
+            } catch (\Throwable $t) {
+                error_log('AuthController::login attempt log failed: ' . $t->getMessage());
+            }
             Response::error('Identifiants incorrects', 401);
         }
 
         // Connexion réussie : effacer les tentatives échouées de cette IP
         try {
             $db->prepare("DELETE FROM login_attempts WHERE ip_address = ?")->execute([$ip]);
-        } catch (\Throwable $t) {}
+        } catch (\Throwable $t) {
+            error_log('AuthController::login attempt clear failed: ' . $t->getMessage());
+        }
 
-        // Création du token de session
+        // Création du token de session (stocké hashé en SHA-256 en base)
         $token = Auth::generateToken();
-        $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
+        $tokenHash = Auth::hashToken($token);
+        $lifetimeDays = Auth::getSessionLifetimeDays();
 
         $stmtSession = $db->prepare("
             INSERT INTO user_sessions (user_id, token, expires_at)
-            VALUES (?, ?, ?)
+            VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? DAY))
         ");
-        $stmtSession->execute([$user['id'], $token, $expiresAt]);
+        $stmtSession->execute([$user['id'], $tokenHash, $lifetimeDays]);
 
-        // Définition du cookie sécurisé (HttpOnly + Secure si HTTPS)
-        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-        setcookie('kanban_token', $token, [
-            'expires' => strtotime('+30 days'),
-            'path' => '/',
-            'secure' => $isHttps,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
-
+        Auth::setSessionCookie($token);
         unset($user['password_hash']);
 
         Response::json([
@@ -137,23 +140,14 @@ class AuthController {
      */
     public function logout(): void {
         $token = Auth::getTokenFromRequest();
-        
+
         if ($token) {
             $db = Database::getConnection();
-            $stmt = $db->prepare("DELETE FROM user_sessions WHERE token = ?");
-            $stmt->execute([$token]);
+            $stmt = $db->prepare("DELETE FROM user_sessions WHERE token = ? OR token = ?");
+            $stmt->execute([Auth::hashToken($token), $token]);
         }
 
-        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-        setcookie('kanban_token', '', [
-            'expires' => time() - 3600,
-            'path' => '/',
-            'secure' => $isHttps,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
-
+        Auth::clearSessionCookie();
         Response::success(null, 'Déconnexion effectuée');
     }
 }

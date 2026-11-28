@@ -12,7 +12,9 @@ DROP TABLE IF EXISTS `subtasks`;
 DROP TABLE IF EXISTS `sprint_tasks`;
 DROP TABLE IF EXISTS `tasks`;
 DROP TABLE IF EXISTS `questions`;
+DROP TABLE IF EXISTS `login_attempts`;
 DROP TABLE IF EXISTS `user_sessions`;
+DROP TABLE IF EXISTS `schema_migrations`;
 DROP TABLE IF EXISTS `sprints`;
 DROP TABLE IF EXISTS `properties`;
 DROP TABLE IF EXISTS `users`;
@@ -38,7 +40,8 @@ CREATE TABLE `properties` (
   `position` INT NOT NULL DEFAULT 0,
   `is_active` TINYINT(1) DEFAULT 1,
   `deleted_at` DATETIME NULL DEFAULT NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_properties_active_pos` (`is_active`, `position`, `name`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 /* 3. Sprints (Réunions hebdomadaires) */
@@ -52,6 +55,7 @@ CREATE TABLE `sprints` (
   `closed_by` INT NULL,
   `notes` TEXT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_sprints_status_num` (`status`, `number`),
   FOREIGN KEY (`closed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -132,6 +136,7 @@ CREATE TABLE `questions` (
   `details` TEXT NULL,
   `final_answer` TEXT NULL DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_questions_sprint_user` (`sprint_id`, `user_id`, `id`),
   FOREIGN KEY (`sprint_id`) REFERENCES `sprints`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE
@@ -146,6 +151,7 @@ CREATE TABLE `question_answers` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY `uniq_question_user` (`question_id`, `user_id`),
+  INDEX `idx_qa_question_created` (`question_id`, `created_at`, `id`),
   FOREIGN KEY (`question_id`) REFERENCES `questions`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -157,7 +163,21 @@ CREATE TABLE `user_sessions` (
   `token` VARCHAR(128) NOT NULL UNIQUE,
   `expires_at` DATETIME NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_sessions_expires` (`expires_at`),
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+/* 8. Limitation force-brute & registre de migrations */
+CREATE TABLE `login_attempts` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `ip_address` VARCHAR(45) NOT NULL,
+  `attempted_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_ip_time` (`ip_address`, `attempted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `schema_migrations` (
+  `version` VARCHAR(32) PRIMARY KEY,
+  `applied_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

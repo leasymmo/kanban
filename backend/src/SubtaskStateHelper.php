@@ -260,9 +260,17 @@ class SubtaskStateHelper {
         }
 
         $resolvedStates = self::fetchResolvedStatesBySubtaskIds($db, $visibleIds, $sprintNumber, false);
-        $stmtUpdate = $db->prepare("UPDATE subtasks SET is_done = ? WHERE id = ?");
+        $byValue = [0 => [], 1 => []];
         foreach ($visibleIds as $subId) {
-            $stmtUpdate->execute([$resolvedStates[$subId] ?? 0, $subId]);
+            $val = ($resolvedStates[$subId] ?? 0) ? 1 : 0;
+            $byValue[$val][] = $subId;
+        }
+        foreach ([0, 1] as $val) {
+            if (!empty($byValue[$val])) {
+                $placeholders = implode(',', array_fill(0, count($byValue[$val]), '?'));
+                $stmtBatch = $db->prepare("UPDATE subtasks SET is_done = ? WHERE id IN ($placeholders)");
+                $stmtBatch->execute(array_merge([$val], $byValue[$val]));
+            }
         }
 
         // Le sprint étant désormais actif, ses anciens deltas de clôture deviennent inutiles
@@ -315,20 +323,33 @@ class SubtaskStateHelper {
         }
 
         $sprintNumMap = self::getSprintNumberMap($db);
-        $stmtInsertIgnore = $db->prepare("
-            INSERT IGNORE INTO subtask_sprint_states (subtask_id, sprint_id, is_done)
-            VALUES (?, ?, ?)
-        ");
 
+        // Regrouper par sprint cible afin de résoudre tous les états en un minimum de requêtes batchées
+        $subsByTargetNum = [];
         foreach ($subs as $sub) {
             $tid = (int)$sub['task_id'];
             $target = $firstClosedByTask[$tid];
             if (!self::isVisibleInSprint($sub, $target['number'], $sprintNumMap)) {
                 continue;
             }
-            $subId = (int)$sub['id'];
-            $resolved = self::fetchResolvedStatesBySubtaskIds($db, [$subId], $target['number'], false);
-            $stmtInsertIgnore->execute([$subId, $target['sprint_id'], $resolved[$subId] ?? 0]);
+            $subsByTargetNum[$target['number']][] = [
+                'sub_id' => (int)$sub['id'],
+                'sprint_id' => $target['sprint_id'],
+            ];
+        }
+
+        $stmtInsertIgnore = $db->prepare("
+            INSERT IGNORE INTO subtask_sprint_states (subtask_id, sprint_id, is_done)
+            VALUES (?, ?, ?)
+        ");
+
+        foreach ($subsByTargetNum as $targetNum => $items) {
+            $batchSubIds = array_column($items, 'sub_id');
+            $resolvedMap = self::fetchResolvedStatesBySubtaskIds($db, $batchSubIds, (int)$targetNum, false);
+            foreach ($items as $item) {
+                $sid = $item['sub_id'];
+                $stmtInsertIgnore->execute([$sid, $item['sprint_id'], $resolvedMap[$sid] ?? 0]);
+            }
         }
     }
 

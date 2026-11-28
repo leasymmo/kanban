@@ -5,7 +5,8 @@ namespace App\Controllers;
 use App\Database;
 use App\Response;
 use App\Auth;
-use PDO;
+use App\Request;
+use App\QuestionHelper;
 
 class SprintController {
     /**
@@ -19,12 +20,25 @@ class SprintController {
         $stmt = $db->query("
             SELECT s.*,
                    u.name as closed_by_name,
-                   (SELECT COUNT(*) FROM sprint_tasks st WHERE st.sprint_id = s.id AND st.status != 'pending') as total_tasks,
-                   (SELECT COUNT(*) FROM sprint_tasks st WHERE st.sprint_id = s.id AND st.status = 'done') as done_tasks,
-                   (SELECT COUNT(*) FROM sprint_tasks st WHERE st.sprint_id = s.id AND st.status NOT IN ('done', 'pending')) as pending_tasks,
-                   (SELECT COUNT(*) FROM questions q WHERE q.sprint_id = s.id) as total_questions
+                   COALESCE(st_agg.total_tasks, 0) as total_tasks,
+                   COALESCE(st_agg.done_tasks, 0) as done_tasks,
+                   COALESCE(st_agg.pending_tasks, 0) as pending_tasks,
+                   COALESCE(q_agg.total_questions, 0) as total_questions
             FROM sprints s
             LEFT JOIN users u ON u.id = s.closed_by
+            LEFT JOIN (
+                SELECT sprint_id,
+                       SUM(CASE WHEN status != 'pending' THEN 1 ELSE 0 END) as total_tasks,
+                       SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done_tasks,
+                       SUM(CASE WHEN status NOT IN ('done', 'pending') THEN 1 ELSE 0 END) as pending_tasks
+                FROM sprint_tasks
+                GROUP BY sprint_id
+            ) st_agg ON st_agg.sprint_id = s.id
+            LEFT JOIN (
+                SELECT sprint_id, COUNT(*) as total_questions
+                FROM questions
+                GROUP BY sprint_id
+            ) q_agg ON q_agg.sprint_id = s.id
             ORDER BY s.number DESC
         ");
         $sprints = $stmt->fetchAll();
@@ -86,17 +100,18 @@ class SprintController {
         // Récupération des tâches du sprint via la table d'association N-N sprint_tasks
         $stmtTasks = $db->prepare("
             SELECT t.id, t.title, t.description, t.created_by,
-                   t.property_id, t.priority, t.due_date, t.parent_task_id,
+                   t.property_id, t.priority, t.due_date,
                    t.created_at, t.updated_at,
                    st.sprint_id, st.status, st.assigned_to, st.position, st.is_unplanned, st.is_starred, st.is_new,
                    p.name as property_name, p.color as property_color, p.code as property_code,
                    ua.name as assigned_to_name, ua.initials as assigned_to_initials, ua.avatar_color as assigned_to_color,
-                   uc.name as created_by_name, uc.initials as created_by_initials
+                   COALESCE(uc.name, 'Ancien associé') as created_by_name,
+                   COALESCE(uc.initials, '?') as created_by_initials
             FROM sprint_tasks st
             JOIN tasks t ON t.id = st.task_id
             LEFT JOIN properties p ON p.id = t.property_id
             LEFT JOIN users ua ON ua.id = st.assigned_to
-            JOIN users uc ON uc.id = t.created_by
+            LEFT JOIN users uc ON uc.id = t.created_by
             WHERE st.sprint_id = ?
             ORDER BY st.position ASC, t.id ASC
         ");
@@ -130,65 +145,13 @@ class SprintController {
             $task['can_star'] = $canModify && ($task['status'] !== 'pending');
         }
 
-        // Récupération des questions du sprint
-        $stmtQ = $db->prepare("
-            SELECT q.*,
-                   COALESCE(u.name, 'Ancien associé') as user_name,
-                   COALESCE(u.initials, '?') as user_initials,
-                   COALESCE(u.avatar_color, '#64748B') as user_color,
-                   COALESCE(uc.name, 'Ancien associé') as created_by_name
-            FROM questions q
-            LEFT JOIN users u ON u.id = q.user_id
-            LEFT JOIN users uc ON uc.id = q.created_by
-            WHERE q.sprint_id = ?
-            ORDER BY q.user_id ASC, q.id ASC
-        ");
-        $stmtQ->execute([$id]);
-        $questions = $stmtQ->fetchAll();
-
-        // Récupération des réponses collaboratives
-        $qIds = array_column($questions, 'id');
-        $answersMap = [];
-        if (!empty($qIds)) {
-            $inClause = implode(',', array_fill(0, count($qIds), '?'));
-            $stmtAnswers = $db->prepare("
-                SELECT a.*,
-                       COALESCE(u.name, 'Ancien associé') as user_name,
-                       COALESCE(u.initials, '?') as user_initials,
-                       COALESCE(u.avatar_color, '#64748B') as user_color
-                FROM question_answers a
-                LEFT JOIN users u ON u.id = a.user_id
-                WHERE a.question_id IN ($inClause)
-                ORDER BY a.created_at ASC, a.id ASC
-            ");
-            $stmtAnswers->execute($qIds);
-            while ($ans = $stmtAnswers->fetch()) {
-                $answersMap[$ans['question_id']][] = $ans;
-            }
-        }
-
-        foreach ($questions as &$q) {
-            $q['id'] = (int)$q['id'];
-            $q['sprint_id'] = (int)$q['sprint_id'];
-            $q['user_id'] = $q['user_id'] !== null ? (int)$q['user_id'] : null;
-            $q['created_by'] = $q['created_by'] !== null ? (int)$q['created_by'] : null;
-
-            $q['can_edit'] = $isAdmin
-                || (!$isSprintClosed && $isWrite && $q['user_id'] !== null && $q['user_id'] === (int)$currentUser['id']);
-            $q['can_delete'] = $q['can_edit'];
-            $q['can_decide'] = $isAdmin || (!$isSprintClosed && $isWrite);
-
-            $rawAnswers = $answersMap[$q['id']] ?? [];
-            foreach ($rawAnswers as &$ans) {
-                $ans['id'] = (int)$ans['id'];
-                $ans['question_id'] = (int)$ans['question_id'];
-                $ans['user_id'] = $ans['user_id'] !== null ? (int)$ans['user_id'] : null;
-                $ans['can_edit'] = !$isSprintClosed
-                    && ($isAdmin || ($isWrite && $ans['user_id'] !== null && $ans['user_id'] === (int)$currentUser['id']));
-                $ans['can_delete'] = $ans['can_edit'];
-            }
-            $q['answers'] = $rawAnswers;
-        }
+        // Récupération des questions du sprint via QuestionHelper
+        $questions = QuestionHelper::hydrateQuestionsForSprint(
+            $db,
+            (int)$sprint['id'],
+            (string)($sprint['status'] ?? 'active'),
+            $currentUser
+        );
 
         Response::json([
             'success' => true,
@@ -213,27 +176,34 @@ class SprintController {
         $adminUser = Auth::requireAdmin();
         $db = Database::getConnection();
 
-        $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ?");
-        $stmt->execute([$id]);
-        $sprint = $stmt->fetch();
-
-        if (!$sprint) {
-            Response::error('Sprint introuvable', 404);
-        }
-
-        if ($sprint['status'] === 'closed') {
-            Response::error('Ce sprint est déjà clôturé', 400);
-        }
-
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $nextNumber = $sprint['number'] + 1;
-        $nextName = trim($body['next_name'] ?? '') ?: ("Point " . $nextNumber . " — " . date('d M Y'));
+        $body = Request::jsonBody();
+        $requestedNextName = Request::string($body, 'next_name');
+        $notes = Request::string($body, 'notes', 'Clôturé en fin de réunion hebdomadaire');
 
         $db->beginTransaction();
 
         try {
+            // Verrouiller le sprint cible pour éviter une double clôture concurrente
+            $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ? FOR UPDATE");
+            $stmt->execute([$id]);
+            $sprint = $stmt->fetch();
+
+            if (!$sprint) {
+                $db->rollBack();
+                Response::error('Sprint introuvable', 404);
+            }
+
+            if ($sprint['status'] === 'closed') {
+                $db->rollBack();
+                Response::error('Ce sprint est déjà clôturé', 400);
+            }
+
+            // Calculer MAX(number)+1 (évite une collision UNIQUE après réouverture d'un ancien sprint)
+            $nextNumber = (int)$db->query("SELECT COALESCE(MAX(number), 0) + 1 FROM sprints FOR UPDATE")->fetchColumn();
+            $nextName = $requestedNextName !== '' ? mb_substr($requestedNextName, 0, 150) : ("Point " . $nextNumber . " — " . date('d M Y'));
+
             // 0. Figer uniquement les écarts d'état des sous-tâches dans l'archive du sprint clôturé
-            \App\SubtaskStateHelper::freezeSprintSubtaskDeltas($db, (int)$id);
+            \App\SubtaskStateHelper::freezeSprintSubtaskDeltas($db, (int)$id, (int)$sprint['number']);
 
             // 1. Clôture du sprint actuel
             $stmtClose = $db->prepare("
@@ -243,7 +213,7 @@ class SprintController {
             ");
             $stmtClose->execute([
                 $adminUser['id'],
-                $body['notes'] ?? 'Clôturé en fin de réunion hebdomadaire',
+                $notes,
                 $id
             ]);
 
@@ -288,12 +258,28 @@ class SprintController {
                 )
             ");
 
-            $stmtCountSubtasks = $db->prepare("SELECT COUNT(*) FROM subtasks WHERE task_id = ? AND deleted_sprint_id IS NULL");
+            // Compter les sous-tâches en une seule requête groupée au lieu de N requêtes
+            $subtaskCounts = [];
+            $pendingTaskIds = array_values(array_unique(array_map(fn($r) => (int)$r['task_id'], $pendingTasks)));
+            if (!empty($pendingTaskIds)) {
+                $inClause = implode(',', array_fill(0, count($pendingTaskIds), '?'));
+                $stmtCounts = $db->prepare("
+                    SELECT task_id, COUNT(*) as cnt
+                    FROM subtasks
+                    WHERE task_id IN ($inClause) AND deleted_sprint_id IS NULL
+                    GROUP BY task_id
+                ");
+                $stmtCounts->execute($pendingTaskIds);
+                foreach ($stmtCounts->fetchAll() as $row) {
+                    $subtaskCounts[(int)$row['task_id']] = (int)$row['cnt'];
+                }
+            }
 
             $pos = 1;
             foreach ($pendingTasks as $oldSprintTask) {
                 $wasPending = ($oldSprintTask['status'] === 'pending');
                 $assignedTo = $oldSprintTask['assigned_to'] !== null ? (int)$oldSprintTask['assigned_to'] : null;
+                $taskId = (int)$oldSprintTask['task_id'];
 
                 if ($wasPending && $assignedTo === null) {
                     // Tâche pending non attribuée : déplacée sur le nouveau sprint (même ligne sprint_tasks, reste 'pending', sans is_new)
@@ -307,7 +293,7 @@ class SprintController {
                     // Tâche pending attribuée : passe sur le nouveau sprint en 'todo' avec le tag 'Nouveau'
                     $stmtLinkTask->execute([
                         $newSprintId,
-                        $oldSprintTask['task_id'],
+                        $taskId,
                         'todo',
                         $assignedTo,
                         $pos++,
@@ -318,7 +304,7 @@ class SprintController {
                     // Tâche active non terminée : reportée avec son statut exact
                     $stmtLinkTask->execute([
                         $newSprintId,
-                        $oldSprintTask['task_id'],
+                        $taskId,
                         $oldSprintTask['status'],
                         $assignedTo,
                         $pos++,
@@ -327,9 +313,7 @@ class SprintController {
                     $rolledOverTasksCount++;
                 }
 
-                // Les sous-tâches restent rattachées à task_id avec leur état exact (faites / à faire)
-                $stmtCountSubtasks->execute([$oldSprintTask['task_id']]);
-                $rolledOverSubtasksCount += (int)$stmtCountSubtasks->fetchColumn();
+                $rolledOverSubtasksCount += ($subtaskCounts[$taskId] ?? 0);
             }
 
             // 4. Purge des réponses indicatives des questions du sprint clôturé (seules les questions et final_answer sont archivées)
@@ -355,8 +339,10 @@ class SprintController {
                 ]
             ]);
 
-        } catch (\Exception $e) {
-            $db->rollBack();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             error_log('Erreur SprintController::close : ' . $e->getMessage());
             Response::error('Erreur interne lors de la bascule du sprint.', 500);
         }
@@ -367,7 +353,7 @@ class SprintController {
      * Réouvre un sprint fermé par erreur (Admin uniquement)
      */
     public function reopen(int $id): void {
-        $currentUser = Auth::requireAdmin();
+        Auth::requireAdmin();
         $db = Database::getConnection();
 
         $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ?");
@@ -416,7 +402,9 @@ class SprintController {
                 'sprint_id' => $id
             ]);
         } catch (\Throwable $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             error_log('Erreur SprintController::reopen : ' . $e->getMessage());
             Response::error('Erreur interne lors de la réouverture du sprint.', 500);
         }
@@ -427,7 +415,7 @@ class SprintController {
      * Modification des métadonnées d'un sprint (Admin uniquement)
      */
     public function update(int $id): void {
-        $currentUser = Auth::requireAdmin();
+        Auth::requireAdmin();
         $db = Database::getConnection();
 
         $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ?");
@@ -438,11 +426,37 @@ class SprintController {
             Response::error('Sprint introuvable', 404);
         }
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $name = isset($body['name']) ? trim($body['name']) : $sprint['name'];
-        $number = isset($body['number']) ? (int)$body['number'] : (int)$sprint['number'];
-        $notes = isset($body['notes']) ? trim($body['notes']) : $sprint['notes'];
-        $startedAt = !empty($body['started_at']) ? $body['started_at'] : $sprint['started_at'];
+        $body = Request::jsonBody();
+        $name = array_key_exists('name', $body) ? Request::string($body, 'name') : $sprint['name'];
+        $number = array_key_exists('number', $body) ? (int)$body['number'] : (int)$sprint['number'];
+        $notes = array_key_exists('notes', $body) ? Request::string($body, 'notes') : $sprint['notes'];
+        $rawStartedAt = array_key_exists('started_at', $body) ? Request::string($body, 'started_at') : '';
+
+        if ($name === '' || mb_strlen($name) > 150) {
+            Response::error('Le nom du sprint est requis (150 caractères max).', 400);
+        }
+        if ($number <= 0) {
+            Response::error('Le numéro du sprint doit être supérieur à 0.', 400);
+        }
+
+        $startedAt = $sprint['started_at'];
+        if ($rawStartedAt !== '') {
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawStartedAt)) {
+                $startedAt = $rawStartedAt . ' 09:00:00';
+            } else {
+                $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $rawStartedAt);
+                if (!$dt || $dt->format('Y-m-d H:i:s') !== $rawStartedAt) {
+                    Response::error('Format de date de démarrage invalide.', 400);
+                }
+                $startedAt = $rawStartedAt;
+            }
+        }
+
+        $stmtDup = $db->prepare("SELECT id FROM sprints WHERE number = ? AND id != ? LIMIT 1");
+        $stmtDup->execute([$number, $id]);
+        if ($stmtDup->fetch()) {
+            Response::error("Un autre sprint utilise déjà le numéro {$number}.", 409);
+        }
 
         $stmtUp = $db->prepare("
             UPDATE sprints
@@ -459,7 +473,7 @@ class SprintController {
      * Suppression d'un sprint (Admin uniquement)
      */
     public function delete(int $id): void {
-        $currentUser = Auth::requireAdmin();
+        Auth::requireAdmin();
         $db = Database::getConnection();
 
         $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ?");

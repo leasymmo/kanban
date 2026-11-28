@@ -5,6 +5,8 @@ namespace App\Controllers;
 use App\Database;
 use App\Response;
 use App\Auth;
+use App\Request;
+use App\SubtaskStateHelper;
 use PDO;
 
 class PropertyController {
@@ -38,13 +40,13 @@ class PropertyController {
         Auth::requireAdmin();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $name = trim($body['name'] ?? '');
-        $code = strtoupper(trim($body['code'] ?? ''));
-        $color = trim($body['color'] ?? '#3B82F6');
+        $body = Request::jsonBody();
+        $name = Request::string($body, 'name');
+        $code = strtoupper(Request::string($body, 'code'));
+        $color = Request::string($body, 'color', '#3B82F6');
 
-        if ($name === '') {
-            Response::error("Le nom de l'hébergement est obligatoire.", 400);
+        if ($name === '' || mb_strlen($name) > 100) {
+            Response::error("Le nom de l'hébergement est obligatoire (100 caractères max).", 400);
         }
 
         if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) {
@@ -52,8 +54,8 @@ class PropertyController {
         }
 
         if ($code === '') {
-            $words = preg_split('/\s+/', $name);
-            if ($words && count($words) >= 2) {
+            $words = preg_split('/\s+/', $name) ?: [];
+            if (count($words) >= 2) {
                 $code = strtoupper(mb_substr($words[0], 0, 1) . mb_substr($words[1], 0, 1));
             } else {
                 $code = strtoupper(mb_substr($name, 0, 2));
@@ -61,24 +63,35 @@ class PropertyController {
         }
         $code = mb_substr($code, 0, 20);
 
-        // Vérification d'unicité du nom
-        $stmtCheck = $db->prepare("SELECT id, is_active FROM properties WHERE name = ? LIMIT 1");
-        $stmtCheck->execute([$name]);
-        $existing = $stmtCheck->fetch();
-        if ($existing) {
-            if (empty($existing['is_active'])) {
-                Response::error("Un hébergement désactivé porte déjà ce nom. Vous pouvez le réactiver ou choisir un autre nom.", 409);
+        $db->beginTransaction();
+        try {
+            // Vérification d'unicité du nom sous verrou transactionnel
+            $stmtCheck = $db->prepare("SELECT id, is_active FROM properties WHERE name = ? LIMIT 1 FOR UPDATE");
+            $stmtCheck->execute([$name]);
+            $existing = $stmtCheck->fetch();
+            if ($existing) {
+                $db->rollBack();
+                if (empty($existing['is_active'])) {
+                    Response::error("Un hébergement désactivé porte déjà ce nom. Vous pouvez le réactiver ou choisir un autre nom.", 409);
+                }
+                Response::error("Un hébergement porte déjà ce nom.", 409);
             }
-            Response::error("Un hébergement porte déjà ce nom.", 409);
-        }
 
-        $maxPos = (int)$db->query("SELECT COALESCE(MAX(position), 0) FROM properties")->fetchColumn();
-        $stmt = $db->prepare("
-            INSERT INTO properties (name, code, color, position, is_active, deleted_at)
-            VALUES (?, ?, ?, ?, 1, NULL)
-        ");
-        $stmt->execute([$name, $code ?: null, $color, $maxPos + 1]);
-        $newId = (int)$db->lastInsertId();
+            $maxPos = (int)$db->query("SELECT COALESCE(MAX(position), 0) FROM properties FOR UPDATE")->fetchColumn();
+            $stmt = $db->prepare("
+                INSERT INTO properties (name, code, color, position, is_active, deleted_at)
+                VALUES (?, ?, ?, ?, 1, NULL)
+            ");
+            $stmt->execute([$name, $code ?: null, $color, $maxPos + 1]);
+            $newId = (int)$db->lastInsertId();
+            $db->commit();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log('Erreur PropertyController::create : ' . $e->getMessage());
+            Response::error("Erreur interne lors de la création de l'hébergement.", 500);
+        }
 
         $stmtGet = $db->prepare("SELECT * FROM properties WHERE id = ?");
         $stmtGet->execute([$newId]);
@@ -106,13 +119,13 @@ class PropertyController {
             Response::error('Hébergement introuvable.', 404);
         }
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $name = isset($body['name']) ? trim($body['name']) : $target['name'];
-        $code = array_key_exists('code', $body) ? strtoupper(trim((string)$body['code'])) : ($target['code'] ?? '');
-        $color = isset($body['color']) ? trim($body['color']) : ($target['color'] ?? '#3B82F6');
+        $body = Request::jsonBody();
+        $name = array_key_exists('name', $body) ? Request::string($body, 'name') : $target['name'];
+        $code = array_key_exists('code', $body) ? strtoupper(Request::string($body, 'code')) : ($target['code'] ?? '');
+        $color = array_key_exists('color', $body) ? Request::string($body, 'color') : ($target['color'] ?? '#3B82F6');
 
-        if ($name === '') {
-            Response::error("Le nom de l'hébergement ne peut pas être vide.", 400);
+        if ($name === '' || mb_strlen($name) > 100) {
+            Response::error("Le nom de l'hébergement est obligatoire (100 caractères max).", 400);
         }
 
         if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) {
@@ -196,7 +209,7 @@ class PropertyController {
             Response::error('Hébergement introuvable.', 404);
         }
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $pendingAction = $body['pending_action'] ?? null;
 
         $activeSprint = $db->query("SELECT id, name, number FROM sprints WHERE status = 'active' ORDER BY number DESC LIMIT 1")->fetch();
@@ -231,14 +244,16 @@ class PropertyController {
                 $stmtCountLinks = $db->prepare("SELECT COUNT(*) FROM sprint_tasks WHERE task_id = ?");
 
                 if ($pendingAction === 'detach') {
+                    $sprintNumMap = SubtaskStateHelper::getSprintNumberMap($db);
+                    $activeSprintNum = (int)$activeSprint['number'];
                     $stmtDetachDirect = $db->prepare("UPDATE tasks SET property_id = NULL WHERE id = ?");
                     $stmtCloneTask = $db->prepare("
-                        INSERT INTO tasks (title, description, created_by, property_id, priority, due_date, parent_task_id)
-                        SELECT title, description, created_by, NULL, priority, due_date, parent_task_id
+                        INSERT INTO tasks (title, description, created_by, property_id, priority, due_date)
+                        SELECT title, description, created_by, NULL, priority, due_date
                         FROM tasks WHERE id = ?
                     ");
                     $stmtGetSubtasks = $db->prepare("
-                        SELECT * FROM subtasks WHERE task_id = ? AND deleted_sprint_id IS NULL ORDER BY parent_id ASC, position ASC, id ASC
+                        SELECT * FROM subtasks WHERE task_id = ? ORDER BY parent_id ASC, position ASC, id ASC
                     ");
                     $stmtInsertSubtask = $db->prepare("
                         INSERT INTO subtasks (task_id, parent_id, title, is_done, position, created_sprint_id)
@@ -259,7 +274,10 @@ class PropertyController {
                             $newTaskId = (int)$db->lastInsertId();
 
                             $stmtGetSubtasks->execute([$taskId]);
-                            $oldSubtasks = $stmtGetSubtasks->fetchAll();
+                            $oldSubtasks = array_values(array_filter(
+                                $stmtGetSubtasks->fetchAll(),
+                                fn($sub) => SubtaskStateHelper::isVisibleInSprint($sub, $activeSprintNum, $sprintNumMap)
+                            ));
                             $subMap = [];
                             $remaining = $oldSubtasks;
                             $iter = 0;
@@ -379,13 +397,20 @@ class PropertyController {
         Auth::requireAdmin();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         $orderedIds = $body['ordered_property_ids'] ?? [];
         if (!is_array($orderedIds) || empty($orderedIds)) {
             Response::error('Liste ordonnée des hébergements requise.', 400);
         }
 
-        $allIds = array_map('intval', $db->query("SELECT id FROM properties ORDER BY is_active DESC, position ASC, name ASC, id ASC")->fetchAll(PDO::FETCH_COLUMN));
+        $rows = $db->query("SELECT id, position FROM properties ORDER BY is_active DESC, position ASC, name ASC, id ASC")->fetchAll();
+        $currentPosMap = [];
+        $allIds = [];
+        foreach ($rows as $r) {
+            $pid = (int)$r['id'];
+            $allIds[] = $pid;
+            $currentPosMap[$pid] = (int)$r['position'];
+        }
 
         $finalOrder = [];
         foreach ($orderedIds as $rawId) {
@@ -404,7 +429,10 @@ class PropertyController {
         try {
             $stmtUp = $db->prepare("UPDATE properties SET position = ? WHERE id = ?");
             foreach ($finalOrder as $idx => $pid) {
-                $stmtUp->execute([$idx + 1, $pid]);
+                $newPos = $idx + 1;
+                if (($currentPosMap[$pid] ?? -1) !== $newPos) {
+                    $stmtUp->execute([$newPos, $pid]);
+                }
             }
             $db->commit();
 

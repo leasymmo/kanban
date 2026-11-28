@@ -5,14 +5,15 @@ namespace App\Controllers;
 use App\Database;
 use App\Response;
 use App\Auth;
-use PDO;
+use App\Request;
+use App\QuestionHelper;
 
 class QuestionController {
     /**
      * GET /api/questions?sprint_id=X
      */
     public function list(): void {
-        Auth::requireAuth();
+        $currentUser = Auth::requireAuth();
         $db = Database::getConnection();
 
         $sprintId = isset($_GET['sprint_id']) ? (int)$_GET['sprint_id'] : 0;
@@ -32,69 +33,12 @@ class QuestionController {
             $sprintStatus = $sprintRow['status'] ?? 'active';
         }
 
-        $stmt = $db->prepare("
-            SELECT q.*,
-                   COALESCE(u.name, 'Ancien associé') as user_name,
-                   COALESCE(u.initials, '?') as user_initials,
-                   COALESCE(u.avatar_color, '#64748B') as user_color,
-                   COALESCE(uc.name, 'Ancien associé') as created_by_name
-            FROM questions q
-            LEFT JOIN users u ON u.id = q.user_id
-            LEFT JOIN users uc ON uc.id = q.created_by
-            WHERE q.sprint_id = ?
-            ORDER BY q.user_id ASC, q.id ASC
-        ");
-        $stmt->execute([$sprintId]);
-        $questions = $stmt->fetchAll();
+        $questions = $sprintId > 0
+            ? QuestionHelper::hydrateQuestionsForSprint($db, $sprintId, $sprintStatus, $currentUser)
+            : [];
 
-        // Récupérer les réponses collaboratives
-        $qIds = array_column($questions, 'id');
-        $answersMap = [];
-        if (!empty($qIds)) {
-            $inClause = implode(',', array_fill(0, count($qIds), '?'));
-            $stmtAnswers = $db->prepare("
-                SELECT a.*,
-                       COALESCE(u.name, 'Ancien associé') as user_name,
-                       COALESCE(u.initials, '?') as user_initials,
-                       COALESCE(u.avatar_color, '#64748B') as user_color
-                FROM question_answers a
-                LEFT JOIN users u ON u.id = a.user_id
-                WHERE a.question_id IN ($inClause)
-                ORDER BY a.created_at ASC, a.id ASC
-            ");
-            $stmtAnswers->execute($qIds);
-            while ($ans = $stmtAnswers->fetch()) {
-                $answersMap[$ans['question_id']][] = $ans;
-            }
-        }
-
-        $currentUser = Auth::getCurrentUser();
         $isAdmin = ($currentUser['role'] === 'admin');
-        $isWrite = ($currentUser['role'] === 'write');
         $isSprintClosed = ($sprintStatus === 'closed');
-
-        foreach ($questions as &$q) {
-            $q['id'] = (int)$q['id'];
-            $q['sprint_id'] = (int)$q['sprint_id'];
-            $q['user_id'] = $q['user_id'] !== null ? (int)$q['user_id'] : null;
-            $q['created_by'] = $q['created_by'] !== null ? (int)$q['created_by'] : null;
-
-            $q['can_edit'] = $isAdmin
-                || (!$isSprintClosed && $isWrite && $q['user_id'] !== null && $q['user_id'] === (int)$currentUser['id']);
-            $q['can_delete'] = $q['can_edit'];
-            $q['can_decide'] = $isAdmin || (!$isSprintClosed && $isWrite);
-
-            $rawAnswers = $answersMap[$q['id']] ?? [];
-            foreach ($rawAnswers as &$ans) {
-                $ans['id'] = (int)$ans['id'];
-                $ans['question_id'] = (int)$ans['question_id'];
-                $ans['user_id'] = $ans['user_id'] !== null ? (int)$ans['user_id'] : null;
-                $ans['can_edit'] = !$isSprintClosed
-                    && ($isAdmin || ($isWrite && $ans['user_id'] !== null && $ans['user_id'] === (int)$currentUser['id']));
-                $ans['can_delete'] = $ans['can_edit'];
-            }
-            $q['answers'] = $rawAnswers;
-        }
 
         Response::json([
             'success' => true,
@@ -111,9 +55,9 @@ class QuestionController {
         $currentUser = Auth::requireWrite();
         $db = Database::getConnection();
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $title = trim($body['title'] ?? '');
-        $details = trim($body['details'] ?? '');
+        $body = Request::jsonBody();
+        $title = Request::string($body, 'title');
+        $details = Request::string($body, 'details');
         $sprintId = (int)($body['sprint_id'] ?? 0);
 
         if ($title === '' || $sprintId <= 0) {
@@ -187,9 +131,9 @@ class QuestionController {
             Response::error("Vous ne pouvez modifier que vos propres questions", 403);
         }
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = Request::jsonBody();
         if (array_key_exists('title', $body)) {
-            $title = trim((string)$body['title']);
+            $title = Request::string($body, 'title');
             if ($title === '') {
                 Response::error('Le titre de la question ne peut pas être vide', 400);
             }
@@ -201,7 +145,7 @@ class QuestionController {
         }
 
         if (array_key_exists('details', $body)) {
-            $trimmedDetails = trim((string)$body['details']);
+            $trimmedDetails = Request::string($body, 'details');
             $details = $trimmedDetails !== '' ? $trimmedDetails : null;
         } else {
             $details = $question['details'];
@@ -287,9 +231,9 @@ class QuestionController {
             Response::error('Sprint clôturé : les réponses indicatives ne sont plus modifiables après clôture', 403);
         }
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $content = trim($body['content'] ?? '');
-        if (empty($content)) {
+        $body = Request::jsonBody();
+        $content = Request::string($body, 'content');
+        if ($content === '') {
             Response::error('Le contenu de la réponse ne peut pas être vide', 400);
         }
 
@@ -372,9 +316,9 @@ class QuestionController {
             Response::error("Vous ne pouvez modifier que vos propres propositions de réponse", 403);
         }
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $content = trim($body['content'] ?? '');
-        if (empty($content)) {
+        $body = Request::jsonBody();
+        $content = Request::string($body, 'content');
+        if ($content === '') {
             Response::error('Le contenu ne peut pas être vide', 400);
         }
 
@@ -449,8 +393,8 @@ class QuestionController {
             Response::error('Sprint clôturé : arbitrage interdit en lecture seule', 403);
         }
 
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
-        $finalAnswer = isset($body['final_answer']) ? trim((string)$body['final_answer']) : null;
+        $body = Request::jsonBody();
+        $finalAnswer = array_key_exists('final_answer', $body) ? Request::string($body, 'final_answer') : null;
         if ($finalAnswer === '') {
             $finalAnswer = null;
         }

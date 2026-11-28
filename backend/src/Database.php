@@ -49,7 +49,9 @@ class Database {
             } catch (PDOException $e) {
                 http_response_code(500);
                 header('Content-Type: application/json; charset=utf-8');
+                Response::sendCorsHeaders();
                 echo json_encode([
+                    'success' => false,
                     'error' => 'Erreur de connexion à la base de données',
                     'message' => 'Impossible de joindre le serveur de données SQL.'
                 ]);
@@ -76,7 +78,7 @@ class Database {
                 ");
             }
 
-            if (isset($appliedVersions['v3_sprint_tasks'], $appliedVersions['v4_property_soft_delete'], $appliedVersions['v5_property_position'], $appliedVersions['v6_subtask_sprint_states'], $appliedVersions['v7_sprint_tasks_assigned_to'], $appliedVersions['v8_meeting_pending_tasks'], $appliedVersions['v9_sprint_pending_status'], $appliedVersions['v10_unassigned_tasks_pending'], $appliedVersions['v11_questions_simplify_unique_answers'])) {
+            if (isset($appliedVersions['v3_sprint_tasks'], $appliedVersions['v4_property_soft_delete'], $appliedVersions['v5_property_position'], $appliedVersions['v6_subtask_sprint_states'], $appliedVersions['v7_sprint_tasks_assigned_to'], $appliedVersions['v8_meeting_pending_tasks'], $appliedVersions['v9_sprint_pending_status'], $appliedVersions['v10_unassigned_tasks_pending'], $appliedVersions['v11_questions_simplify_unique_answers'], $appliedVersions['v12_perf_indexes'])) {
                 return;
             }
 
@@ -442,6 +444,27 @@ class Database {
                 }
 
                 $db->prepare("INSERT IGNORE INTO schema_migrations (version) VALUES (?)")->execute(['v11_questions_simplify_unique_answers']);
+            }
+
+            if (!isset($appliedVersions['v12_perf_indexes'])) {
+                $indexesToAdd = [
+                    ['sprints', 'idx_sprints_status_num', 'status, number'],
+                    ['properties', 'idx_properties_active_pos', 'is_active, position, name, id'],
+                    ['questions', 'idx_questions_sprint_user', 'sprint_id, user_id, id'],
+                    ['question_answers', 'idx_qa_question_created', 'question_id, created_at, id'],
+                    ['user_sessions', 'idx_sessions_expires', 'expires_at'],
+                ];
+                foreach ($indexesToAdd as [$table, $idxName, $cols]) {
+                    try {
+                        $exists = $db->query("SHOW INDEX FROM `{$table}` WHERE Key_name = '{$idxName}'")->fetchAll();
+                        if (empty($exists)) {
+                            $db->exec("ALTER TABLE `{$table}` ADD INDEX `{$idxName}` ({$cols})");
+                        }
+                    } catch (\Throwable $t) {
+                        error_log("Migration v12 index {$table}.{$idxName}: " . $t->getMessage());
+                    }
+                }
+                $db->prepare("INSERT IGNORE INTO schema_migrations (version) VALUES (?)")->execute(['v12_perf_indexes']);
             }
         } catch (\Throwable $e) {
             error_log('Database::migrateSchema error: ' . $e->getMessage());

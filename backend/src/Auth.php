@@ -13,6 +13,51 @@ class Auth {
     }
 
     /**
+     * Calcule le hash SHA-256 stocké en base pour un token de session.
+     */
+    public static function hashToken(string $token): string {
+        return hash('sha256', $token);
+    }
+
+    /**
+     * Retourne la durée de validité des sessions (en jours) depuis config.php.
+     */
+    public static function getSessionLifetimeDays(): int {
+        static $days = null;
+        if ($days === null) {
+            $config = require __DIR__ . '/../config/config.php';
+            $days = max(1, (int)($config['app']['session_lifetime_days'] ?? 30));
+        }
+        return $days;
+    }
+
+    /**
+     * Pose le cookie HttpOnly de session.
+     */
+    public static function setSessionCookie(string $token): void {
+        setcookie('kanban_token', $token, [
+            'expires' => time() + (self::getSessionLifetimeDays() * 86400),
+            'path' => '/',
+            'secure' => Request::isHttps(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    /**
+     * Supprime le cookie de session côté navigateur.
+     */
+    public static function clearSessionCookie(): void {
+        setcookie('kanban_token', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'secure' => Request::isHttps(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    /**
      * Extrait le token de la requête (Bearer header ou Cookie)
      */
     public static function getTokenFromRequest(): ?string {
@@ -25,14 +70,24 @@ class Auth {
             // Protection CSRF si l'authentification passe uniquement par cookie sur une requête mutante
             $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
             if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
-                $host = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
-                $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-                $referer = $_SERVER['HTTP_REFERER'] ?? '';
+                $host = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
+                $origin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
+                $referer = trim((string)($_SERVER['HTTP_REFERER'] ?? ''));
+
+                if (strtolower($origin) === 'null') {
+                    return null;
+                }
+
                 $sourceHost = $origin !== ''
                     ? parse_url($origin, PHP_URL_HOST)
                     : ($referer !== '' ? parse_url($referer, PHP_URL_HOST) : null);
 
-                if ($host !== '' && $sourceHost !== null && $sourceHost !== $host) {
+                if ($sourceHost === false || $sourceHost === null || $sourceHost === '') {
+                    // Si Origin/Referer sont absents (navigateur strict), exiger un en-tête AJAX custom (bloqué pour les soumissions <form>)
+                    if (empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                        return null;
+                    }
+                } elseif ($host !== '' && strtolower((string)$sourceHost) !== $host) {
                     return null;
                 }
             }
@@ -52,15 +107,17 @@ class Auth {
         }
 
         $db = Database::getConnection();
+        $tokenHash = self::hashToken($token);
 
+        // Compatibilité descendante : accepte le hash SHA-256 (nouveaux tokens) et l'ancien format brut
         $stmt = $db->prepare("
             SELECT u.id, u.name, u.email, u.role, u.avatar_color, u.initials
             FROM user_sessions s
             JOIN users u ON u.id = s.user_id
-            WHERE s.token = ? AND s.expires_at > NOW()
+            WHERE (s.token = ? OR s.token = ?) AND s.expires_at > NOW()
             LIMIT 1
         ");
-        $stmt->execute([$token]);
+        $stmt->execute([$tokenHash, $token]);
         $user = $stmt->fetch();
 
         return $user ?: null;
@@ -107,7 +164,7 @@ class Auth {
             ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
             ?? null;
         
-        if ($authHeader && preg_match('/Bearer\s(\S+)/i', $authHeader, $matches)) {
+        if ($authHeader && preg_match('/Bearer\s+(\S+)/i', $authHeader, $matches)) {
             return $matches[1];
         }
 

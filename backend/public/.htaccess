@@ -1,5 +1,5 @@
 # Blocage strict des fichiers sensibles (.env, SQL, configs)
-<FilesMatch "(^\.|\.(env|sql|log|bak|ini|sh)$|^config\.local.*\.php$)">
+<FilesMatch "(^\.|\.(env|sql|sqlite|sqlite3|db|log|bak|ini|sh)$|^config\.local.*\.php$)">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

@@ -6,18 +6,23 @@ class Response {
     public static function sendCorsHeaders(): void {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
         $host = $_SERVER['HTTP_HOST'] ?? '';
+        header('Vary: Origin');
 
         if ($origin !== '') {
-            $parsedOriginHost = parse_url($origin, PHP_URL_HOST);
-            $serverHostOnly = $host !== '' ? explode(':', $host)[0] : '';
+            $parsedOriginHost = strtolower((string)(parse_url($origin, PHP_URL_HOST) ?? ''));
+            $serverHostOnly = $host !== '' ? strtolower(explode(':', $host)[0]) : '';
 
-            $isLocalDev = in_array($parsedOriginHost, ['localhost', '127.0.0.1'], true);
+            $isLocalOrigin = in_array($parsedOriginHost, ['localhost', '127.0.0.1'], true);
+            $isLocalServer = in_array($serverHostOnly, ['localhost', '127.0.0.1'], true);
             $isSameHost = ($serverHostOnly !== '' && $parsedOriginHost === $serverHostOnly);
 
-            if ($isSameHost || $isLocalDev) {
+            // Autoriser localhost uniquement en dev local (serveur local ou APP_ENV != production)
+            $appEnv = getenv('APP_ENV') ?: 'production';
+            $isAllowedLocalDev = $isLocalOrigin && ($isLocalServer || $appEnv !== 'production');
+
+            if ($isSameHost || $isAllowedLocalDev) {
                 header("Access-Control-Allow-Origin: {$origin}");
                 header('Access-Control-Allow-Credentials: true');
-                header('Vary: Origin');
             }
         }
 

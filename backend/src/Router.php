@@ -21,17 +21,14 @@ class Router {
 
         $rawUri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 
-        // Nettoyage de l'URI : extrait le chemin relatif à l'API de manière transparente
+        // Nettoyage de l'URI : extrait le chemin relatif à l'API (ex: /kanban/api/tasks -> /tasks)
         $normalize = function(string $path): string {
             $path = '/' . trim($path, '/');
-            $pos = strpos($path, '/api');
-            if ($pos !== false) {
-                $path = substr($path, $pos + 4);
-            }
-            return '/' . trim($path, '/');
+            $stripped = preg_replace('#^(.*?)/api(?=/|$)#', '', $path, 1);
+            return '/' . trim((string)$stripped, '/');
         };
 
-        $normalizedUri = $normalize($rawUri);
+        $normalizedUri = $normalize((string)$rawUri);
 
         foreach ($this->routes as $route) {
             if ($route['method'] !== $requestMethod) {
@@ -50,9 +47,13 @@ class Router {
                 $handler = $route['handler'];
                 if (is_array($handler)) {
                     [$class, $method] = $handler;
+                    $reflection = new \ReflectionMethod($class, $method);
+                    $matches = $this->coerceRouteParams($reflection, $matches);
                     $controller = new $class();
                     call_user_func_array([$controller, $method], $matches);
                 } else if (is_callable($handler)) {
+                    $reflection = new \ReflectionFunction($handler);
+                    $matches = $this->coerceRouteParams($reflection, $matches);
                     call_user_func_array($handler, $matches);
                 }
                 return;
@@ -60,5 +61,24 @@ class Router {
         }
 
         Response::error("Route introuvable : {$requestMethod} {$rawUri}", 404);
+    }
+
+    /**
+     * Valide et convertit les paramètres de route typés `int` pour éviter un TypeError 500 sur URL invalide.
+     */
+    private function coerceRouteParams(\ReflectionFunctionAbstract $reflection, array $params): array {
+        $refParams = $reflection->getParameters();
+        foreach ($params as $index => $value) {
+            $refParam = $refParams[$index] ?? null;
+            if (!$refParam) continue;
+            $type = $refParam->getType();
+            if ($type instanceof \ReflectionNamedType && $type->getName() === 'int') {
+                if (!ctype_digit((string)$value) || (int)$value <= 0) {
+                    Response::error('Identifiant de ressource invalide.', 400);
+                }
+                $params[$index] = (int)$value;
+            }
+        }
+        return $params;
     }
 }
