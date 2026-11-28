@@ -449,7 +449,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   }, [editingAnswerText, onUpdateAnswer]);
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-2.5 sm:gap-3">
       <h2 className="sr-only">Questions pour la réunion</h2>
 
       <QuestionsToolbar
