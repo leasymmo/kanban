@@ -7,20 +7,36 @@ import { Avatar } from './ui';
 import { ensureWhiteTextContrast } from '../utils/color';
 import { ChevronDown, Check, UserCheck, Users } from 'lucide-react';
 
+export interface AssigneeFilterLabels {
+  heading?: string;
+  me?: string;
+  all?: string;
+  allMobile?: string;
+  ariaPrefix?: string;
+  popoverAriaLabel?: string;
+}
+
 interface AssigneeFilterDropdownProps {
   value: AssigneeFilter;
   onChange: (filter: AssigneeFilter) => void;
   currentUser: User | null;
   allUsers: User[];
   assigneeCounts: TaskFacets['assignee_counts'];
+  labels?: AssigneeFilterLabels;
 }
 
 /**
- * Sélecteur compact Liquid Glass pour le filtre des responsables :
+ * Sélecteur compact Liquid Glass (responsable ou associé) :
  * utilise les compteurs réels calculés côté serveur, indépendamment des pages chargées.
  */
 export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = React.memo(
-  ({ value, onChange, currentUser, allUsers, assigneeCounts }) => {
+  ({ value, onChange, currentUser, allUsers, assigneeCounts, labels }) => {
+    const headingLabel = labels?.heading ?? 'Responsable';
+    const meLabel = labels?.me ?? 'Mes tâches';
+    const allLabel = labels?.all ?? 'Toutes les tâches';
+    const allMobileLabel = labels?.allMobile ?? 'Toutes';
+    const ariaPrefix = labels?.ariaPrefix ?? 'Responsable';
+    const popoverAriaLabel = labels?.popoverAriaLabel ?? 'Filtrer par responsable';
     const [isOpen, setIsOpen] = useState(false);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
@@ -90,19 +106,19 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = Rea
       if (effectiveValue === 'all') {
         return (
           <>
-            <span className="sm:hidden truncate">Toutes</span>
-            <span className="hidden sm:inline truncate">Toutes les tâches</span>
+            <span className="sm:hidden truncate">{allMobileLabel}</span>
+            <span className="hidden sm:inline truncate">{allLabel}</span>
           </>
         );
       }
-      return <span className="truncate">Mes tâches</span>;
+      return <span className="truncate">{meLabel}</span>;
     };
 
     const activeDescription = selectedOther
       ? selectedOther.name
       : effectiveValue === 'all'
-      ? 'Toutes les tâches'
-      : 'Mes tâches';
+      ? allLabel
+      : meLabel;
 
     return (
       <div className="relative min-w-0 flex-1 sm:flex-initial">
@@ -112,8 +128,8 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = Rea
           onClick={() => setIsOpen((prev) => !prev)}
           aria-expanded={isOpen}
           aria-haspopup="dialog"
-          aria-label={`Responsable : ${activeDescription} (${activeCount}). Changer le filtre`}
-          title={`Responsable : ${activeDescription} (${activeCount})`}
+          aria-label={`${ariaPrefix} : ${activeDescription} (${activeCount}). Changer le filtre`}
+          title={`${ariaPrefix} : ${activeDescription} (${activeCount})`}
           className={`flex items-center gap-1 sm:gap-1.5 text-[12px] border rounded-cdh-md px-2 sm:px-2.5 py-1.5 min-h-[38px] sm:min-h-[34px] font-semibold transition-all active:scale-[0.98] cursor-pointer max-w-full ${
             isOpen || isNonDefault
               ? 'bg-[var(--cdh-accent-soft)] border-[var(--cdh-accent)]/30 text-[var(--cdh-info)]'
@@ -139,12 +155,12 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = Rea
             <div
               ref={popoverRef}
               role="dialog"
-              aria-label="Filtrer par responsable"
+              aria-label={popoverAriaLabel}
               style={popoverStyle}
               className="fixed z-40 cdh-glass-overlay cdh-glass-popover rounded-cdh-xl p-1.5 overflow-y-auto animate-fade-in space-y-0.5"
             >
               <div className="px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--cdh-text-tertiary)]">
-                Responsable
+                {headingLabel}
               </div>
 
               {currentUser && (
@@ -171,7 +187,7 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = Rea
                     >
                       <UserCheck className="w-3.5 h-3.5" strokeWidth={2} />
                     </span>
-                    <span className="truncate">Mes tâches</span>
+                    <span className="truncate">{meLabel}</span>
                   </span>
                   <span className="flex items-center gap-1.5 shrink-0">
                     <span className="text-[11px] font-mono tabular-nums px-1.5 py-0.5 rounded-full bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)]">
@@ -207,7 +223,7 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = Rea
                   >
                     <Users className="w-3.5 h-3.5" strokeWidth={2} />
                   </span>
-                  <span className="truncate">Toutes les tâches</span>
+                  <span className="truncate">{allLabel}</span>
                 </span>
                 <span className="flex items-center gap-1.5 shrink-0">
                   <span className="text-[11px] font-mono tabular-nums px-1.5 py-0.5 rounded-full bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)]">

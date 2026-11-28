@@ -9,21 +9,15 @@ import {
   User,
 } from '../types';
 import { QuestionModal } from './QuestionModal';
-import { Avatar, Badge, Button, InfiniteScrollSentinel, SearchInput } from './ui';
+import { QuestionsToolbar } from './QuestionsToolbar';
+import { Avatar, Badge, Button, InfiniteScrollSentinel } from './ui';
 import { formatQuestionDate } from '../utils/questions';
 import { ensureWhiteTextContrast } from '../utils/color';
 import {
   HelpCircle,
-  Plus,
   Edit3,
   Trash2,
   Send,
-  UserCheck,
-  Users,
-  ArrowUp,
-  ArrowDown,
-  RotateCcw,
-  Loader2,
   CheckCircle2,
 } from 'lucide-react';
 
@@ -61,14 +55,6 @@ interface QuestionsViewProps {
   onDeleteAnswer?: (answerId: number) => Promise<void>;
   isReadOnly: boolean;
 }
-
-const QUESTION_SORT_OPTIONS: { id: QuestionSortKey; label: string }[] = [
-  { id: 'created_at', label: "Date d'ajout" },
-  { id: 'alpha', label: 'Titre' },
-  { id: 'decision_status', label: 'Statut décision' },
-  { id: 'answers_count', label: 'Nb réponses' },
-  { id: 'user', label: 'Associé' },
-];
 
 interface QuestionCardProps {
   question: Question;
@@ -398,14 +384,6 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     }
   }, [users, userFilter, onChangeUserFilter]);
 
-  const getCountForUser = useCallback(
-    (uid?: number | null) => {
-      if (!uid) return 0;
-      return Number(facets.counts_by_user_id?.[String(uid)] ?? 0);
-    },
-    [facets.counts_by_user_id]
-  );
-
   const singleFilterPersonName = useMemo(() => {
     if (userFilter === 'all') return 'Tous les associés';
     if (userFilter === 'me') return currentUser?.name;
@@ -417,6 +395,11 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
     setPresetUserId(userId);
     setIsModalOpen(true);
   }, []);
+
+  const handleCreateFromToolbar = useCallback(
+    () => openCreateModal(typeof userFilter === 'number' && isAdmin ? userFilter : undefined),
+    [openCreateModal, userFilter, isAdmin]
+  );
 
   const openEditModal = useCallback((q: Question) => {
     setEditingQuestion(q);
@@ -466,188 +449,33 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
   }, [editingAnswerText, onUpdateAnswer]);
 
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-3">
       <h2 className="sr-only">Questions pour la réunion</h2>
 
-      {/* Barre supérieure Liquid Glass : Filtres par associé + Ajout */}
-      <div className="cdh-glass-chrome p-3 sm:p-4 rounded-cdh-xl space-y-2.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div
-            role="group"
-            aria-label="Filtrer les questions par associé"
-            className="flex items-center gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap pb-0.5 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            {currentUser && (
-              <button
-                type="button"
-                aria-pressed={userFilter === 'me'}
-                onClick={() => onChangeUserFilter('me')}
-                className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-cdh-md text-xs font-bold transition-colors cursor-pointer tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
-                  userFilter === 'me'
-                    ? 'bg-[var(--cdh-accent)] text-white shadow-xs'
-                    : 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] hover:bg-[var(--cdh-surface-control-hover)]'
-                }`}
-              >
-                <UserCheck className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
-                <span>Mes questions ({getCountForUser(currentUser.id)})</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              aria-pressed={userFilter === 'all'}
-              onClick={() => onChangeUserFilter('all')}
-              className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-cdh-md text-xs font-semibold transition-colors cursor-pointer tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
-                userFilter === 'all'
-                  ? 'bg-[var(--cdh-accent)] text-white shadow-xs'
-                  : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-              <span>Toutes ({facets.summary.total})</span>
-            </button>
-
-            {users
-              .filter((u) => u.id !== currentUser?.id)
-              .map((u) => {
-                const count = getCountForUser(u.id);
-                const isSelected = userFilter === u.id;
-
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => onChangeUserFilter(u.id)}
-                    className={`shrink-0 inline-flex items-center gap-1.5 min-h-[38px] sm:min-h-[32px] px-3 py-1 rounded-cdh-md text-xs font-semibold transition-colors cursor-pointer tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
-                      isSelected
-                        ? 'text-white shadow-xs'
-                        : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
-                    }`}
-                    style={isSelected ? { backgroundColor: ensureWhiteTextContrast(u.avatar_color) } : undefined}
-                  >
-                    <Avatar initials={u.initials} color={u.avatar_color} size="xs" />
-                    <span>{u.name} ({count})</span>
-                  </button>
-                );
-              })}
-          </div>
-
-          {canWrite && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() =>
-                openCreateModal(typeof userFilter === 'number' && isAdmin ? userFilter : undefined)
-              }
-              leftIcon={<Plus className="w-4 h-4 shrink-0" strokeWidth={2.25} />}
-              className="w-full sm:w-auto min-h-[40px] sm:min-h-[34px] shrink-0"
-            >
-              Poser une question
-            </Button>
-          )}
-        </div>
-
-        {/* Barre secondaire : Recherche textuelle, filtres multiples & tri ascendant/descendant */}
-        <div className="pt-2.5 border-t border-[var(--cdh-border-hairline)] flex flex-col lg:flex-row lg:items-center justify-between gap-2">
-          <div className="relative flex-1 lg:max-w-sm">
-            <SearchInput
-              value={searchQuery}
-              onChange={(e) => onChangeSearchQuery(e.target.value)}
-              onClear={() => onChangeSearchQuery('')}
-              placeholder="Rechercher une question, réponse, décision…"
-              className="w-full"
-            />
-            {isLoading && (
-              <Loader2
-                className="w-3.5 h-3.5 animate-spin text-[var(--cdh-accent)] absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none"
-                strokeWidth={2.25}
-              />
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            <select
-              aria-label="Filtrer par statut de décision"
-              value={decisionStatus}
-              onChange={(e) => onChangeDecisionStatus(e.target.value as QuestionDecisionFilter)}
-              className="text-xs font-semibold px-2.5 py-1.5 min-h-[34px] rounded-cdh-md bg-[var(--cdh-surface-control)] border border-[var(--cdh-border-hairline)] text-[var(--cdh-text-primary)] cursor-pointer focus:outline-none focus:border-[var(--cdh-border-focus)]"
-            >
-              <option value="all">Décision : Toutes</option>
-              <option value="undecided">À trancher ({facets.summary.undecided})</option>
-              <option value="decided">Décidées ({facets.summary.decided})</option>
-            </select>
-
-            <select
-              aria-label="Filtrer par réponses"
-              value={hasAnswers}
-              onChange={(e) => onChangeHasAnswers(e.target.value as QuestionAnswersFilter)}
-              className="text-xs font-semibold px-2.5 py-1.5 min-h-[34px] rounded-cdh-md bg-[var(--cdh-surface-control)] border border-[var(--cdh-border-hairline)] text-[var(--cdh-text-primary)] cursor-pointer focus:outline-none focus:border-[var(--cdh-border-focus)]"
-            >
-              <option value="all">Réponses : Toutes</option>
-              <option value="with_answers">Avec propositions</option>
-              <option value="without_answers">Sans proposition</option>
-            </select>
-
-            {currentUser && (
-              <button
-                type="button"
-                aria-pressed={answeredByMe === false}
-                onClick={() => onChangeAnsweredByMe(answeredByMe === false ? null : false)}
-                className={`px-2.5 py-1.5 min-h-[34px] rounded-cdh-md text-xs font-semibold border transition-colors cursor-pointer ${
-                  answeredByMe === false
-                    ? 'bg-[var(--cdh-accent-soft)] border-[var(--cdh-accent)]/30 text-[var(--cdh-accent)]'
-                    : 'bg-[var(--cdh-surface-control)] border-[var(--cdh-border-hairline)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
-                }`}
-                title="Afficher uniquement les questions sans ma réponse"
-              >
-                Sans ma réponse
-              </button>
-            )}
-
-            <div className="flex items-center gap-1">
-              <select
-                aria-label="Trier les questions par"
-                value={sortBy}
-                onChange={(e) => onSelectSort(e.target.value as QuestionSortKey)}
-                className="text-xs font-semibold px-2.5 py-1.5 min-h-[34px] rounded-cdh-md bg-[var(--cdh-surface-control)] border border-[var(--cdh-border-hairline)] text-[var(--cdh-text-primary)] cursor-pointer focus:outline-none focus:border-[var(--cdh-border-focus)]"
-              >
-                {QUESTION_SORT_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    Tri : {opt.label}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                type="button"
-                onClick={onToggleSortDir}
-                aria-label={sortDir === 'asc' ? 'Ordre croissant (inverser)' : 'Ordre décroissant (inverser)'}
-                title={sortDir === 'asc' ? 'Croissant (cliquer pour inverser)' : 'Décroissant (cliquer pour inverser)'}
-                className="w-[34px] h-[34px] rounded-cdh-md flex items-center justify-center bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] border border-[var(--cdh-border-hairline)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] transition-colors cursor-pointer"
-              >
-                {sortDir === 'asc' ? (
-                  <ArrowUp className="w-3.5 h-3.5" strokeWidth={2.25} />
-                ) : (
-                  <ArrowDown className="w-3.5 h-3.5" strokeWidth={2.25} />
-                )}
-              </button>
-            </div>
-
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={onResetFilters}
-                aria-label="Réinitialiser les filtres"
-                title="Réinitialiser les filtres"
-                className="w-[34px] h-[34px] rounded-cdh-md flex items-center justify-center text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] transition-colors cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      <QuestionsToolbar
+        currentUser={currentUser}
+        users={users}
+        facets={facets}
+        userFilter={userFilter}
+        onChangeUserFilter={onChangeUserFilter}
+        searchQuery={searchQuery}
+        onChangeSearchQuery={onChangeSearchQuery}
+        decisionStatus={decisionStatus}
+        onChangeDecisionStatus={onChangeDecisionStatus}
+        hasAnswers={hasAnswers}
+        onChangeHasAnswers={onChangeHasAnswers}
+        answeredByMe={answeredByMe}
+        onChangeAnsweredByMe={onChangeAnsweredByMe}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        onSelectSort={onSelectSort}
+        onToggleSortDir={onToggleSortDir}
+        hasActiveFilters={hasActiveFilters}
+        onResetFilters={onResetFilters}
+        isLoading={isLoading}
+        canWrite={canWrite}
+        onAddNewQuestion={handleCreateFromToolbar}
+      />
 
       {/* Liste paginée avec scroll infini */}
       {questions.length > 0 ? (
