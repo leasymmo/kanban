@@ -479,7 +479,7 @@ export const QuestionsView: React.FC<QuestionsViewProps> = ({
 
       {/* Liste paginée avec scroll infini */}
       {questions.length > 0 ? (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-2.5 sm:gap-3">
           <h3 className="sr-only">{singleFilterPersonName || 'Questions'}</h3>
           {questions.map((q) => (
             <QuestionCard

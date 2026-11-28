@@ -928,10 +928,8 @@ export const App: React.FC = () => {
         } ${
           isFixedViewportTab
             ? 'min-h-0 flex flex-col py-2.5 sm:py-3.5'
-            : activeTab === 'questions'
+            : activeTab === 'questions' || activeTab === 'meeting'
             ? 'py-2.5 sm:py-3.5'
-            : activeTab === 'meeting'
-            ? 'py-2.5 sm:py-4'
             : 'py-4 sm:py-6'
         }`}
       >

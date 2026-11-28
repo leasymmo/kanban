@@ -399,7 +399,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
   return (
     <div
-      className={`space-y-4 ${
+      className={`flex flex-col gap-2.5 sm:gap-3 ${
         users.length > 0 || showFab
           ? 'lg:pl-16 min-[1520px]:pl-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6'
           : 'lg:pb-6'
