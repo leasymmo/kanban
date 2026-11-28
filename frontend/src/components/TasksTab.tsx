@@ -213,7 +213,6 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           tasks={filteredTasks}
           allUsers={allUsers}
           currentUser={currentUser}
-          totalSprintTasksCount={facetFilteredTasks.length}
           isFilteredByAssignee={taskFilter !== 'all'}
           onShowAllSprint={() => setTaskFilter('all')}
           onEditTask={onEditTask}

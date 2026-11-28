@@ -58,7 +58,6 @@ interface SprintListBoardProps {
   tasks: Task[];
   allUsers?: User[];
   currentUser: User | null;
-  totalSprintTasksCount?: number;
   isFilteredByAssignee?: boolean;
   onShowAllSprint?: () => void;
   onEditTask: (task: Task) => void;
@@ -139,7 +138,6 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
   tasks,
   allUsers = [],
   currentUser,
-  totalSprintTasksCount,
   isFilteredByAssignee = false,
   onShowAllSprint,
   onEditTask,
@@ -193,8 +191,8 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
   const [childTitle, setChildTitle] = useState('');
   const [isSubmittingChild, setIsSubmittingChild] = useState(false);
 
-  // Popovers (Tri & Colonnes) portaled pour éviter tout clipping
-  const [openMenu, setOpenMenu] = useState<'sort-desktop' | 'cols-desktop' | 'sort-mobile' | 'cols-mobile' | null>(null);
+  // Popovers (Tri mobile & Colonnes) portaled pour éviter tout clipping
+  const [openMenu, setOpenMenu] = useState<'cols-desktop' | 'sort-mobile' | 'cols-mobile' | null>(null);
   const [menuPos, setMenuPos] = useState<PopoverStylePosition>({ top: 0, left: 0, maxHeight: 320 });
   const [menuWidth, setMenuWidth] = useState<number>(256);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -202,7 +200,7 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const openPopoverFor = useCallback(
-    (key: 'sort-desktop' | 'cols-desktop' | 'sort-mobile' | 'cols-mobile', width: number) => {
+    (key: 'cols-desktop' | 'sort-mobile' | 'cols-mobile', width: number) => {
       if (openMenu === key) {
         setOpenMenu(null);
         return;
@@ -215,7 +213,7 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
         gap: 6,
         viewportPadding: 8,
       });
-      // Aligner à droite du déclencheur quand le menu est à droite (colonnes / sort desktop)
+      // Aligner à droite du déclencheur quand le menu est à droite (colonnes)
       if (btn && key !== 'sort-mobile') {
         const rect = btn.getBoundingClientRect();
         const rightAlignedLeft = Math.round(
@@ -547,7 +545,7 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
     );
   };
 
-  const renderSortControl = (menuKey: 'sort-desktop' | 'sort-mobile', isMobile: boolean) => {
+  const renderSortControl = (menuKey: 'sort-mobile', isMobile: boolean) => {
     const isOpen = openMenu === menuKey;
     return (
       <div className={`relative flex items-center gap-1.5 ${isMobile ? 'flex-1 min-w-0' : 'shrink-0'}`}>
@@ -896,18 +894,6 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
                   </span>
                 </span>
               )}
-
-              {isMobile && task.assigned_to_name && (
-                <span className="inline-flex items-center gap-1.5">
-                  <Avatar
-                    initials={task.assigned_to_initials || '?'}
-                    name={task.assigned_to_name}
-                    color={ensureWhiteTextContrast(task.assigned_to_color)}
-                    size="xs"
-                  />
-                  <span>{task.assigned_to_name}</span>
-                </span>
-              )}
             </div>
           </div>
 
@@ -976,10 +962,10 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
                   type="button"
                   onClick={() => onEditTask(task)}
                   aria-label="Modifier la tâche"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[38px] sm:min-h-[32px] rounded-cdh-md text-xs font-semibold bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-primary)] hover:text-[var(--cdh-info)] transition-all active:scale-95 cursor-pointer"
+                  title="Modifier la tâche"
+                  className="inline-flex items-center justify-center p-2 min-w-[38px] min-h-[38px] sm:min-w-[32px] sm:min-h-[32px] sm:p-1.5 rounded-cdh-md bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-info)] transition-all active:scale-95 cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" strokeWidth={1.75} />
-                  <span>Modifier</span>
                 </button>
               )}
               {canDelete && (
@@ -1005,42 +991,10 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
       ref={boardRef}
       className="flex-1 min-h-0 flex flex-col cdh-glass-column rounded-cdh-2xl p-2 sm:p-3 gap-2 overflow-y-auto"
     >
-      {/* Barre supérieure du plateau : compteur + accès tout le sprint + tri rapide (desktop) / tri + colonnes (mobile) */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 px-1">
-        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 text-xs text-[var(--cdh-text-secondary)]">
-          <span>
-            <strong className="font-semibold text-[var(--cdh-text-primary)] tabular-nums">
-              {sortedTasks.length}
-            </strong>{' '}
-            {sortedTasks.length > 1 ? 'tâches' : 'tâche'} affichée
-            {sortedTasks.length > 1 ? 's' : ''}
-          </span>
-
-          {isFilteredByAssignee && onShowAllSprint && totalSprintTasksCount !== undefined && (
-            <button
-              type="button"
-              onClick={onShowAllSprint}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--cdh-accent-soft)] text-[var(--cdh-info)] hover:opacity-85 transition-opacity cursor-pointer"
-            >
-              Voir tout le sprint ({totalSprintTasksCount})
-            </button>
-          )}
-
-          <span className="hidden lg:inline text-[var(--cdh-text-tertiary)]">
-            · Cliquer sur une carte pour ouvrir ses détails
-          </span>
-        </div>
-
-        {/* Contrôles Desktop : Tri rapide (inclut Date de création même si colonne masquée) */}
-        <div className="hidden md:flex items-center gap-2 shrink-0">
-          {renderSortControl('sort-desktop', false)}
-        </div>
-
-        {/* Contrôles Mobile : Tri + Bouton Colonnes en haut à droite */}
-        <div className="flex md:hidden items-center gap-1.5">
-          {renderSortControl('sort-mobile', true)}
-          {renderColumnsPopover('cols-mobile', true)}
-        </div>
+      {/* Contrôles Mobile : Tri + Bouton Colonnes en haut à droite */}
+      <div className="flex md:hidden items-center gap-1.5">
+        {renderSortControl('sort-mobile', true)}
+        {renderColumnsPopover('cols-mobile', true)}
       </div>
 
       {/* État vide */}

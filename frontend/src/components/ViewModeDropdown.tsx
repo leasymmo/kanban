@@ -24,7 +24,7 @@ const VIEW_OPTIONS: ViewOption[] = [
   },
   {
     id: 'list',
-    label: 'Liste du sprint',
+    label: 'Tableau',
     description: 'Tableau global triable en accordéon',
     icon: <TableProperties className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
   }
