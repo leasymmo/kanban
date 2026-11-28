@@ -59,10 +59,12 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
 }) => {
   const showQuickAddButtons =
     canAddTasks !== undefined ? canAddTasks : (!isReadOnly && currentUser?.role === 'admin');
+  const userId = currentUser?.id ?? null;
+  const loadedUserIdRef = useRef<number | null>(userId);
 
   const [hideEmptyProperties, setHideEmptyProperties] = useState<boolean>(() => {
-    if (!currentUser) return true;
-    return getUserPreferences(currentUser.id).hideEmptyProperties ?? true;
+    if (!userId) return true;
+    return getUserPreferences(userId).hideEmptyProperties ?? true;
   });
 
   const [activePropertyId, setActivePropertyId] = useState<number | null>(null);
@@ -70,58 +72,81 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
   const pillBarRef = useRef<HTMLDivElement>(null);
   const rafScrollRef = useRef<number | null>(null);
   const programmaticTargetLeftRef = useRef<number | null>(null);
+  const programmaticTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!userId) {
+      loadedUserIdRef.current = null;
       setHideEmptyProperties(true);
       return;
     }
-    const prefs = getUserPreferences(currentUser.id);
+    if (loadedUserIdRef.current === userId) return;
+    loadedUserIdRef.current = userId;
+    const prefs = getUserPreferences(userId);
     setHideEmptyProperties(prefs.hideEmptyProperties ?? true);
-  }, [currentUser?.id]);
+  }, [userId]);
 
+  // Groupement O(T + P) en un seul passage avec comptage done/remaining
   const allSections = useMemo(() => {
-    const propertySections = properties.map(p => ({
-      id: p.id,
-      name: p.name,
-      color: p.color,
-      isDeactivated: Number(p.is_active) === 0,
-      tasks: tasks.filter(t => t.property_id === p.id)
-    }));
-    const generalSection = {
-      id: 0,
-      name: 'Sans logement',
-      color: '#64748B',
-      isDeactivated: false,
-      tasks: tasks.filter(t => !t.property_id)
+    const tasksByPropId = new Map<number, Task[]>();
+    for (const t of tasks) {
+      const key = t.property_id || 0;
+      const bucket = tasksByPropId.get(key);
+      if (bucket) bucket.push(t);
+      else tasksByPropId.set(key, [t]);
+    }
+
+    const hiddenSet = new Set(hiddenPropertyIds);
+    const buildSection = (
+      id: number,
+      name: string,
+      color: string,
+      isDeactivated: boolean
+    ) => {
+      const list = tasksByPropId.get(id) ?? [];
+      let doneCount = 0;
+      for (const t of list) {
+        if (t.status === 'done') doneCount++;
+      }
+      return {
+        id,
+        name,
+        color,
+        isDeactivated,
+        tasks: list,
+        doneCount,
+        remainingCount: list.length - doneCount,
+      };
     };
-    return [generalSection, ...propertySections].filter(
-      section => !hiddenPropertyIds.includes(section.id)
-    );
+
+    const raw = [
+      buildSection(0, 'Sans logement', '#64748B', false),
+      ...properties.map((p) => buildSection(p.id, p.name, p.color, Number(p.is_active) === 0)),
+    ];
+    return raw.filter((section) => !hiddenSet.has(section.id));
   }, [properties, tasks, hiddenPropertyIds]);
 
   const sections = useMemo(
-    () => (hideEmptyProperties ? allSections.filter(s => s.tasks.length > 0) : allSections),
+    () => (hideEmptyProperties ? allSections.filter((s) => s.tasks.length > 0) : allSections),
     [hideEmptyProperties, allSections]
   );
 
-  // Garantir un activePropertyId toujours valide lorsque les sections changent
   const effectiveActiveId = useMemo(() => {
     if (sections.length === 0) return null;
-    if (activePropertyId !== null && sections.some(s => s.id === activePropertyId)) {
+    if (activePropertyId !== null && sections.some((s) => s.id === activePropertyId)) {
       return activePropertyId;
     }
     return sections[0].id;
   }, [sections, activePropertyId]);
 
-  // Maintenir la pilule active visible dans la barre horizontale sans animation concurrente
   useEffect(() => {
     if (effectiveActiveId === null) return;
     const bar = pillBarRef.current;
     const pill = document.getElementById(`property-pill-${effectiveActiveId}`);
     if (!bar || !pill) return;
 
-    const pillLeft = pill.offsetLeft - bar.offsetLeft;
+    // bar possède position: relative, pill.offsetLeft est donc déjà relatif à bar
+    const pillLeft = pill.offsetLeft;
     const pillRight = pillLeft + pill.offsetWidth;
     const viewLeft = bar.scrollLeft;
     const viewRight = viewLeft + bar.clientWidth;
@@ -134,7 +159,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     }
   }, [effectiveActiveId]);
 
-  // Règle unique et monotone : l'index actif reflète directement la progression [0..1] sur le rail
   const syncActiveFromRail = useCallback(() => {
     const rail = railRef.current;
     if (!rail || sections.length === 0) return;
@@ -150,14 +174,14 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
 
     const maxScroll = rail.scrollWidth - rail.clientWidth;
     if (maxScroll <= 1 || sections.length === 1) {
-      setActivePropertyId(prev => (prev === sections[0].id ? prev : sections[0].id));
+      setActivePropertyId((prev) => (prev === sections[0].id ? prev : sections[0].id));
       return;
     }
 
     const progress = Math.max(0, Math.min(1, rail.scrollLeft / maxScroll));
     const idx = Math.round(progress * (sections.length - 1));
     const nextId = sections[idx]?.id ?? sections[0].id;
-    setActivePropertyId(prev => (prev === nextId ? prev : nextId));
+    setActivePropertyId((prev) => (prev === nextId ? prev : nextId));
   }, [sections]);
 
   const handleRailScroll = useCallback(() => {
@@ -173,11 +197,12 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
       if (rafScrollRef.current !== null) {
         window.cancelAnimationFrame(rafScrollRef.current);
       }
+      if (programmaticTimerRef.current !== null) {
+        window.clearTimeout(programmaticTimerRef.current);
+      }
     };
   }, []);
 
-  // Trackpad (Mac/Windows) : seul le geste horizontal (deltaX) ou Shift+molette fait défiler le rail ;
-  // le geste vertical (haut/bas) ne déclenche jamais de scroll horizontal.
   useEffect(() => {
     const rail = railRef.current;
     if (!rail) return;
@@ -211,15 +236,26 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     };
   }, [sections.length]);
 
-  const handleToggleHideEmpty = () => {
-    setHideEmptyProperties(prev => {
+  const handleToggleHideEmpty = useCallback(() => {
+    setHideEmptyProperties((prev) => {
       const next = !prev;
-      if (currentUser) {
-        saveUserPreferences(currentUser.id, { hideEmptyProperties: next });
+      if (userId) {
+        saveUserPreferences(userId, { hideEmptyProperties: next });
       }
       return next;
     });
-  };
+  }, [userId]);
+
+  const getContainerId = useCallback((t: Task) => t.property_id || 0, []);
+  const handleDropReorder = useCallback(
+    (draggedTask: Task, targetSectionId: number, orderedSectionTaskIds: number[]) => {
+      if (onMoveTaskProperty) {
+        const targetPropertyId = targetSectionId > 0 ? targetSectionId : null;
+        onMoveTaskProperty(draggedTask.id, targetPropertyId, orderedSectionTaskIds);
+      }
+    },
+    [onMoveTaskProperty]
+  );
 
   const {
     draggedTaskId,
@@ -234,34 +270,40 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     handleDropOnContainer
   } = useCardDragAndDrop<number>({
     tasks,
-    getContainerId: (t) => t.property_id || 0,
+    getContainerId,
     isReadOnly,
-    onDropReorder: (draggedTask, targetSectionId, orderedSectionTaskIds) => {
-      if (onMoveTaskProperty) {
-        const targetPropertyId = targetSectionId > 0 ? targetSectionId : null;
-        onMoveTaskProperty(draggedTask.id, targetPropertyId, orderedSectionTaskIds);
-      }
-    }
+    onDropReorder: handleDropReorder,
   });
 
-  // Alignement mathématique identique à syncActiveFromRail : zéro divergence au clic
-  const scrollToProperty = (propertyId: number) => {
-    const idx = sections.findIndex(s => s.id === propertyId);
-    if (idx === -1) return;
-    setActivePropertyId(propertyId);
+  const scrollToProperty = useCallback(
+    (propertyId: number) => {
+      const idx = sections.findIndex((s) => s.id === propertyId);
+      if (idx === -1) return;
+      setActivePropertyId(propertyId);
 
-    const rail = railRef.current;
-    if (!rail) return;
+      const rail = railRef.current;
+      if (!rail) return;
 
-    const maxScroll = Math.max(0, rail.scrollWidth - rail.clientWidth);
-    const targetLeft =
-      sections.length > 1
-        ? Math.round((idx / (sections.length - 1)) * maxScroll)
-        : 0;
+      const maxScroll = Math.max(0, rail.scrollWidth - rail.clientWidth);
+      const targetLeft =
+        sections.length > 1
+          ? Math.round((idx / (sections.length - 1)) * maxScroll)
+          : 0;
 
-    programmaticTargetLeftRef.current = targetLeft;
-    rail.scrollTo({ left: targetLeft, behavior: getScrollBehavior() });
-  };
+      programmaticTargetLeftRef.current = targetLeft;
+      if (programmaticTimerRef.current !== null) {
+        window.clearTimeout(programmaticTimerRef.current);
+      }
+      // Filet de sécurité : libère le verrou même si le scroll-snap mobile décale légèrement la position finale
+      programmaticTimerRef.current = window.setTimeout(() => {
+        programmaticTargetLeftRef.current = null;
+        programmaticTimerRef.current = null;
+      }, 650);
+
+      rail.scrollTo({ left: targetLeft, behavior: getScrollBehavior() });
+    },
+    [sections]
+  );
 
   useEffect(() => {
     if (!lastCreatedBatch || isModalOpen) return;
@@ -269,23 +311,26 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     const firstSectionId = lastCreatedBatch.propertyId ?? 0;
     const hasSection = sections.some((s) => s.id === firstSectionId);
     const hasVisibleTask = tasks.some((t) => lastCreatedBatch.ids.includes(t.id));
+    const batchIds = lastCreatedBatch.ids;
 
     onConsumeCreatedBatch?.();
     if (!hasSection || !hasVisibleTask) return;
 
     scrollToProperty(firstSectionId);
 
-    window.requestAnimationFrame(() => {
+    const rafId = window.requestAnimationFrame(() => {
       const propScrollEl = document.querySelector<HTMLElement>(
         `[data-property-scroll="${firstSectionId}"]`
       );
       scrollContainersAndHighlightTasks({
         horizontalEl: railRef.current,
         verticalEl: propScrollEl,
-        taskIds: lastCreatedBatch.ids,
+        taskIds: batchIds,
       });
     });
-  }, [lastCreatedBatch, isModalOpen, sections, tasks]);
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [lastCreatedBatch, isModalOpen, sections, tasks, scrollToProperty, onConsumeCreatedBatch]);
 
   if (allSections.length === 0) {
     return (
@@ -299,7 +344,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
 
   return (
     <div className="flex-1 min-h-0 min-w-0 w-full flex flex-col gap-2.5">
-      {/* Barre d'ancres visuelles de position horizontale + toggle masquer vides */}
       <div className="shrink-0 flex items-center justify-between gap-2">
         <div
           ref={pillBarRef}
@@ -307,7 +351,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
         >
           {sections.map((section) => {
             const isActive = effectiveActiveId === section.id;
-            const remaining = section.tasks.filter(t => t.status !== 'done').length;
 
             return (
               <button
@@ -329,7 +372,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                 />
                 <span className="truncate max-w-[140px]">{section.name}</span>
                 <span className="opacity-70 text-[10.5px]">
-                  {remaining > 0 ? remaining : section.tasks.length}
+                  {section.remainingCount > 0 ? section.remainingCount : section.tasks.length}
                 </span>
               </button>
             );
@@ -358,7 +401,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
         </button>
       </div>
 
-      {/* Rail horizontal en colonnes à hauteur fixe plein écran (Option A) */}
       {sections.length === 0 ? (
         <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center">
           <EyeOff className="w-8 h-8 mx-auto mb-2.5 text-[var(--cdh-text-tertiary)]" strokeWidth={1.75} />
@@ -379,8 +421,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
         >
           {sections.map((section) => {
             const total = section.tasks.length;
-            const doneCount = section.tasks.filter(t => t.status === 'done').length;
-            const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+            const percent = total > 0 ? Math.round((section.doneCount / total) * 100) : 0;
             const isHovered = activeDropContainer === section.id;
 
             return (
@@ -393,7 +434,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   isHovered ? 'ring-2 ring-[var(--cdh-accent)]/50 border-[var(--cdh-accent)]' : ''
                 }`}
               >
-                {/* Entête fixe du Logement */}
                 <div className="shrink-0">
                   <div className="flex items-center justify-between pb-2.5 border-b border-[var(--cdh-border-hairline)] mb-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -413,7 +453,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                           )}
                         </div>
                         <p className="text-[11px] text-[var(--cdh-text-secondary)] font-medium tabular-nums">
-                          {doneCount}/{total} terminées ({percent}%)
+                          {section.doneCount}/{total} terminées ({percent}%)
                         </p>
                       </div>
                     </div>
@@ -434,7 +474,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   <ProgressBar value={percent} label={`Progression ${section.name}`} className="mb-1" />
                 </div>
 
-                {/* Liste des cartes avec scroll vertical interne uniquement */}
                 <div
                   data-property-scroll={section.id}
                   className="cdh-prop-scroll space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 -mx-2.5 pt-2.5 pb-4"

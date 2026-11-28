@@ -9,7 +9,7 @@ export interface MeetingControlDockProps {
   tasks: Task[];
   questions: Question[];
   meetingStep: 'retro' | 'questions' | 'unassigned';
-  activeAnchor: number | 'pool' | 'all' | null;
+  activeAnchor: number | 'pool' | null;
   pendingUnassignedCount: number;
   showAddPendingTask: boolean;
   onSelectParticipant: (elementId: string, anchorKey: number | 'pool') => void;

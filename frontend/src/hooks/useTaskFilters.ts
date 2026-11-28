@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Task, TaskPriority, TaskStatus, Property, User } from '../types';
-import { getUserPreferences, saveUserPreferences } from '../utils/cookies';
+import { AssigneeFilter, getUserPreferences, saveUserPreferences } from '../utils/cookies';
 
-export type AssigneeFilter = 'all' | 'me' | number;
+export type { AssigneeFilter };
 
 export const TASK_STATUS_OPTIONS: { id: TaskStatus; label: string; dotClass: string }[] = [
   { id: 'todo', label: 'À faire', dotClass: 'bg-slate-400' },
@@ -22,7 +22,9 @@ export function useTaskFilters(
   properties: Property[],
   currentUser: User | null
 ) {
-  const initialPrefs = currentUser ? getUserPreferences(currentUser.id) : {};
+  const userId = currentUser?.id ?? null;
+  const loadedUserIdRef = useRef<number | null>(userId);
+  const initialPrefs = userId ? getUserPreferences(userId) : {};
 
   const [taskFilter, setTaskFilterState] = useState<AssigneeFilter>(
     initialPrefs.taskFilter ?? 'me'
@@ -40,65 +42,56 @@ export function useTaskFilters(
     initialPrefs.hiddenPriorities ?? []
   );
 
-  // Recharger les filtres depuis les cookies si l'utilisateur connecté change
+  // Recharger les préférences uniquement si l'utilisateur connecté change réellement
   useEffect(() => {
-    if (!currentUser) return;
-    const prefs = getUserPreferences(currentUser.id);
+    if (!userId || loadedUserIdRef.current === userId) return;
+    loadedUserIdRef.current = userId;
+    const prefs = getUserPreferences(userId);
     setTaskFilterState(prefs.taskFilter ?? 'me');
     setTaskSearchQueryState(prefs.taskSearchQuery ?? '');
     setHiddenPropertyIdsState(prefs.hiddenPropertyIds ?? []);
     setHiddenStatusesState(prefs.hiddenStatuses ?? []);
     setHiddenPrioritiesState(prefs.hiddenPriorities ?? []);
-  }, [currentUser?.id]);
+  }, [userId]);
 
   const setTaskFilter = useCallback(
     (next: AssigneeFilter) => {
       setTaskFilterState(next);
-      if (currentUser) {
-        saveUserPreferences(currentUser.id, { taskFilter: next });
-      }
+      if (userId) saveUserPreferences(userId, { taskFilter: next });
     },
-    [currentUser]
+    [userId]
   );
 
   const setTaskSearchQuery = useCallback(
     (next: string) => {
       setTaskSearchQueryState(next);
-      if (currentUser) {
-        saveUserPreferences(currentUser.id, { taskSearchQuery: next });
-      }
+      if (userId) saveUserPreferences(userId, { taskSearchQuery: next });
     },
-    [currentUser]
+    [userId]
   );
 
   const setHiddenPropertyIds = useCallback(
     (next: number[]) => {
       setHiddenPropertyIdsState(next);
-      if (currentUser) {
-        saveUserPreferences(currentUser.id, { hiddenPropertyIds: next });
-      }
+      if (userId) saveUserPreferences(userId, { hiddenPropertyIds: next });
     },
-    [currentUser]
+    [userId]
   );
 
   const setHiddenStatuses = useCallback(
     (next: TaskStatus[]) => {
       setHiddenStatusesState(next);
-      if (currentUser) {
-        saveUserPreferences(currentUser.id, { hiddenStatuses: next });
-      }
+      if (userId) saveUserPreferences(userId, { hiddenStatuses: next });
     },
-    [currentUser]
+    [userId]
   );
 
   const setHiddenPriorities = useCallback(
     (next: TaskPriority[]) => {
       setHiddenPrioritiesState(next);
-      if (currentUser) {
-        saveUserPreferences(currentUser.id, { hiddenPriorities: next });
-      }
+      if (userId) saveUserPreferences(userId, { hiddenPriorities: next });
     },
-    [currentUser]
+    [userId]
   );
 
   const allPropertyFilterIds = useMemo(
@@ -112,13 +105,11 @@ export function useTaskFilters(
         const next = prev.includes(propId)
           ? prev.filter(id => id !== propId)
           : [...prev, propId];
-        if (currentUser) {
-          saveUserPreferences(currentUser.id, { hiddenPropertyIds: next });
-        }
+        if (userId) saveUserPreferences(userId, { hiddenPropertyIds: next });
         return next;
       });
     },
-    [currentUser]
+    [userId]
   );
 
   const toggleStatusVisibility = useCallback(
@@ -127,13 +118,11 @@ export function useTaskFilters(
         const next = prev.includes(status)
           ? prev.filter(s => s !== status)
           : [...prev, status];
-        if (currentUser) {
-          saveUserPreferences(currentUser.id, { hiddenStatuses: next });
-        }
+        if (userId) saveUserPreferences(userId, { hiddenStatuses: next });
         return next;
       });
     },
-    [currentUser]
+    [userId]
   );
 
   const togglePriorityVisibility = useCallback(
@@ -142,13 +131,11 @@ export function useTaskFilters(
         const next = prev.includes(priority)
           ? prev.filter(p => p !== priority)
           : [...prev, priority];
-        if (currentUser) {
-          saveUserPreferences(currentUser.id, { hiddenPriorities: next });
-        }
+        if (userId) saveUserPreferences(userId, { hiddenPriorities: next });
         return next;
       });
     },
-    [currentUser]
+    [userId]
   );
 
   const resetFilters = useCallback(() => {
@@ -156,15 +143,15 @@ export function useTaskFilters(
     setHiddenPropertyIdsState([]);
     setHiddenStatusesState([]);
     setHiddenPrioritiesState([]);
-    if (currentUser) {
-      saveUserPreferences(currentUser.id, {
+    if (userId) {
+      saveUserPreferences(userId, {
         taskSearchQuery: '',
         hiddenPropertyIds: [],
         hiddenStatuses: [],
         hiddenPriorities: []
       });
     }
-  }, [currentUser]);
+  }, [userId]);
 
   const hasActiveFilters =
     taskSearchQuery.trim().length > 0 ||
@@ -172,16 +159,19 @@ export function useTaskFilters(
     hiddenStatuses.length > 0 ||
     hiddenPriorities.length > 0;
 
-  // Tâches filtrées par logement, statut, priorité et recherche (utilisé pour les compteurs par associé)
   const facetFilteredTasks = useMemo(() => {
     const q = taskSearchQuery.trim().toLowerCase();
+    const hiddenPropSet = new Set(hiddenPropertyIds);
+    const hiddenStatusSet = new Set<string>(hiddenStatuses);
+    const hiddenPrioritySet = new Set<string>(hiddenPriorities);
+
     return tasks
       .filter(t => {
         if (t.status === 'pending') return false;
         const propKey = t.property_id || 0;
-        if (hiddenPropertyIds.includes(propKey)) return false;
-        if (hiddenStatuses.includes(t.status)) return false;
-        if (hiddenPriorities.includes(t.priority || 'medium')) return false;
+        if (hiddenPropSet.has(propKey)) return false;
+        if (hiddenStatusSet.has(t.status)) return false;
+        if (hiddenPrioritySet.has(t.priority || 'medium')) return false;
 
         if (q) {
           const matchTitle = t.title.toLowerCase().includes(q);
@@ -195,18 +185,17 @@ export function useTaskFilters(
       .sort((a, b) => (a.position - b.position) || (a.id - b.id));
   }, [tasks, hiddenPropertyIds, hiddenStatuses, hiddenPriorities, taskSearchQuery]);
 
-  // Tâches filtrées finales (ajout du filtre associé)
   const filteredTasks = useMemo(() => {
     return facetFilteredTasks.filter(t => {
       if (taskFilter === 'me') {
-        return t.assigned_to === currentUser?.id;
+        return t.assigned_to === userId;
       }
       if (typeof taskFilter === 'number') {
         return t.assigned_to === taskFilter;
       }
       return true;
     });
-  }, [facetFilteredTasks, taskFilter, currentUser]);
+  }, [facetFilteredTasks, taskFilter, userId]);
 
   return {
     taskFilter,

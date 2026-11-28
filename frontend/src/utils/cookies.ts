@@ -1,6 +1,6 @@
 import { TaskPriority, TaskStatus } from '../types';
 
-export type AssigneeFilterPref = 'all' | 'me' | number;
+export type AssigneeFilter = 'all' | 'me' | number;
 export type TaskViewMode = 'kanban' | 'property' | 'list';
 export type TaskListSortKey =
   | 'alpha'
@@ -35,7 +35,7 @@ export const DEFAULT_TASK_LIST_COLUMNS: TaskListColumnId[] = [
 export interface UserUiPreferences {
   activeTab: 'tasks' | 'questions' | 'meeting';
   taskViewMode: TaskViewMode;
-  taskFilter: AssigneeFilterPref;
+  taskFilter: AssigneeFilter;
   taskSearchQuery: string;
   hiddenPropertyIds: number[];
   hiddenStatuses: TaskStatus[];
@@ -82,11 +82,11 @@ export function sanitizeTaskListColumns(cols: unknown): TaskListColumnId[] {
   return unique.includes('title') ? unique : ['title', ...unique];
 }
 
-function getCookieKey(userId: number): string {
+function getStorageKey(userId: number): string {
   return `kanban_prefs_u_${userId}`;
 }
 
-export function getCookie(name: string): string | null {
+function readLegacyCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
   const encodedName = `${encodeURIComponent(name)}=`;
   const parts = document.cookie ? document.cookie.split('; ') : [];
@@ -102,16 +102,12 @@ export function getCookie(name: string): string | null {
   return null;
 }
 
-export function setCookie(name: string, value: string, days: number = 365): void {
+function clearLegacyCookie(name: string): void {
   if (typeof document === 'undefined') return;
-  const expires = new Date(Date.now() + days * 86400 * 1000).toUTCString();
-  const secureFlag =
-    typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
-  document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax${secureFlag}`;
+  document.cookie = `${encodeURIComponent(name)}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
 }
 
-export function getUserPreferences(userId: number): Partial<UserUiPreferences> {
-  const raw = getCookie(getCookieKey(userId));
+function parsePreferencesRaw(raw: string | null): Partial<UserUiPreferences> {
   if (!raw) return {};
 
   try {
@@ -186,8 +182,39 @@ export function getUserPreferences(userId: number): Partial<UserUiPreferences> {
   }
 }
 
+export function getUserPreferences(userId: number): Partial<UserUiPreferences> {
+  const key = getStorageKey(userId);
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = window.localStorage.getItem(key);
+      if (stored !== null) {
+        return parsePreferencesRaw(stored);
+      }
+      // Migration unique depuis l'ancien stockage cookie vers localStorage
+      const legacy = readLegacyCookie(key);
+      if (legacy !== null) {
+        const parsed = parsePreferencesRaw(legacy);
+        window.localStorage.setItem(key, JSON.stringify(parsed));
+        clearLegacyCookie(key);
+        return parsed;
+      }
+    } catch {
+      // Fallback silencieux si localStorage est restreint
+    }
+  }
+  return {};
+}
+
 export function saveUserPreferences(userId: number, patch: Partial<UserUiPreferences>): void {
+  const key = getStorageKey(userId);
   const current = getUserPreferences(userId);
   const next: Partial<UserUiPreferences> = { ...current, ...patch };
-  setCookie(getCookieKey(userId), JSON.stringify(next), 365);
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(next));
+      clearLegacyCookie(key);
+    } catch {
+      // Ignore quota / private mode errors
+    }
+  }
 }

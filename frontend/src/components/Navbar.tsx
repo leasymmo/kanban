@@ -23,6 +23,104 @@ interface NavbarProps {
   onToggleTheme?: () => void;
 }
 
+const NAV_ITEMS: Array<{
+  id: 'tasks' | 'questions' | 'meeting';
+  label: string;
+  mobileLabel: string;
+  icon: React.ReactNode;
+}> = [
+  {
+    id: 'tasks',
+    label: 'Tâches',
+    mobileLabel: 'Tâches',
+    icon: <CheckSquare className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+  },
+  {
+    id: 'questions',
+    label: 'Questions',
+    mobileLabel: 'Questions',
+    icon: <HelpCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+  },
+  {
+    id: 'meeting',
+    label: 'Vue Réunion',
+    mobileLabel: 'Réunion',
+    icon: <Users className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+  }
+];
+
+function renderSecondaryRoleBadge(role?: string) {
+  if (role === 'write') {
+    return (
+      <Badge variant="accent">
+        <UserCheck className="w-2.5 h-2.5" strokeWidth={2} /> Écriture
+      </Badge>
+    );
+  }
+  if (role === 'read') {
+    return (
+      <Badge variant="neutral">
+        <Eye className="w-2.5 h-2.5" strokeWidth={2} /> Lecture
+      </Badge>
+    );
+  }
+  return null;
+}
+
+interface AccountMenuActionsProps {
+  isAdmin: boolean;
+  variant: 'menu' | 'sheet';
+  onOpenAdmin: () => void;
+  onLogout: () => void;
+}
+
+const AccountMenuActions: React.FC<AccountMenuActionsProps> = ({
+  isAdmin,
+  variant,
+  onOpenAdmin,
+  onLogout
+}) => {
+  const isMenu = variant === 'menu';
+  return (
+    <div className={isMenu ? 'p-1.5 space-y-0.5' : 'grid grid-cols-1 gap-1.5'}>
+      {isAdmin && (
+        <button
+          type="button"
+          role={isMenu ? 'menuitem' : undefined}
+          onClick={onOpenAdmin}
+          className={
+            isMenu
+              ? 'w-full flex items-center gap-2.5 px-3 py-2 rounded-cdh-sm text-[12.5px] font-medium text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-accent-soft)] focus-visible:outline-none focus-visible:bg-[var(--cdh-accent-soft)] transition-colors cursor-pointer text-left'
+              : 'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-cdh-md text-[12.5px] font-semibold text-[var(--cdh-text-primary)] bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-accent-soft)] transition-colors cursor-pointer text-left'
+          }
+        >
+          <Shield className="w-4 h-4 text-[var(--cdh-secondary)] shrink-0" strokeWidth={2} />
+          <div className="min-w-0 flex-1">
+            <p className={isMenu ? 'leading-tight font-semibold' : 'leading-tight'}>Administration</p>
+            <p className={`text-[11px] text-[var(--cdh-text-secondary)] ${isMenu ? '' : 'font-normal'}`}>
+              Sprints, associés &amp; logements
+            </p>
+          </div>
+        </button>
+      )}
+
+      <button
+        type="button"
+        role={isMenu ? 'menuitem' : undefined}
+        onClick={onLogout}
+        className={
+          isMenu
+            ? 'w-full flex items-center gap-2.5 px-3 py-2 rounded-cdh-sm text-[12.5px] font-semibold text-[var(--cdh-danger)] hover:bg-[var(--cdh-danger-soft)] focus-visible:outline-none focus-visible:bg-[var(--cdh-danger-soft)] transition-colors cursor-pointer text-left'
+            : 'w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-cdh-md text-[12.5px] font-semibold text-[var(--cdh-danger)] bg-[var(--cdh-danger-soft)] hover:opacity-90 transition-opacity cursor-pointer'
+        }
+      >
+        <LogOut className="w-4 h-4 shrink-0" strokeWidth={2} />
+        <span>Se déconnecter</span>
+      </button>
+    </div>
+  );
+};
+
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   sprints,
@@ -39,6 +137,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMobileCenterOpen, setIsMobileCenterOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
 
   const mobileCenterRef = useModalDialog<HTMLDivElement>({
     isOpen: isMobileCenterOpen,
@@ -46,6 +145,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   });
 
   useEffect(() => {
+    if (!isMenuOpen) return;
+
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setIsMenuOpen(false);
@@ -53,109 +154,83 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
         setIsMenuOpen(false);
+        menuTriggerRef.current?.focus();
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+        const items = menuRef.current
+          ? Array.from(menuRef.current.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+          : [];
+        if (items.length === 0) return;
+        e.preventDefault();
+        const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+        let nextIndex = 0;
+        if (e.key === 'ArrowDown') {
+          nextIndex = currentIndex >= 0 ? (currentIndex + 1) % items.length : 0;
+        } else if (e.key === 'ArrowUp') {
+          nextIndex = currentIndex >= 0 ? (currentIndex - 1 + items.length) % items.length : items.length - 1;
+        } else if (e.key === 'End') {
+          nextIndex = items.length - 1;
+        }
+        items[nextIndex]?.focus();
       }
     };
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
-
-  const getSecondaryRoleBadge = (role?: string) => {
-    if (role === 'write') {
-      return (
-        <Badge variant="accent">
-          <UserCheck className="w-2.5 h-2.5" strokeWidth={2} /> Écriture
-        </Badge>
-      );
-    }
-    if (role === 'read') {
-      return (
-        <Badge variant="neutral">
-          <Eye className="w-2.5 h-2.5" strokeWidth={2} /> Lecture
-        </Badge>
-      );
-    }
-    return null;
-  };
-
-  const navItems: Array<{
-    id: 'tasks' | 'questions' | 'meeting';
-    label: string;
-    mobileLabel: string;
-    icon: React.ReactNode;
-  }> = [
-    {
-      id: 'tasks',
-      label: 'Tâches',
-      mobileLabel: 'Tâches',
-      icon: <CheckSquare className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-    },
-    {
-      id: 'questions',
-      label: 'Questions',
-      mobileLabel: 'Questions',
-      icon: <HelpCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-    },
-    {
-      id: 'meeting',
-      label: 'Vue Réunion',
-      mobileLabel: 'Réunion',
-      icon: <Users className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-    }
-  ];
+  }, [isMenuOpen]);
 
   const activeSprint = sprints.find((s) => s.id === currentSprintId) || null;
-  const activeNavItem = navItems.find((item) => item.id === activeTab) || navItems[0];
+  const activeNavItem = NAV_ITEMS.find((item) => item.id === activeTab) || NAV_ITEMS[0];
 
   return (
     <header className="cdh-pwa-header sticky top-0 z-30 px-2 sm:px-5 lg:px-8 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]">
       <div className="max-w-7xl mx-auto cdh-glass-chrome rounded-cdh-xl px-2.5 sm:px-4 transition-colors">
         {/* Barre mobile ultra-compacte (<md) — 1 seule ligne pour maximiser l'espace des tâches */}
-        <div className="md:hidden flex items-center justify-between h-11 gap-2">
-          <button
-            type="button"
-            onClick={() => setIsMobileCenterOpen(true)}
-            className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer active:opacity-80"
-            aria-label="Ouvrir le menu principal"
-          >
-            <div className="w-7 h-7 rounded-[9px] bg-gradient-to-b from-[#0A84FF] to-[#007AFF] flex items-center justify-center shadow-sm font-bold text-white text-xs ring-1 ring-white/25 shrink-0">
-              C
-            </div>
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-semibold text-[13.5px] tracking-[-0.015em] text-[var(--cdh-text-primary)] shrink-0">
-                {activeNavItem.mobileLabel}
-              </span>
-              {activeSprint && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--cdh-text-tertiary)] truncate">
-                  <span aria-hidden="true">·</span>
-                  <span className="truncate">{activeSprint.name}</span>
-                  {isReadOnly && <Lock className="w-2.5 h-2.5 text-[var(--cdh-warning)] shrink-0" strokeWidth={2.25} />}
-                </span>
-              )}
-            </div>
-          </button>
-
+        <div className="md:hidden flex items-center h-11">
           <button
             type="button"
             onClick={() => setIsMobileCenterOpen(true)}
             aria-expanded={isMobileCenterOpen}
             aria-haspopup="dialog"
-            aria-label="Ouvrir le centre de contrôle"
-            className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[34px] rounded-full bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-surface-control-hover)] border border-[var(--cdh-border-hairline)] transition-all active:scale-95 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)]"
+            aria-label="Ouvrir le menu et le centre de contrôle"
+            className="w-full flex items-center justify-between gap-2 text-left cursor-pointer active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] rounded-cdh-lg"
           >
-            {currentUser && (
-              <Avatar
-                initials={currentUser.initials}
-                name={currentUser.name}
-                color={currentUser.avatar_color || '#007AFF'}
-                size="xs"
-              />
-            )}
-            <Menu className="w-4 h-4 text-[var(--cdh-text-primary)]" strokeWidth={2} />
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="w-7 h-7 rounded-[9px] bg-gradient-to-b from-[#0A84FF] to-[#007AFF] flex items-center justify-center shadow-sm font-bold text-white text-xs ring-1 ring-white/25 shrink-0">
+                C
+              </div>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-semibold text-[13.5px] tracking-[-0.015em] text-[var(--cdh-text-primary)] shrink-0">
+                  {activeNavItem.mobileLabel}
+                </span>
+                {activeSprint && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--cdh-text-tertiary)] truncate">
+                    <span aria-hidden="true">·</span>
+                    <span className="truncate">{activeSprint.name}</span>
+                    {isReadOnly && <Lock className="w-2.5 h-2.5 text-[var(--cdh-warning)] shrink-0" strokeWidth={2.25} />}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <span className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[34px] rounded-full bg-[var(--cdh-surface-control)] border border-[var(--cdh-border-hairline)] shrink-0">
+              {currentUser && (
+                <Avatar
+                  initials={currentUser.initials}
+                  name={currentUser.name}
+                  color={currentUser.avatar_color || '#007AFF'}
+                  size="xs"
+                />
+              )}
+              <Menu className="w-4 h-4 text-[var(--cdh-text-primary)]" strokeWidth={2} />
+            </span>
           </button>
         </div>
 
@@ -192,7 +267,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             aria-label="Navigation principale"
             className="hidden md:flex items-center gap-1 bg-[var(--cdh-surface-control)] p-1 rounded-cdh-md shrink-0"
           >
-            {navItems.map((item) => {
+            {NAV_ITEMS.map((item) => {
               const isActive = activeTab === item.id;
               return (
                 <button
@@ -235,6 +310,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative" ref={menuRef}>
               {currentUser && (
                 <button
+                  ref={menuTriggerRef}
                   type="button"
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   aria-expanded={isMenuOpen}
@@ -282,46 +358,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <p className="text-[11px] text-[var(--cdh-text-secondary)] truncate">
                         {currentUser.email}
                       </p>
-                      {getSecondaryRoleBadge(currentUser.role) && (
-                        <div className="mt-1.5">{getSecondaryRoleBadge(currentUser.role)}</div>
+                      {renderSecondaryRoleBadge(currentUser.role) && (
+                        <div className="mt-1.5">{renderSecondaryRoleBadge(currentUser.role)}</div>
                       )}
                     </div>
                   </div>
 
-                  <div className="p-1.5 space-y-0.5">
-                    {currentUser.role === 'admin' && (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setIsMenuOpen(false);
-                          onOpenAdminPanel?.();
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-cdh-sm text-[12.5px] font-medium text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-accent-soft)] transition-colors cursor-pointer text-left"
-                      >
-                        <Shield className="w-4 h-4 text-[var(--cdh-secondary)] shrink-0" strokeWidth={2} />
-                        <div className="min-w-0">
-                          <p className="leading-tight font-semibold">Administration</p>
-                          <p className="text-[11px] text-[var(--cdh-text-secondary)]">
-                            Sprints, associés &amp; logements
-                          </p>
-                        </div>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        onLogout();
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-cdh-sm text-[12.5px] font-semibold text-[var(--cdh-danger)] hover:bg-[var(--cdh-danger-soft)] transition-colors cursor-pointer text-left"
-                    >
-                      <LogOut className="w-4 h-4 shrink-0" strokeWidth={2} />
-                      <span>Se déconnecter</span>
-                    </button>
-                  </div>
+                  <AccountMenuActions
+                    isAdmin={currentUser.role === 'admin'}
+                    variant="menu"
+                    onOpenAdmin={() => {
+                      setIsMenuOpen(false);
+                      onOpenAdminPanel?.();
+                    }}
+                    onLogout={() => {
+                      setIsMenuOpen(false);
+                      onLogout();
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -373,7 +427,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Tuiles Navigation (Tâches / Questions / Réunion) */}
               <nav aria-label="Navigation mobile" className="grid grid-cols-3 gap-2">
-                {navItems.map((item) => {
+                {NAV_ITEMS.map((item) => {
                   const isActive = activeTab === item.id;
                   return (
                     <button
@@ -450,41 +504,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                         {currentUser.email}
                       </p>
                     </div>
-                    {getSecondaryRoleBadge(currentUser.role)}
+                    {renderSecondaryRoleBadge(currentUser.role)}
                   </div>
 
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {currentUser.role === 'admin' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsMobileCenterOpen(false);
-                          onOpenAdminPanel?.();
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-cdh-md text-[12.5px] font-semibold text-[var(--cdh-text-primary)] bg-[var(--cdh-surface-control)] hover:bg-[var(--cdh-accent-soft)] transition-colors cursor-pointer text-left"
-                      >
-                        <Shield className="w-4 h-4 text-[var(--cdh-secondary)] shrink-0" strokeWidth={2} />
-                        <div className="min-w-0 flex-1">
-                          <p className="leading-tight">Administration</p>
-                          <p className="text-[11px] font-normal text-[var(--cdh-text-secondary)]">
-                            Sprints, associés &amp; logements
-                          </p>
-                        </div>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMobileCenterOpen(false);
-                        onLogout();
-                      }}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-cdh-md text-[12.5px] font-semibold text-[var(--cdh-danger)] bg-[var(--cdh-danger-soft)] hover:opacity-90 transition-opacity cursor-pointer"
-                    >
-                      <LogOut className="w-4 h-4 shrink-0" strokeWidth={2} />
-                      <span>Se déconnecter</span>
-                    </button>
-                  </div>
+                  <AccountMenuActions
+                    isAdmin={currentUser.role === 'admin'}
+                    variant="sheet"
+                    onOpenAdmin={() => {
+                      setIsMobileCenterOpen(false);
+                      onOpenAdminPanel?.();
+                    }}
+                    onLogout={() => {
+                      setIsMobileCenterOpen(false);
+                      onLogout();
+                    }}
+                  />
                 </div>
               )}
             </div>

@@ -1,4 +1,4 @@
-import { CSSProperties, RefObject, useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { CSSProperties, RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   computePopoverPosition,
   PopoverHorizontalAlign,
@@ -21,7 +21,7 @@ interface UseAnchoredPopoverOptions {
 
 /**
  * Gère le positionnement fixe (compatible `createPortal` vers `document.body`),
- * le repositionnement au scroll/redimensionnement, la fermeture au clic extérieur et à la touche Échap.
+ * le repositionnement throttlé via RAF au scroll/redimensionnement, la fermeture au clic extérieur et à Échap.
  */
 export function useAnchoredPopover({
   isOpen,
@@ -41,6 +41,7 @@ export function useAnchoredPopover({
     maxHeight: 360,
     width,
   });
+  const rafRef = useRef<number | null>(null);
 
   const updatePosition = useCallback(() => {
     setPos(
@@ -54,6 +55,14 @@ export function useAnchoredPopover({
       })
     );
   }, [triggerRef, width, preferredPlacement, align, minSpaceNeeded, gap, viewportPadding]);
+
+  const schedulePositionUpdate = useCallback(() => {
+    if (rafRef.current !== null) return;
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+      updatePosition();
+    });
+  }, [updatePosition]);
 
   useLayoutEffect(() => {
     if (!isOpen) return;
@@ -79,16 +88,20 @@ export function useAnchoredPopover({
 
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, { passive: true, capture: true });
+    window.addEventListener('resize', schedulePositionUpdate);
+    window.addEventListener('scroll', schedulePositionUpdate, { passive: true, capture: true });
 
     return () => {
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', schedulePositionUpdate);
+      window.removeEventListener('scroll', schedulePositionUpdate, true);
     };
-  }, [isOpen, onClose, triggerRef, popoverRef, updatePosition]);
+  }, [isOpen, onClose, triggerRef, popoverRef, schedulePositionUpdate]);
 
   return toPopoverStyle(pos, width);
 }

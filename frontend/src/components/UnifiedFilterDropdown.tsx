@@ -32,7 +32,7 @@ interface UnifiedFilterDropdownProps {
  * Bouton de filtre unifié ouvrant un popover Liquid Glass avec sections en accordéon exclusif :
  * la première section est ouverte par défaut et les suivantes fermées ; ouvrir une section ferme la précédente.
  */
-export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = ({
+export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = React.memo(({
   sections,
   label = 'Filtres',
   align = 'right',
@@ -212,12 +212,12 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = ({
                               className={`w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors ${
                                 isVisible
                                   ? 'bg-[var(--cdh-accent)] border-[var(--cdh-accent)] text-white'
-                                  : 'border-black/[0.12] bg-white'
+                                  : 'border-[var(--cdh-border-subtle)] bg-[var(--cdh-surface-input)]'
                               }`}
                             >
                               <Check
-                                className={`w-3 h-3 transition-all duration-200 ${
-                                  isVisible ? 'opacity-100 blur-0 scale-100' : 'opacity-0 blur-[4px] scale-90'
+                                className={`w-3 h-3 transition-opacity duration-150 ${
+                                  isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
                                 }`}
                                 strokeWidth={2}
                               />
@@ -236,4 +236,4 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = ({
         )}
     </div>
   );
-};
+});

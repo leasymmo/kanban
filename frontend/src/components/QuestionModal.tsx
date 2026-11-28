@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useEffect, useId } from 'react';
 import { Question, User } from '../types';
-import { useModalDialog } from '../hooks/useModalDialog';
-import { X, AlertCircle } from 'lucide-react';
+import { Badge, Button, Modal } from './ui';
+import { AlertCircle } from 'lucide-react';
 
 interface QuestionModalProps {
   isOpen: boolean;
@@ -30,16 +29,15 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
   const isAdmin = currentUser?.role === 'admin';
   const isEdit = !!editingQuestion;
 
+  const titleInputId = useId();
+  const detailsInputId = useId();
+  const userSelectId = useId();
+
   const [title, setTitle] = useState('');
   const [details, setDetails] = useState('');
   const [targetUserId, setTargetUserId] = useState<number>(currentUser?.id || users[0]?.id || 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dialogRef = useModalDialog({
-    isOpen,
-    onClose,
-    canClose: !isSubmitting
-  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -58,10 +56,8 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, editingQuestion?.id, initialUserId, currentUser?.id]);
 
-  if (!isOpen) return null;
-
   const hasOrphanAuthor =
-    isEdit && editingQuestion && !users.some(u => u.id === editingQuestion.user_id);
+    isEdit && editingQuestion && !users.some((u) => u.id === editingQuestion.user_id);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,123 +104,118 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
     }
   };
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 pb-[var(--cdh-vv-bottom,0px)] sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
-      onClick={() => !isSubmitting && onClose()}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="question-modal-title"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-lg w-full overflow-hidden max-h-[min(92dvh,calc(var(--cdh-vv-height,100dvh)-16px))] sm:max-h-[90dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
+  const footer = (
+    <div className="w-full flex items-center justify-end gap-2.5">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onClose}
+        disabled={isSubmitting}
       >
+        Annuler
+      </Button>
+      <Button
+        type="submit"
+        variant="primary"
+        size="sm"
+        isLoading={isSubmitting}
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? 'Enregistrement...' : isEdit ? 'Enregistrer' : 'Ajouter la question'}
+      </Button>
+    </div>
+  );
 
-        {/* Header Liquid Glass */}
-        <div className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-3 border-b border-[var(--cdh-border-hairline)] shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <h3 id="question-modal-title" className="text-[15px] sm:text-[16px] font-semibold tracking-[-0.015em] text-[var(--cdh-text-primary)] truncate">
-              {isEdit ? 'Modifier la question' : 'Poser une question'}
-            </h3>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] shrink-0">
-              Réunion
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fermer la fenêtre"
-            className="text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] p-1.5 rounded-full hover:bg-[var(--cdh-surface-control)] cursor-pointer shrink-0 transition-colors"
-          >
-            <X className="w-4 h-4" strokeWidth={2} />
-          </button>
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEdit ? 'Modifier la question' : 'Poser une question'}
+      headerBadge={<Badge variant="accent">Réunion</Badge>}
+      maxWidthClass="max-w-lg"
+      canClose={!isSubmitting}
+      asForm
+      onSubmit={handleSubmit}
+      bodyClassName="p-4 sm:px-5 sm:py-4 space-y-3 overflow-y-auto flex-1"
+      footerClassName="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-[var(--cdh-surface-control)] border-t border-[var(--cdh-border-hairline)] shrink-0"
+      footer={footer}
+    >
+      {error && (
+        <div
+          role="alert"
+          className="px-3 py-2 bg-[var(--cdh-danger-soft)] text-[var(--cdh-danger)] border border-[var(--cdh-danger-accent)]/30 rounded-cdh-md text-xs flex items-center gap-2 font-medium"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0" strokeWidth={1.75} />
+          <span>{error}</span>
         </div>
+      )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="p-4 sm:px-5 sm:py-4 space-y-3 overflow-y-auto flex-1">
-            {error && (
-              <div className="px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" strokeWidth={1.75} />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Intitulé de la question *
-              </label>
-              <input
-                type="text"
-                autoFocus
-                enterKeyHint="done"
-                required
-                maxLength={255}
-                placeholder="Ex: Choix du prestataire serrurerie, point propriétaire..."
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Détails & arguments
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Précisions pour la discussion en séance..."
-                value={details}
-                onChange={(e) => setDetails(e.target.value)}
-                className="w-full px-3 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              />
-            </div>
-
-            {isAdmin && (
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Associé concerné
-                </label>
-                <select
-                  value={targetUserId}
-                  onChange={(e) => setTargetUserId(Number(e.target.value))}
-                  className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white cursor-pointer focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                >
-                  {hasOrphanAuthor && editingQuestion && (
-                    <option value={editingQuestion.user_id}>
-                      {editingQuestion.user_name || 'Ancien associé'} (archivé)
-                    </option>
-                  )}
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div className="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-slate-50 border-t border-black/[0.12] flex items-center justify-end gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-3.5 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl sm:rounded-lg cursor-pointer transition-colors"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-xl sm:rounded-lg text-sm font-bold shadow-sm shadow-brand-600/25 cursor-pointer transition-all"
-            >
-              {isSubmitting ? 'Enregistrement...' : isEdit ? 'Enregistrer' : 'Ajouter la question'}
-            </button>
-          </div>
-        </form>
+      <div>
+        <label
+          htmlFor={titleInputId}
+          className="block text-[11px] font-bold text-[var(--cdh-text-secondary)] uppercase tracking-wider mb-1"
+        >
+          Intitulé de la question *
+        </label>
+        <input
+          id={titleInputId}
+          type="text"
+          autoFocus
+          enterKeyHint="done"
+          required
+          maxLength={255}
+          placeholder="Ex: Choix du prestataire serrurerie, point propriétaire..."
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-3 py-1.5 bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] rounded-cdh-md text-sm text-[var(--cdh-text-primary)] font-medium placeholder:text-[var(--cdh-text-tertiary)] focus:border-[var(--cdh-border-focus)] focus:ring-2 focus:ring-[var(--cdh-accent-soft)] focus:outline-none"
+        />
       </div>
-    </div>,
-    document.body
+
+      <div>
+        <label
+          htmlFor={detailsInputId}
+          className="block text-[11px] font-bold text-[var(--cdh-text-secondary)] uppercase tracking-wider mb-1"
+        >
+          Détails &amp; arguments
+        </label>
+        <textarea
+          id={detailsInputId}
+          rows={3}
+          placeholder="Précisions pour la discussion en séance..."
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          className="w-full px-3 py-1.5 bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] rounded-cdh-md text-sm text-[var(--cdh-text-primary)] placeholder:text-[var(--cdh-text-tertiary)] focus:border-[var(--cdh-border-focus)] focus:ring-2 focus:ring-[var(--cdh-accent-soft)] focus:outline-none"
+        />
+      </div>
+
+      {isAdmin && (
+        <div>
+          <label
+            htmlFor={userSelectId}
+            className="block text-[11px] font-bold text-[var(--cdh-text-secondary)] uppercase tracking-wider mb-1"
+          >
+            Associé concerné
+          </label>
+          <select
+            id={userSelectId}
+            value={targetUserId}
+            onChange={(e) => setTargetUserId(Number(e.target.value))}
+            className="w-full px-2.5 py-1.5 bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] rounded-cdh-md text-sm text-[var(--cdh-text-primary)] cursor-pointer focus:border-[var(--cdh-border-focus)] focus:ring-2 focus:ring-[var(--cdh-accent-soft)] focus:outline-none"
+          >
+            {hasOrphanAuthor && editingQuestion && (
+              <option value={editingQuestion.user_id}>
+                {editingQuestion.user_name || 'Ancien associé'} (archivé)
+              </option>
+            )}
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </Modal>
   );
 };

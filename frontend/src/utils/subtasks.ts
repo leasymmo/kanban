@@ -44,50 +44,44 @@ export const SUBTASK_DEPTH_THEME = [
  * Construit un arbre hiérarchique de sous-tâches à partir d'une liste plate
  * avec attribution de la profondeur (depth: 0, 1, 2, 3, etc.)
  */
-export function buildSubtaskTree(
-  subtasks: Subtask[],
-  parentId: number | null = null,
-  depth: number = 0,
-  visited: Set<number> = new Set()
-): HierarchicalSubtask[] {
-  if (!Array.isArray(subtasks) || subtasks.length === 0 || depth > 10) return [];
+export function buildSubtaskTree(subtasks: Subtask[]): HierarchicalSubtask[] {
+  if (!Array.isArray(subtasks) || subtasks.length === 0) return [];
 
-  const directChildren = subtasks.filter(s => {
-    if (!s || visited.has(s.id)) return false;
-    if (parentId === null) {
-      return s.parent_id === null || s.parent_id === undefined || s.parent_id === 0;
-    }
-    return s.parent_id === parentId;
-  });
+  const validIds = new Set(subtasks.map((s) => s.id));
 
-  return directChildren.map(s => {
-    const nextVisited = new Set(visited);
-    nextVisited.add(s.id);
-    return {
-      ...s,
-      depth,
-      children: buildSubtaskTree(subtasks, s.id, depth + 1, nextVisited)
-    };
-  });
-}
+  const buildLevel = (
+    parentId: number | null,
+    depth: number,
+    visited: Set<number>
+  ): HierarchicalSubtask[] => {
+    if (depth > 10) return [];
 
-/**
- * Aplatit un arbre hiérarchique en liste ordonnée pour l'affichage séquentiel
- */
-export function flattenSubtaskTree(tree: HierarchicalSubtask[]): HierarchicalSubtask[] {
-  const result: HierarchicalSubtask[] = [];
-
-  function traverse(items: HierarchicalSubtask[]) {
-    for (const item of items) {
-      result.push(item);
-      if (item.children && item.children.length > 0) {
-        traverse(item.children);
+    const directChildren = subtasks.filter((s) => {
+      if (!s || visited.has(s.id)) return false;
+      if (parentId === null) {
+        // Rattacher à la racine les nœuds sans parent OU orphelins (parent inexistant)
+        return (
+          s.parent_id === null ||
+          s.parent_id === undefined ||
+          s.parent_id === 0 ||
+          !validIds.has(s.parent_id)
+        );
       }
-    }
-  }
+      return s.parent_id === parentId;
+    });
 
-  traverse(tree);
-  return result;
+    return directChildren.map((s) => {
+      const nextVisited = new Set(visited);
+      nextVisited.add(s.id);
+      return {
+        ...s,
+        depth,
+        children: buildLevel(s.id, depth + 1, nextVisited),
+      };
+    });
+  };
+
+  return buildLevel(null, 0, new Set());
 }
 
 /**
@@ -134,7 +128,9 @@ export function isTaskOverdue(dueDate?: string | null, status?: Task['status']):
  */
 export function reorderTasksInSubset(tasks: Task[], orderedSubsetIds: number[]): Task[] {
   const sorted = [...tasks].sort((a, b) => (a.position - b.position) || (a.id - b.id));
-  const subsetSet = new Set(orderedSubsetIds);
+  const byId = new Map(sorted.map(t => [t.id, t]));
+  const uniqueValidIds = Array.from(new Set(orderedSubsetIds)).filter(id => byId.has(id));
+  const subsetSet = new Set(uniqueValidIds);
   const slots: number[] = [];
 
   sorted.forEach((t, idx) => {
@@ -143,9 +139,8 @@ export function reorderTasksInSubset(tasks: Task[], orderedSubsetIds: number[]):
     }
   });
 
-  const byId = new Map(sorted.map(t => [t.id, t]));
   slots.forEach((slotIdx, i) => {
-    const replacement = byId.get(orderedSubsetIds[i]);
+    const replacement = byId.get(uniqueValidIds[i]);
     if (replacement) {
       sorted[slotIdx] = replacement;
     }

@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Sprint, Task, TaskStatus, Question, User, Property } from '../types';
+import { Sprint, Task, TaskStatus, Question, User } from '../types';
 import { hasFinalDecision } from '../utils/questions';
-import { getScrollBehavior } from '../utils/taskMotion';
 import { MeetingControlDock } from './MeetingControlDock';
-import { useConfirm } from './ui';
 import { MeetingHeader, MeetingStepId } from './meeting/MeetingHeader';
 import { MeetingRetroStep } from './meeting/MeetingRetroStep';
 import { MeetingQuestionsStep } from './meeting/MeetingQuestionsStep';
@@ -16,7 +14,6 @@ interface MeetingViewProps {
   questions: Question[];
   users: User[];
   currentUser: User | null;
-  properties: Property[];
   onOpenCloseSprintModal: () => void;
   onUpdateTaskStatus: (taskId: number, status: TaskStatus) => void;
   onAssignTask: (taskId: number, userId: number | null) => void;
@@ -30,6 +27,17 @@ interface MeetingViewProps {
   onEditQuestion?: (question: Question) => void;
   hasOpenModal?: boolean;
   isReadOnly: boolean;
+}
+
+function readStoredParticipantId(key: string): number | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -58,28 +66,23 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   isReadOnly,
 }) => {
   const isAdmin = currentUser?.role === 'admin';
-  const confirm = useConfirm();
   const [meetingStep, setMeetingStep] = useState<MeetingStepId>('retro');
 
   // Rôles de la réunion (Animateur & Rédacteur)
   const [animatorId, setAnimatorId] = useState<number>(() => {
-    const stored = localStorage.getItem('meeting_animator_id');
-    if (stored) return Number(stored);
+    const stored = readStoredParticipantId('meeting_animator_id');
+    if (stored) return stored;
     const chris = users.find((u) => u.name.toLowerCase().includes('chris'));
     return chris ? chris.id : users[0]?.id || 1;
   });
   const [scribeId, setScribeId] = useState<number>(() => {
-    const stored = localStorage.getItem('meeting_scribe_id');
-    if (stored) return Number(stored);
+    const stored = readStoredParticipantId('meeting_scribe_id');
+    if (stored) return stored;
     const max = users.find((u) => u.name.toLowerCase().includes('max'));
     return max ? max.id : users[1]?.id || users[0]?.id || 1;
   });
 
-  const [openProposalDrawers, setOpenProposalDrawers] = useState<Record<number, boolean>>({});
   const [expandedAccordions, setExpandedAccordions] = useState<Record<number, boolean>>({});
-  const [decisionInputs, setDecisionInputs] = useState<Record<number, string>>({});
-  const [isSubmittingDecision, setIsSubmittingDecision] = useState<Record<number, boolean>>({});
-  const decisionInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   // Scroll-spy & navigation directe via la barre flottante gauche
   const [activeAnchor, setActiveAnchor] = useState<number | 'pool' | null>(null);
@@ -179,26 +182,41 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     setExpandedAccordions((prev) => ({ ...prev, [userId]: !prev[userId] }));
   }, []);
 
-  const pendingAllTasks = useMemo(() => tasks.filter((t) => t.status === 'pending'), [tasks]);
-  const pendingUnassigned = useMemo(
-    () => pendingAllTasks.filter((t) => !t.assigned_to),
-    [pendingAllTasks]
-  );
-  const pendingAssigned = useMemo(
-    () => pendingAllTasks.filter((t) => !!t.assigned_to),
-    [pendingAllTasks]
-  );
-  const activeSprintTasks = useMemo(() => tasks.filter((t) => t.status !== 'pending'), [tasks]);
-  const doneTasks = useMemo(
-    () => activeSprintTasks.filter((t) => t.status === 'done'),
-    [activeSprintTasks]
-  );
-  const unfinishedSprintTasks = useMemo(
-    () => activeSprintTasks.filter((t) => t.status !== 'done'),
-    [activeSprintTasks]
-  );
-  const undecidedQuestions = useMemo(
-    () => questions.filter((q) => !hasFinalDecision(q)),
+  const {
+    pendingUnassigned,
+    pendingAssigned,
+    activeSprintTasks,
+    doneCount,
+    unfinishedCount,
+  } = useMemo(() => {
+    const pendingUn: Task[] = [];
+    const pendingAs: Task[] = [];
+    const active: Task[] = [];
+    let done = 0;
+    let unfinished = 0;
+
+    for (const t of tasks) {
+      if (t.status === 'pending') {
+        if (t.assigned_to) pendingAs.push(t);
+        else pendingUn.push(t);
+      } else {
+        active.push(t);
+        if (t.status === 'done') done += 1;
+        else unfinished += 1;
+      }
+    }
+
+    return {
+      pendingUnassigned: pendingUn,
+      pendingAssigned: pendingAs,
+      activeSprintTasks: active,
+      doneCount: done,
+      unfinishedCount: unfinished,
+    };
+  }, [tasks]);
+
+  const undecidedQuestionsCount = useMemo(
+    () => questions.reduce((acc, q) => (hasFinalDecision(q) ? acc : acc + 1), 0),
     [questions]
   );
 
@@ -210,20 +228,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (hasOpenModal) return;
-
-      if (e.key === 'Escape') {
-        if (isShortcutsModalOpen) {
-          e.preventDefault();
-          setIsShortcutsModalOpen(false);
-        }
-        return;
-      }
+      if (e.isComposing || hasOpenModal) return;
 
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       const targetEl = e.target as HTMLElement | null;
       if (targetEl && targetEl.closest('input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) {
         return;
       }
 
@@ -330,6 +344,32 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     onOpenCloseSprintModal,
   ]);
 
+  const handleChangeAnimator = useCallback((val: number) => {
+    setAnimatorId(val);
+    try {
+      localStorage.setItem('meeting_animator_id', String(val));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, []);
+
+  const handleChangeScribe = useCallback((val: number) => {
+    setScribeId(val);
+    try {
+      localStorage.setItem('meeting_scribe_id', String(val));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, []);
+
+  const handleAddPendingTask = useCallback(() => {
+    onAddNewTask?.(null);
+  }, [onAddNewTask]);
+
+  const handleAddQuestion = useCallback(() => {
+    onAddNewQuestion?.();
+  }, [onAddNewQuestion]);
+
   if (!sprint) {
     return (
       <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center text-[var(--cdh-text-secondary)] text-sm">
@@ -337,75 +377,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       </div>
     );
   }
-
-  const userIdsSet = new Set(users.map((u) => u.id));
-  const orderedMeetingQuestions: Question[] = [
-    ...users.flatMap((u) => questions.filter((q) => q.user_id === u.id)),
-    ...questions.filter((q) => !userIdsSet.has(q.user_id)),
-  ];
-
-  const focusNextDecisionInput = (currentQuestionId: number) => {
-    const idx = orderedMeetingQuestions.findIndex((q) => q.id === currentQuestionId);
-    if (idx === -1) return;
-    const nextQ = orderedMeetingQuestions[idx + 1];
-    if (!nextQ) return;
-    window.setTimeout(() => {
-      const nextEl = decisionInputRefs.current[nextQ.id];
-      if (nextEl) {
-        nextEl.focus();
-        nextEl.scrollIntoView({ behavior: getScrollBehavior(), block: 'center' });
-      }
-    }, 50);
-  };
-
-  const handleSaveDecision = async (questionId: number, advanceToNext: boolean = false) => {
-    const existingQuestion = questions.find((q) => q.id === questionId);
-    const savedAnswer = (existingQuestion?.final_answer || '').trim();
-    const text =
-      decisionInputs[questionId] !== undefined ? decisionInputs[questionId].trim() : savedAnswer;
-    if (!text) return;
-
-    if (text === savedAnswer) {
-      if (advanceToNext) focusNextDecisionInput(questionId);
-      return;
-    }
-    if (!onSetQuestionDecision) return;
-
-    setIsSubmittingDecision((prev) => ({ ...prev, [questionId]: true }));
-    try {
-      await onSetQuestionDecision(questionId, text);
-      setDecisionInputs((prev) => {
-        const next = { ...prev };
-        delete next[questionId];
-        return next;
-      });
-      if (advanceToNext) focusNextDecisionInput(questionId);
-    } catch {
-      // Notification gérée globalement
-    } finally {
-      setIsSubmittingDecision((prev) => ({ ...prev, [questionId]: false }));
-    }
-  };
-
-  const handleClearDecision = async (questionId: number) => {
-    const confirmed = await confirm({
-      title: 'Effacer la décision',
-      message: 'Effacer la réponse définitive pour remettre cette question à trancher ?',
-      confirmLabel: 'Effacer',
-      variant: 'warning',
-    });
-    if (!confirmed) return;
-    try {
-      await onSetQuestionDecision?.(questionId, '');
-      setDecisionInputs((prev) => {
-        const next = { ...prev };
-        delete next[questionId];
-        return next;
-      });
-    } catch {
-      // Notification gérée globalement
-    }
-  };
 
   return (
     <div
@@ -423,27 +394,21 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         meetingStep={meetingStep}
         onChangeStep={handleChangeStep}
         animatorId={animatorId}
-        onChangeAnimator={(val) => {
-          setAnimatorId(val);
-          localStorage.setItem('meeting_animator_id', String(val));
-        }}
+        onChangeAnimator={handleChangeAnimator}
         scribeId={scribeId}
-        onChangeScribe={(val) => {
-          setScribeId(val);
-          localStorage.setItem('meeting_scribe_id', String(val));
-        }}
+        onChangeScribe={handleChangeScribe}
         stats={{
           total: activeSprintTasks.length,
-          done: doneTasks.length,
-          toCarryOver: unfinishedSprintTasks.length,
+          done: doneCount,
+          toCarryOver: unfinishedCount,
           unassigned: pendingUnassigned.length,
         }}
-        undecidedQuestionsCount={undecidedQuestions.length}
+        undecidedQuestionsCount={undecidedQuestionsCount}
         pendingTotalCount={pendingUnassigned.length + pendingAssigned.length}
         showAddPendingTask={showFab}
-        onAddPendingTask={() => onAddNewTask?.(null)}
+        onAddPendingTask={handleAddPendingTask}
         canCreateQuestion={canCreateQuestion}
-        onAddQuestion={() => onAddNewQuestion?.()}
+        onAddQuestion={handleAddQuestion}
         onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
         onOpenCloseSprint={onOpenCloseSprintModal}
       />
@@ -472,29 +437,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           currentUser={currentUser}
           isAdmin={isAdmin}
           isReadOnly={isReadOnly}
-          decisionInputs={decisionInputs}
-          isSubmittingDecision={isSubmittingDecision}
-          openProposalDrawers={openProposalDrawers}
-          decisionInputRefs={decisionInputRefs}
-          onChangeDecisionInput={(qId, val) =>
-            setDecisionInputs((prev) => ({ ...prev, [qId]: val }))
-          }
-          onResetDecisionInput={(qId) =>
-            setDecisionInputs((prev) => {
-              const next = { ...prev };
-              delete next[qId];
-              return next;
-            })
-          }
-          onToggleProposals={(qId) =>
-            setOpenProposalDrawers((prev) => ({ ...prev, [qId]: !prev[qId] }))
-          }
-          onSelectProposition={(qId, content) => {
-            setDecisionInputs((prev) => ({ ...prev, [qId]: content }));
-            window.setTimeout(() => decisionInputRefs.current[qId]?.focus(), 30);
-          }}
-          onSaveDecision={handleSaveDecision}
-          onClearDecision={handleClearDecision}
+          onSetQuestionDecision={onSetQuestionDecision}
           onEditQuestion={onEditQuestion}
         />
       )}
@@ -522,7 +465,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         pendingUnassignedCount={pendingUnassigned.length}
         showAddPendingTask={showFab}
         onSelectParticipant={scrollToSection}
-        onAddPendingTask={() => onAddNewTask?.(null)}
+        onAddPendingTask={handleAddPendingTask}
       />
 
       <MeetingShortcutsModal

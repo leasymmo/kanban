@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { computePopoverPosition, PopoverStylePosition, toPopoverStyle } from './popoverPosition';
+import { useAnchoredPopover } from '../../hooks/useAnchoredPopover';
 
 export interface DatePickerProps {
   value: string;
@@ -15,7 +15,16 @@ export interface DatePickerProps {
   className?: string;
 }
 
-const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const WEEKDAYS = [
+  { short: 'L', full: 'Lundi' },
+  { short: 'M', full: 'Mardi' },
+  { short: 'M', full: 'Mercredi' },
+  { short: 'J', full: 'Jeudi' },
+  { short: 'V', full: 'Vendredi' },
+  { short: 'S', full: 'Samedi' },
+  { short: 'D', full: 'Dimanche' },
+];
+
 const MONTHS_FR = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
@@ -51,10 +60,22 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const selectedDate = useMemo(() => parseIsoDate(value), [value]);
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState<Date>(() => selectedDate || new Date());
-  const [popoverPos, setPopoverPos] = useState<PopoverStylePosition>({ bottom: 0, left: 0, maxHeight: 360 });
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const handleClose = useCallback(() => setIsOpen(false), []);
+
+  const popoverStyle = useAnchoredPopover({
+    isOpen,
+    onClose: handleClose,
+    triggerRef,
+    popoverRef,
+    width: 280,
+    preferredPlacement: variant === 'icon-pill' ? 'above' : 'below',
+    minSpaceNeeded: variant === 'icon-pill' ? 240 : 320,
+    gap: 8,
+    viewportPadding: 8,
+  });
 
   useEffect(() => {
     if (selectedDate) {
@@ -62,65 +83,16 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     }
   }, [value]);
 
-  const computePosition = (): PopoverStylePosition =>
-    computePopoverPosition(triggerRef.current, {
-      width: 280,
-      preferredPlacement: variant === 'icon-pill' ? 'above' : 'below',
-      minSpaceNeeded: variant === 'icon-pill' ? 240 : 320,
-      gap: 8,
-      viewportPadding: 8
-    });
-
   const toggleCalendar = () => {
     if (disabled) return;
-    if (!isOpen) {
-      setPopoverPos(computePosition());
-      setIsOpen(true);
-    } else {
-      setIsOpen(false);
-    }
+    setIsOpen((prev) => !prev);
   };
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleResize = () => setPopoverPos(computePosition());
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(target) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('resize', handleResize);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [isOpen, variant]);
 
   const daysGrid = useMemo(() => {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
     const firstDay = new Date(year, month, 1);
-    const startOffset = (firstDay.getDay() + 6) % 7; // Lundi = 0
+    const startOffset = (firstDay.getDay() + 6) % 7;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const cells: Array<Date | null> = [];
     for (let i = 0; i < startOffset; i++) cells.push(null);
@@ -154,6 +126,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           ref={triggerRef}
           type="button"
           disabled={disabled}
+          aria-haspopup="dialog"
           aria-label={selectedDate ? `Échéance : ${formattedLabel}` : ariaLabel}
           title={selectedDate ? `Échéance : ${formattedLabel}` : 'Définir une échéance'}
           aria-expanded={isOpen}
@@ -185,6 +158,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
             ref={triggerRef}
             type="button"
             disabled={disabled}
+            aria-haspopup="dialog"
             aria-label={ariaLabel}
             aria-expanded={isOpen}
             onClick={toggleCalendar}
@@ -215,7 +189,9 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={popoverRef}
-          style={toPopoverStyle(popoverPos, 280)}
+          role="dialog"
+          aria-label={ariaLabel}
+          style={popoverStyle}
           className="fixed z-[80] cdh-glass-overlay rounded-cdh-xl p-3 animate-fade-in select-none overflow-y-auto"
         >
           {/* En-tête Mois / Année */}
@@ -250,12 +226,13 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           {/* Jours de la semaine */}
           <div className="grid grid-cols-7 gap-1 mb-1 text-center">
             {WEEKDAYS.map((day, idx) => (
-              <span
+              <abbr
                 key={idx}
-                className="text-[10.5px] font-semibold text-[var(--cdh-text-tertiary)] py-1"
+                title={day.full}
+                className="no-underline text-[10.5px] font-semibold text-[var(--cdh-text-tertiary)] py-1"
               >
-                {day}
-              </span>
+                {day.short}
+              </abbr>
             ))}
           </div>
 
@@ -273,6 +250,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
                 <button
                   key={iso}
                   type="button"
+                  aria-label={cell.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  aria-pressed={isSelected}
                   onClick={() => {
                     onChange(iso);
                     setIsOpen(false);

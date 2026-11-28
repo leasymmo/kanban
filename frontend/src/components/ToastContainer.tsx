@@ -48,7 +48,6 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({
 
   return (
     <div
-      aria-live="polite"
       className={`fixed z-[60] ${
         hasBottomDock
           ? 'bottom-[max(5.25rem,calc(4.5rem+env(safe-area-inset-bottom)))] lg:bottom-5'
@@ -61,6 +60,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({
           <div
             key={toast.id}
             role={style.role}
+            aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
             aria-atomic="true"
             className={`pointer-events-auto cdh-glass-overlay ${style.borderAccent} rounded-cdh-xl p-3 flex items-start gap-2.5 animate-toast-in transition-all`}
           >

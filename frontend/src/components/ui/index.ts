@@ -1,6 +1,3 @@
-export { GlassSurface } from './GlassSurface';
-export type { GlassSurfaceProps } from './GlassSurface';
-
 export { Button } from './Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
 
@@ -40,3 +37,15 @@ export type { PropertyMultiSelectProps } from './PropertyMultiSelect';
 
 export { StatusIconPicker } from './StatusIconPicker';
 export type { StatusIconPickerProps } from './StatusIconPicker';
+
+export { PropertyPill } from './PropertyPill';
+export type { PropertyPillProps } from './PropertyPill';
+
+export { TaskOriginBadges } from './TaskOriginBadges';
+export type { TaskOriginBadgesProps } from './TaskOriginBadges';
+
+export { TaskSubtaskTree } from './TaskSubtaskTree';
+export type { TaskSubtaskTreeProps } from './TaskSubtaskTree';
+
+export { PropertySelectField } from './PropertySelectField';
+export type { PropertySelectFieldProps } from './PropertySelectField';

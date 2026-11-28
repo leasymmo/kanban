@@ -1,11 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useId, useMemo } from 'react';
 import { Task, User, Property, TaskPriority } from '../types';
 import { ensureWhiteTextContrast } from '../utils/color';
-import { useModalDialog } from '../hooks/useModalDialog';
-import { Avatar, PropertyMultiSelect, TaskMetaBar } from './ui';
-import {
-  X, Sparkles, Plus, Trash2, AlertCircle
-} from 'lucide-react';
+import { Avatar, Badge, Button, Modal, PropertySelectField, TaskMetaBar } from './ui';
+import { Sparkles, Plus, Trash2, AlertCircle } from 'lucide-react';
 
 interface MeetingQuickTaskModalProps {
   isOpen: boolean;
@@ -39,9 +36,14 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
 }) => {
   const isEdit = !!editingTask;
   const isAdmin = currentUser?.role === 'admin';
-  const assignableUsers = isAdmin
-    ? users
-    : users.filter(u => u.id === currentUser?.id);
+  const assignableUsers = useMemo(
+    () => (isAdmin ? users : users.filter((u) => u.id === currentUser?.id)),
+    [isAdmin, users, currentUser?.id]
+  );
+
+  const titleInputId = useId();
+  const notesInputId = useId();
+  const subtaskInputId = useId();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -54,11 +56,6 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dialogRef = useModalDialog({
-    isOpen,
-    onClose,
-    canClose: !isSubmitting
-  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -94,17 +91,21 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
   }, [isOpen, editingTask]);
 
   const toggleProperty = useCallback((propId: number) => {
-    setSelectedPropertyIds(prev =>
-      prev.includes(propId) ? prev.filter(id => id !== propId) : [...prev, propId]
+    setSelectedPropertyIds((prev) =>
+      prev.includes(propId) ? prev.filter((id) => id !== propId) : [...prev, propId]
     );
   }, []);
 
-  if (!isOpen) return null;
+  const handleSelectAllProperties = useCallback(
+    () => setSelectedPropertyIds(properties.map((p) => p.id)),
+    [properties]
+  );
+  const handleSelectNoProperties = useCallback(() => setSelectedPropertyIds([]), []);
 
   const handleAddSubtask = () => {
     const clean = newSubtaskTitle.trim();
     if (!clean) return;
-    setSubtasks(prev => [
+    setSubtasks((prev) => [
       ...prev,
       {
         temp_id: `qst-${Date.now()}-${Math.random()}`,
@@ -133,7 +134,7 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
         : (assignedTo !== '' && Number(assignedTo) === currentUser?.id ? currentUser.id : null);
 
       const formattedSubtasks = subtasks
-        .filter(st => st.title.trim() !== '')
+        .filter((st) => st.title.trim() !== '')
         .map((st, idx) => ({
           id: st.id,
           temp_id: st.temp_id,
@@ -173,294 +174,247 @@ export const MeetingQuickTaskModal: React.FC<MeetingQuickTaskModalProps> = ({
 
   const multiCount = !isEdit ? selectedPropertyIds.length : 1;
   const isMultiCreate = !isEdit && multiCount > 1;
+  const modalTitle = isEdit
+    ? editingTask?.title || 'Modifier la tâche'
+    : isMultiCreate
+    ? `Créer ${multiCount} tâches en attente`
+    : 'Nouvelle tâche en attente';
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 pb-[var(--cdh-vv-bottom,0px)] sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
-      onClick={() => !isSubmitting && onClose()}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="meeting-quick-task-modal-title"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        className="cdh-glass-overlay rounded-t-cdh-2xl sm:rounded-cdh-2xl max-w-xl w-full overflow-hidden max-h-[min(92dvh,calc(var(--cdh-vv-height,100dvh)-16px))] sm:max-h-[90dvh] flex flex-col animate-sheet-up sm:animate-modal-in focus:outline-none"
-      >
+  const headerBadge = (
+    <Badge variant="accent">
+      <Sparkles className="w-2.5 h-2.5" strokeWidth={2.25} />
+      {assignedTo === '' ? `En attente · Point ${nextSprintNumber}` : `Point ${nextSprintNumber} · Nouveau`}
+    </Badge>
+  );
 
-        {/* Header Liquid Glass compact */}
-        <div className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-3 border-b border-[var(--cdh-border-hairline)] shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
-            <h2 id="meeting-quick-task-modal-title" className="text-[15px] sm:text-[16px] font-semibold tracking-[-0.015em] text-[var(--cdh-text-primary)] truncate">
-              {isEdit
-                ? editingTask?.title
-                : isMultiCreate
-                ? `Créer ${multiCount} tâches en attente`
-                : 'Nouvelle tâche en attente'}
-            </h2>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] shrink-0">
-              <Sparkles className="w-2.5 h-2.5" strokeWidth={2.25} />
-              {assignedTo === '' ? `En attente · Point ${nextSprintNumber}` : `Point ${nextSprintNumber} · Nouveau`}
-            </span>
-          </div>
+  const footer = (
+    <div className="w-full flex flex-wrap items-center justify-between gap-2.5">
+      <TaskMetaBar
+        users={assignableUsers}
+        assignedTo={assignedTo}
+        onChangeAssignee={setAssignedTo}
+        showAssignee={false}
+        status="todo"
+        onChangeStatus={() => {}}
+        showStatus={false}
+        priority={priority}
+        onChangePriority={setPriority}
+        dueDate={dueDate}
+        onChangeDueDate={setDueDate}
+        markOverdue={true}
+      />
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fermer la fenêtre"
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
-          >
-            <X className="w-4 h-4" strokeWidth={1.75} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 min-w-0">
-          <div className="p-4 sm:px-5 sm:py-4 space-y-3 overflow-y-auto overflow-x-hidden flex-1 min-w-0">
-            {error && (
-              <div className="px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" strokeWidth={1.75} />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {/* 1. Intitulé */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Intitulé {isMultiCreate ? 'des tâches' : 'de la tâche'} *
-              </label>
-              <input
-                type="text"
-                autoFocus
-                required
-                placeholder="Ex: Contacter le serrurier, préparer devis propriétaire..."
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-1.5 border border-black/[0.12] rounded-lg text-sm font-medium text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              />
-            </div>
-
-            {/* 2. Responsable */}
-            <div className="pt-2.5 border-t border-black/[0.12]">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                Responsable
-              </label>
-              {!isAdmin && isEdit && editingTask?.assigned_to && editingTask.assigned_to !== currentUser?.id ? (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-black/[0.12] bg-slate-100 text-slate-700">
-                  <span>Attribuée à {editingTask.assigned_to_name || `#${editingTask.assigned_to}`} (lecture seule)</span>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {assignableUsers.map((u) => {
-                    const isSelected = assignedTo === u.id;
-                    const avatarBg = ensureWhiteTextContrast(u.avatar_color);
-                    const firstName = u.name.split(' ')[0];
-                    return (
-                      <button
-                        type="button"
-                        key={u.id}
-                        aria-pressed={isSelected}
-                        onClick={() => setAssignedTo(isSelected ? '' : u.id)}
-                        className={`inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[32px] rounded-full text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
-                          isSelected
-                            ? 'text-white border-transparent shadow-xs'
-                            : 'bg-white text-slate-700 border-black/[0.12] hover:bg-slate-50'
-                        }`}
-                        style={isSelected ? { backgroundColor: avatarBg } : undefined}
-                      >
-                        <Avatar
-                          initials={u.initials}
-                          color={avatarBg}
-                          size="xs"
-                          className={isSelected ? 'ring-white/40' : ''}
-                        />
-                        <span>{firstName}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* 2. Notes */}
-            <div className="pt-2.5 border-t border-black/[0.12]">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Notes
-              </label>
-              <textarea
-                rows={2}
-                placeholder="Précisions actées pendant la réunion..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              />
-            </div>
-
-            {/* 3. Sous-tâches rapides */}
-            <div className="pt-2.5 border-t border-black/[0.12] space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  Sous-tâches
-                </label>
-                {subtasks.length > 0 && (
-                  <span className="text-[11px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">
-                    {subtasks.length} étape{subtasks.length > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-
-              {subtasks.length > 0 && (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 py-0.5">
-                  {subtasks.map(st => (
-                    <div
-                      key={st.temp_id}
-                      className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-black/[0.12] text-xs"
-                    >
-                      <span className="text-slate-700 font-medium truncate">{st.title}</span>
-                      <button
-                        type="button"
-                        onClick={() => setSubtasks(prev => prev.filter(item => item.temp_id !== st.temp_id))}
-                        className="text-slate-400 hover:text-red-500 cursor-pointer shrink-0"
-                        title="Retirer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Ajouter une étape..."
-                  value={newSubtaskTitle}
-                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddSubtask();
-                    }
-                  }}
-                  className="flex-1 px-3 py-1.5 border border-black/[0.12] rounded-lg text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddSubtask}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-                  Ajouter
-                </button>
-              </div>
-            </div>
-
-            {/* 4. Logement(s) concerné(s) */}
-            <div className="pt-2.5 border-t border-black/[0.12] min-w-0">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  {isEdit ? 'Logement concerné' : 'Logement(s) concerné(s)'}
-                </label>
-                {!isEdit && properties.length > 0 && (
-                  <div className="flex items-center gap-2 text-[11px] font-semibold">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPropertyIds(properties.map(p => p.id))}
-                      className="text-brand-600 hover:text-brand-800 cursor-pointer"
-                    >
-                      Tout sélectionner
-                    </button>
-                    {selectedPropertyIds.length > 0 && (
-                      <>
-                        <span className="text-slate-300">|</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPropertyIds([])}
-                          className="text-slate-500 hover:text-slate-700 cursor-pointer"
-                        >
-                          Aucun
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {isEdit ? (
-                <select
-                  value={propertyId}
-                  onChange={(e) => setPropertyId(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full px-2.5 py-1.5 border border-black/[0.12] rounded-lg text-sm text-slate-800 bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none cursor-pointer"
-                >
-                  <option value="">Aucun / Tâche générale</option>
-                  {editingTask?.property_id && !properties.some(p => p.id === editingTask.property_id) && (
-                    <option value={editingTask.property_id}>
-                      {editingTask.property_name || `Hébergement #${editingTask.property_id}`} (désactivé)
-                    </option>
-                  )}
-                  {properties.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {Number(p.is_active) === 0 ? `${p.name} (désactivé)` : p.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <PropertyMultiSelect
-                  properties={properties}
-                  selectedIds={selectedPropertyIds}
-                  onToggle={toggleProperty}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Footer fixe compact avec barre d'icônes unifiée */}
-          <div className="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-slate-50 border-t border-[var(--cdh-border-hairline)] flex items-center justify-between gap-2.5 shrink-0">
-            <TaskMetaBar
-              users={assignableUsers}
-              assignedTo={assignedTo}
-              onChangeAssignee={setAssignedTo}
-              showAssignee={false}
-              status="todo"
-              onChangeStatus={() => {}}
-              showStatus={false}
-              priority={priority}
-              onChangePriority={setPriority}
-              dueDate={dueDate}
-              onChangeDueDate={setDueDate}
-              markOverdue={true}
-            />
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isSubmitting}
-                className="hidden sm:inline-flex items-center justify-center px-3.5 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl sm:rounded-lg cursor-pointer transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className={`px-4 py-2 sm:py-1.5 min-h-[42px] sm:min-h-0 text-white rounded-xl sm:rounded-lg text-sm font-bold shadow-sm transition-all cursor-pointer disabled:opacity-60 ${
-                  isMultiCreate
-                    ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/25'
-                    : 'bg-brand-600 hover:bg-brand-700 shadow-brand-600/25'
-                }`}
-              >
-                {isSubmitting
-                  ? 'Enregistrement...'
-                  : isEdit
-                  ? 'Enregistrer'
-                  : isMultiCreate
-                  ? `Créer les ${multiCount} tâches`
-                  : 'Mettre en attente'}
-              </button>
-            </div>
-          </div>
-        </form>
+      <div className="flex items-center gap-2 shrink-0 ml-auto">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          disabled={isSubmitting}
+          className="hidden sm:inline-flex"
+        >
+          Annuler
+        </Button>
+        <Button
+          type="submit"
+          variant="primary"
+          size="sm"
+          isLoading={isSubmitting}
+          disabled={isSubmitting}
+        >
+          {isSubmitting
+            ? 'Enregistrement...'
+            : isEdit
+            ? 'Enregistrer'
+            : isMultiCreate
+            ? `Créer les ${multiCount} tâches`
+            : 'Mettre en attente'}
+        </Button>
       </div>
     </div>
+  );
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={modalTitle}
+      headerBadge={headerBadge}
+      maxWidthClass="max-w-xl"
+      canClose={!isSubmitting}
+      asForm
+      onSubmit={handleSubmit}
+      bodyClassName="p-4 sm:px-5 sm:py-4 space-y-3 overflow-y-auto overflow-x-hidden flex-1 min-w-0"
+      footerClassName="px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 bg-[var(--cdh-surface-control)] border-t border-[var(--cdh-border-hairline)] shrink-0"
+      footer={footer}
+    >
+      {error && (
+        <div
+          role="alert"
+          className="px-3 py-2 bg-[var(--cdh-danger-soft)] text-[var(--cdh-danger)] border border-[var(--cdh-danger-accent)]/30 rounded-cdh-md text-xs flex items-center gap-2 font-medium"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0" strokeWidth={1.75} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div>
+        <label
+          htmlFor={titleInputId}
+          className="block text-[11px] font-bold text-[var(--cdh-text-secondary)] uppercase tracking-wider mb-1"
+        >
+          Intitulé {isMultiCreate ? 'des tâches' : 'de la tâche'} *
+        </label>
+        <input
+          id={titleInputId}
+          type="text"
+          autoFocus
+          required
+          placeholder="Ex: Contacter le serrurier, préparer devis propriétaire..."
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-3 py-1.5 bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] rounded-cdh-md text-sm font-medium text-[var(--cdh-text-primary)] placeholder:text-[var(--cdh-text-tertiary)] focus:border-[var(--cdh-border-focus)] focus:ring-2 focus:ring-[var(--cdh-accent-soft)] focus:outline-none"
+        />
+      </div>
+
+      <div className="pt-2.5 border-t border-[var(--cdh-border-hairline)]">
+        <span className="block text-[11px] font-bold text-[var(--cdh-text-secondary)] uppercase tracking-wider mb-1.5">
+          Responsable
+        </span>
+        {!isAdmin && isEdit && editingTask?.assigned_to && editingTask.assigned_to !== currentUser?.id ? (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-[var(--cdh-border-subtle)] bg-[var(--cdh-surface-control)] text-[var(--cdh-text-secondary)]">
+            <span>Attribuée à {editingTask.assigned_to_name || `#${editingTask.assigned_to}`} (lecture seule)</span>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {assignableUsers.map((u) => {
+              const isSelected = assignedTo === u.id;
+              const avatarBg = ensureWhiteTextContrast(u.avatar_color);
+              const firstName = u.name.split(' ')[0];
+              return (
+                <button
+                  type="button"
+                  key={u.id}
+                  aria-pressed={isSelected}
+                  onClick={() => setAssignedTo(isSelected ? '' : u.id)}
+                  className={`inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[32px] rounded-full text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
+                    isSelected
+                      ? 'text-white border-transparent shadow-xs'
+                      : 'bg-[var(--cdh-surface-card)] text-[var(--cdh-text-primary)] border-[var(--cdh-border-subtle)] hover:bg-[var(--cdh-surface-control)]'
+                  }`}
+                  style={isSelected ? { backgroundColor: avatarBg } : undefined}
+                >
+                  <Avatar
+                    initials={u.initials}
+                    color={avatarBg}
+                    size="xs"
+                    className={isSelected ? 'ring-white/40' : ''}
+                  />
+                  <span>{firstName}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="pt-2.5 border-t border-[var(--cdh-border-hairline)]">
+        <label
+          htmlFor={notesInputId}
+          className="block text-[11px] font-bold text-[var(--cdh-text-secondary)] uppercase tracking-wider mb-1"
+        >
+          Notes
+        </label>
+        <textarea
+          id={notesInputId}
+          rows={2}
+          placeholder="Précisions actées pendant la réunion..."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full px-3 py-1.5 bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] rounded-cdh-md text-sm text-[var(--cdh-text-primary)] placeholder:text-[var(--cdh-text-tertiary)] focus:border-[var(--cdh-border-focus)] focus:ring-2 focus:ring-[var(--cdh-accent-soft)] focus:outline-none"
+        />
+      </div>
+
+      <div className="pt-2.5 border-t border-[var(--cdh-border-hairline)] space-y-2">
+        <div className="flex items-center justify-between">
+          <label
+            htmlFor={subtaskInputId}
+            className="text-[11px] font-bold text-[var(--cdh-text-secondary)] uppercase tracking-wider"
+          >
+            Sous-tâches
+          </label>
+          {subtasks.length > 0 && (
+            <span className="text-[11px] text-[var(--cdh-text-secondary)] font-semibold bg-[var(--cdh-surface-control)] px-2 py-0.5 rounded-full tabular-nums">
+              {subtasks.length} étape{subtasks.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {subtasks.length > 0 && (
+          <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 py-0.5">
+            {subtasks.map((st) => (
+              <div
+                key={st.temp_id}
+                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-cdh-md bg-[var(--cdh-surface-card)] border border-[var(--cdh-border-hairline)] text-xs"
+              >
+                <span className="text-[var(--cdh-text-primary)] font-medium truncate">{st.title}</span>
+                <button
+                  type="button"
+                  aria-label={`Retirer l'étape ${st.title}`}
+                  onClick={() => setSubtasks((prev) => prev.filter((item) => item.temp_id !== st.temp_id))}
+                  className="text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-danger)] cursor-pointer shrink-0 p-0.5 rounded"
+                  title="Retirer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <input
+            id={subtaskInputId}
+            type="text"
+            placeholder="Ajouter une étape..."
+            value={newSubtaskTitle}
+            onChange={(e) => setNewSubtaskTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddSubtask();
+              }
+            }}
+            className="flex-1 min-w-0 px-3 py-1.5 bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] rounded-cdh-md text-xs text-[var(--cdh-text-primary)] placeholder:text-[var(--cdh-text-tertiary)] focus:border-[var(--cdh-border-focus)] focus:ring-2 focus:ring-[var(--cdh-accent-soft)] focus:outline-none"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={handleAddSubtask}
+            leftIcon={<Plus className="w-3.5 h-3.5" strokeWidth={2} />}
+            className="shrink-0"
+          >
+            Ajouter
+          </Button>
+        </div>
+      </div>
+
+      <PropertySelectField
+        isEdit={isEdit}
+        properties={properties}
+        propertyId={propertyId}
+        onChangePropertyId={setPropertyId}
+        selectedPropertyIds={selectedPropertyIds}
+        onToggleSelectedProperty={toggleProperty}
+        onSelectAll={handleSelectAllProperties}
+        onSelectNone={handleSelectNoProperties}
+        orphanProperty={
+          editingTask?.property_id
+            ? { id: editingTask.property_id, name: editingTask.property_name }
+            : null
+        }
+      />
+    </Modal>
   );
 };

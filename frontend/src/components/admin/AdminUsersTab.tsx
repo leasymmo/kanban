@@ -87,32 +87,45 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.email.trim()) {
+    const cleanName = formData.name.trim();
+    const cleanEmail = formData.email.trim();
+    if (!cleanName || !cleanEmail) {
       onFeedback('error', "Le nom et l'email sont requis.");
       return;
     }
-    if (isCreating && !formData.password.trim()) {
-      onFeedback('error', 'Le mot de passe est obligatoire pour la création.');
+    if (isCreating && formData.password.length < 6) {
+      onFeedback('error', 'Le mot de passe doit contenir au moins 6 caractères.');
+      return;
+    }
+    if (!isCreating && formData.password !== '' && formData.password.length < 6) {
+      onFeedback('error', 'Le nouveau mot de passe doit contenir au moins 6 caractères.');
       return;
     }
 
     setActionLoading(true);
     try {
       if (isCreating) {
-        const res = await api.createUser(formData);
+        const res = await api.createUser({
+          name: cleanName,
+          email: cleanEmail,
+          password: formData.password,
+          role: formData.role,
+          avatar_color: formData.avatar_color,
+          initials: formData.initials.trim().toUpperCase(),
+        });
         onUserCreated(res.user);
         onFeedback('success', `Associé « ${res.user.name} » créé avec succès.`);
         setIsCreating(false);
       } else if (editingUser) {
         const payload: Partial<User> & { password?: string } = {
-          name: formData.name.trim(),
-          email: formData.email.trim(),
+          name: cleanName,
+          email: cleanEmail,
           role: formData.role as User['role'],
           avatar_color: formData.avatar_color,
           initials: formData.initials.trim().toUpperCase(),
         };
-        if (formData.password.trim()) {
-          payload.password = formData.password.trim();
+        if (formData.password !== '') {
+          payload.password = formData.password;
         }
         const res = await api.updateUser(editingUser.id, payload);
         onUserUpdated(res.user);
@@ -188,7 +201,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
               )}
               {isCreating ? 'Créer un associé' : `Modifier : ${editingUser?.name}`}
             </h3>
-            <Button size="sm" variant="ghost" onClick={resetForm}>
+            <Button size="sm" variant="ghost" disabled={actionLoading} onClick={resetForm}>
               Annuler
             </Button>
           </div>
@@ -255,7 +268,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
           />
 
           <div className="pt-2.5 border-t border-[var(--cdh-border-hairline)] flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={resetForm}>
+            <Button variant="ghost" size="sm" disabled={actionLoading} onClick={resetForm}>
               Annuler
             </Button>
             <Button type="submit" variant="primary" size="sm" isLoading={actionLoading}>

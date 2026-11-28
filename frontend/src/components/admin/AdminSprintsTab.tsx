@@ -42,22 +42,27 @@ export const AdminSprintsTab: React.FC<AdminSprintsTabProps> = ({
       name: s.name,
       number: s.number,
       notes: s.notes || '',
-      started_at: s.started_at ? s.started_at.split(' ')[0] : '',
+      started_at: s.started_at ? s.started_at.substring(0, 10) : '',
     });
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSprint) return;
+    const cleanName = formData.name.trim();
+    if (!cleanName) {
+      onFeedback('error', 'Le nom du sprint est obligatoire.');
+      return;
+    }
     setActionLoading(true);
     try {
       await onSprintUpdated(editingSprint.id, {
-        name: formData.name.trim(),
+        name: cleanName,
         number: Number(formData.number),
         notes: formData.notes.trim(),
         started_at: formData.started_at || undefined,
       });
-      onFeedback('success', `Le sprint « ${formData.name} » a été mis à jour.`);
+      onFeedback('success', `Le sprint « ${cleanName} » a été mis à jour.`);
       setEditingSprint(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur lors de la mise à jour du sprint.';
@@ -132,7 +137,7 @@ export const AdminSprintsTab: React.FC<AdminSprintsTabProps> = ({
               <Edit2 className="w-4 h-4 text-[var(--cdh-accent)]" strokeWidth={2} />
               Modifier Point {editingSprint.number}
             </h3>
-            <Button size="sm" variant="ghost" onClick={() => setEditingSprint(null)}>
+            <Button size="sm" variant="ghost" disabled={actionLoading} onClick={() => setEditingSprint(null)}>
               Annuler
             </Button>
           </div>
@@ -169,22 +174,17 @@ export const AdminSprintsTab: React.FC<AdminSprintsTabProps> = ({
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-[12px] font-semibold text-[var(--cdh-text-secondary)]">
-                Notes de réunion
-              </label>
-              <input
-                type="text"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Résumé ou contexte…"
-                className="w-full rounded-cdh-md bg-[var(--cdh-surface-input)] border border-[var(--cdh-border-subtle)] px-3 py-2 text-[13.5px] text-[var(--cdh-text-primary)] placeholder:text-[var(--cdh-text-tertiary)] transition-all duration-150 focus:outline-none focus:border-[var(--cdh-border-focus)] focus:ring-[3px] focus:ring-[var(--cdh-accent-soft)]"
-              />
-            </div>
+            <Input
+              label="Notes de réunion"
+              type="text"
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="Résumé ou contexte…"
+            />
           </div>
 
           <div className="pt-2.5 border-t border-[var(--cdh-border-hairline)] flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setEditingSprint(null)}>
+            <Button variant="ghost" size="sm" disabled={actionLoading} onClick={() => setEditingSprint(null)}>
               Annuler
             </Button>
             <Button type="submit" variant="primary" size="sm" isLoading={actionLoading}>

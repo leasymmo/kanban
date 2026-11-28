@@ -4,7 +4,7 @@ function getStoredToken(): string | null {
   return localStorage.getItem('kanban_token');
 }
 
-export function getApiBase(): string {
+function getApiBase(): string {
   if (typeof window === 'undefined') return '/api';
 
   const env = (import.meta as any).env;
@@ -19,10 +19,23 @@ export function getApiBase(): string {
   return `${cleanBase}/api`;
 }
 
+export function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError;
+}
+
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
   const headers = new Headers(options.headers || {});
-  headers.set('Content-Type', 'application/json');
+  if (options.body !== undefined && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  headers.set('X-Requested-With', 'XMLHttpRequest');
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
@@ -39,7 +52,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const errorMsg = data.error || data.message || `Erreur serveur (${response.status}) sur ${url}`;
+    if (
+      response.status === 401 &&
+      !cleanEndpoint.startsWith('/auth/login') &&
+      !cleanEndpoint.startsWith('/auth/me')
+    ) {
+      localStorage.removeItem('kanban_token');
+      unauthorizedHandler?.();
+    }
+    const errorMsg = data.error || data.message || `Erreur serveur (${response.status}).`;
     const err = new Error(errorMsg) as Error & { status?: number };
     err.status = response.status;
     throw err;
@@ -51,8 +72,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 export const api = {
 
   // Auth
-  async login(userIdOrEmail: number | string, password?: string) {
-    const body: Record<string, any> = { password: password || 'password123' };
+  async login(userIdOrEmail: number | string, password: string) {
+    const body: Record<string, any> = { password };
     if (typeof userIdOrEmail === 'number') {
       body.user_id = userIdOrEmail;
     } else {

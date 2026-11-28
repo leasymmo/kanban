@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
 import { CreatedTaskBatch } from '../utils/taskMotion';
 import { useTaskFilters } from '../hooks/useTaskFilters';
@@ -35,7 +35,7 @@ interface TasksTabProps {
   }) => void;
 }
 
-export const TasksTab: React.FC<TasksTabProps> = ({
+export const TasksTab: React.FC<TasksTabProps> = React.memo(({
   tasks,
   properties,
   allUsers,
@@ -56,25 +56,29 @@ export const TasksTab: React.FC<TasksTabProps> = ({
   onToggleStar,
   onOpenCreateTask
 }) => {
+  const userId = currentUser?.id ?? null;
+  const loadedUserIdRef = useRef<number | null>(userId);
+
   const [taskViewMode, setTaskViewModeState] = useState<TaskViewMode>(() => {
-    if (!currentUser) return 'kanban';
-    return getUserPreferences(currentUser.id).taskViewMode ?? 'kanban';
+    if (!userId) return 'kanban';
+    return getUserPreferences(userId).taskViewMode ?? 'kanban';
   });
 
   useEffect(() => {
-    if (!currentUser) return;
-    const prefs = getUserPreferences(currentUser.id);
+    if (!userId || loadedUserIdRef.current === userId) return;
+    loadedUserIdRef.current = userId;
+    const prefs = getUserPreferences(userId);
     setTaskViewModeState(prefs.taskViewMode ?? 'kanban');
-  }, [currentUser?.id]);
+  }, [userId]);
 
   const handleChangeViewMode = useCallback(
     (mode: TaskViewMode) => {
       setTaskViewModeState(mode);
-      if (currentUser) {
-        saveUserPreferences(currentUser.id, { taskViewMode: mode });
+      if (userId) {
+        saveUserPreferences(userId, { taskViewMode: mode });
       }
     },
-    [currentUser]
+    [userId]
   );
 
   const {
@@ -110,7 +114,44 @@ export const TasksTab: React.FC<TasksTabProps> = ({
       ? (currentUser?.id ?? null)
       : typeof taskFilter === 'number' && allUsers.some(u => u.id === taskFilter)
       ? taskFilter
+      : currentUser?.role === 'write'
+      ? currentUser.id
       : null;
+
+  const handleCreateDefault = useCallback(
+    () =>
+      onOpenCreateTask({
+        status: 'todo',
+        propertyId: null,
+        assignedTo: contextualAssignedTo,
+        source: 'tasks',
+      }),
+    [onOpenCreateTask, contextualAssignedTo]
+  );
+
+  const handleCreateForStatus = useCallback(
+    (initialStatus?: TaskStatus) =>
+      onOpenCreateTask({
+        status: initialStatus || 'todo',
+        propertyId: null,
+        assignedTo: contextualAssignedTo,
+        source: 'tasks',
+      }),
+    [onOpenCreateTask, contextualAssignedTo]
+  );
+
+  const handleCreateForProperty = useCallback(
+    (propertyId?: number) =>
+      onOpenCreateTask({
+        status: 'todo',
+        propertyId: propertyId ?? null,
+        assignedTo: contextualAssignedTo,
+        source: 'tasks',
+      }),
+    [onOpenCreateTask, contextualAssignedTo]
+  );
+
+  const handleShowAllSprint = useCallback(() => setTaskFilter('all'), [setTaskFilter]);
 
   return (
     <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-2.5 sm:gap-3">
@@ -139,14 +180,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
         taskViewMode={taskViewMode}
         onChangeViewMode={handleChangeViewMode}
         isReadOnly={isReadOnly}
-        onAddNewTask={() =>
-          onOpenCreateTask({
-            status: 'todo',
-            propertyId: null,
-            assignedTo: contextualAssignedTo,
-            source: 'tasks'
-          })
-        }
+        onAddNewTask={handleCreateDefault}
       />
 
       {taskViewMode === 'kanban' ? (
@@ -164,14 +198,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           onQuickUpdateTask={onQuickUpdateTask}
           onReorderTask={onReorderKanbanTask}
           onToggleStar={onToggleStar}
-          onAddNewTask={(initialStatus) =>
-            onOpenCreateTask({
-              status: initialStatus || 'todo',
-              propertyId: null,
-              assignedTo: contextualAssignedTo,
-              source: 'tasks'
-            })
-          }
+          onAddNewTask={handleCreateForStatus}
           canAddTasks={canUseBoardQuickAdd}
           isReadOnly={isReadOnly}
           lastCreatedBatch={lastCreatedBatch}
@@ -194,14 +221,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           onQuickUpdateTask={onQuickUpdateTask}
           onMoveTaskProperty={onMoveTaskProperty}
           onToggleStar={onToggleStar}
-          onAddNewTask={(propertyId) =>
-            onOpenCreateTask({
-              status: 'todo',
-              propertyId: propertyId ?? null,
-              assignedTo: contextualAssignedTo,
-              source: 'tasks'
-            })
-          }
+          onAddNewTask={handleCreateForProperty}
           canAddTasks={canUseBoardQuickAdd}
           isReadOnly={isReadOnly}
           lastCreatedBatch={lastCreatedBatch}
@@ -214,7 +234,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           allUsers={allUsers}
           currentUser={currentUser}
           isFilteredByAssignee={taskFilter !== 'all'}
-          onShowAllSprint={() => setTaskFilter('all')}
+          onShowAllSprint={handleShowAllSprint}
           onEditTask={onEditTask}
           onDeleteTask={onDeleteTask}
           onToggleSubtask={onToggleSubtask}
@@ -223,14 +243,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           onAssignTask={onAssignTask}
           onQuickUpdateTask={onQuickUpdateTask}
           onToggleStar={onToggleStar}
-          onAddNewTask={() =>
-            onOpenCreateTask({
-              status: 'todo',
-              propertyId: null,
-              assignedTo: contextualAssignedTo,
-              source: 'tasks'
-            })
-          }
+          onAddNewTask={handleCreateDefault}
           canAddTasks={canUseBoardQuickAdd}
           isReadOnly={isReadOnly}
           lastCreatedBatch={lastCreatedBatch}
@@ -240,4 +253,6 @@ export const TasksTab: React.FC<TasksTabProps> = ({
       )}
     </div>
   );
-};
+});
+
+TasksTab.displayName = 'TasksTab';

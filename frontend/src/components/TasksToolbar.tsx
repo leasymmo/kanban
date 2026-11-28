@@ -1,15 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { User, Property, Task, TaskPriority, TaskStatus } from '../types';
 import { AssigneeFilter, TASK_PRIORITY_OPTIONS, TASK_STATUS_OPTIONS } from '../hooks/useTaskFilters';
 import { TaskViewMode } from '../utils/cookies';
 import { AssigneeFilterDropdown } from './AssigneeFilterDropdown';
-import { MultiFilterOption, UnifiedFilterDropdown } from './UnifiedFilterDropdown';
+import { FilterAccordionSection, MultiFilterOption, UnifiedFilterDropdown } from './UnifiedFilterDropdown';
 import { ViewModeDropdown } from './ViewModeDropdown';
 import { Button, SearchInput } from './ui';
-import {
-  Plus, Home,
-  SlidersHorizontal, RotateCcw, Flag
-} from 'lucide-react';
+import { Plus, Home, SlidersHorizontal, RotateCcw, Flag } from 'lucide-react';
 
 interface TasksToolbarProps {
   currentUser: User | null;
@@ -38,7 +35,22 @@ interface TasksToolbarProps {
   onAddNewTask: () => void;
 }
 
-export const TasksToolbar: React.FC<TasksToolbarProps> = ({
+const STATUS_OPTIONS: MultiFilterOption<TaskStatus>[] = TASK_STATUS_OPTIONS.map((s) => ({
+  id: s.id,
+  label: s.label,
+  dotClass: s.dotClass,
+}));
+
+const PRIORITY_OPTIONS: MultiFilterOption<TaskPriority>[] = TASK_PRIORITY_OPTIONS.map((p) => ({
+  id: p.id,
+  label: p.label,
+  dotClass: p.dotClass,
+}));
+
+const ALL_STATUS_IDS = TASK_STATUS_OPTIONS.map((s) => s.id);
+const ALL_PRIORITY_IDS = TASK_PRIORITY_OPTIONS.map((p) => p.id);
+
+export const TasksToolbar: React.FC<TasksToolbarProps> = React.memo(({
   currentUser,
   allUsers,
   properties,
@@ -64,34 +76,68 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
   isReadOnly,
   onAddNewTask
 }) => {
-  const propertyOptions: MultiFilterOption<number>[] = [
-    {
-      id: 0,
-      label: 'Sans logement',
-      dotClass: 'bg-slate-500'
-    },
-    ...properties.map(p => ({
-      id: p.id,
-      label: Number(p.is_active) === 0 ? `${p.name} (désactivé)` : p.name,
-      dotColor: p.color || '#007AFF'
-    }))
-  ];
+  const propertyOptions = useMemo<MultiFilterOption<number>[]>(
+    () => [
+      { id: 0, label: 'Sans logement', dotClass: 'bg-slate-500' },
+      ...properties.map((p) => ({
+        id: p.id,
+        label: Number(p.is_active) === 0 ? `${p.name} (désactivé)` : p.name,
+        dotColor: p.color || '#007AFF',
+      })),
+    ],
+    [properties]
+  );
 
-  const statusOptions: MultiFilterOption<TaskStatus>[] = TASK_STATUS_OPTIONS.map(s => ({
-    id: s.id,
-    label: s.label,
-    dotClass: s.dotClass
-  }));
-
-  const priorityOptions: MultiFilterOption<TaskPriority>[] = TASK_PRIORITY_OPTIONS.map(p => ({
-    id: p.id,
-    label: p.label,
-    dotClass: p.dotClass
-  }));
+  const filterSections = useMemo<FilterAccordionSection<any>[]>(
+    () => [
+      {
+        id: 'statuses',
+        title: 'Statuts',
+        icon: <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
+        options: STATUS_OPTIONS,
+        hiddenIds: hiddenStatuses,
+        onToggle: onToggleStatus,
+        onSelectAll: () => onSetHiddenStatuses([]),
+        onSelectNone: () => onSetHiddenStatuses(ALL_STATUS_IDS),
+      },
+      {
+        id: 'priorities',
+        title: 'Priorités',
+        icon: <Flag className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
+        options: PRIORITY_OPTIONS,
+        hiddenIds: hiddenPriorities,
+        onToggle: onTogglePriority,
+        onSelectAll: () => onSetHiddenPriorities([]),
+        onSelectNone: () => onSetHiddenPriorities(ALL_PRIORITY_IDS),
+      },
+      {
+        id: 'properties',
+        title: 'Logements',
+        icon: <Home className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
+        options: propertyOptions,
+        hiddenIds: hiddenPropertyIds,
+        onToggle: onToggleProperty,
+        onSelectAll: () => onSetHiddenProperties([]),
+        onSelectNone: () => onSetHiddenProperties(allPropertyFilterIds),
+      },
+    ],
+    [
+      hiddenStatuses,
+      onToggleStatus,
+      onSetHiddenStatuses,
+      hiddenPriorities,
+      onTogglePriority,
+      onSetHiddenPriorities,
+      propertyOptions,
+      hiddenPropertyIds,
+      onToggleProperty,
+      onSetHiddenProperties,
+      allPropertyFilterIds,
+    ]
+  );
 
   return (
     <div className="relative z-20 shrink-0 cdh-glass-chrome px-2.5 py-2 sm:px-3 sm:py-2 rounded-cdh-xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
-      {/* Zone 1 : Recherche élargie (et bouton "+ Tâche" sur mobile < lg) */}
       <div className="flex items-center gap-2 min-w-0 lg:flex-1 lg:max-w-xs xl:max-w-sm">
         <SearchInput
           value={taskSearchQuery}
@@ -114,7 +160,6 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
         )}
       </div>
 
-      {/* Zone 2 : Trio de contrôle unifié (Responsable, Filtres, Vue) + CTA desktop */}
       <div className="flex items-center justify-between lg:justify-end gap-1 sm:gap-2 shrink-0 flex-nowrap min-w-0">
         <AssigneeFilterDropdown
           value={taskFilter}
@@ -129,38 +174,7 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
             label="Filtres"
             align="right"
             title="Filtrer par statut, priorité ou logement"
-            sections={[
-              {
-                id: 'statuses',
-                title: 'Statuts',
-                icon: <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
-                options: statusOptions,
-                hiddenIds: hiddenStatuses,
-                onToggle: onToggleStatus,
-                onSelectAll: () => onSetHiddenStatuses([]),
-                onSelectNone: () => onSetHiddenStatuses(TASK_STATUS_OPTIONS.map(s => s.id))
-              },
-              {
-                id: 'priorities',
-                title: 'Priorités',
-                icon: <Flag className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
-                options: priorityOptions,
-                hiddenIds: hiddenPriorities,
-                onToggle: onTogglePriority,
-                onSelectAll: () => onSetHiddenPriorities([]),
-                onSelectNone: () => onSetHiddenPriorities(TASK_PRIORITY_OPTIONS.map(p => p.id))
-              },
-              {
-                id: 'properties',
-                title: 'Logements',
-                icon: <Home className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
-                options: propertyOptions,
-                hiddenIds: hiddenPropertyIds,
-                onToggle: onToggleProperty,
-                onSelectAll: () => onSetHiddenProperties([]),
-                onSelectNone: () => onSetHiddenProperties(allPropertyFilterIds)
-              }
-            ]}
+            sections={filterSections}
           />
 
           {hasActiveFilters && (
@@ -175,7 +189,6 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
             </button>
           )}
 
-          {/* Sélecteur de vue compact avec icône dynamique */}
           <ViewModeDropdown
             value={taskViewMode}
             onChange={onChangeViewMode}
@@ -198,4 +211,6 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
       </div>
     </div>
   );
-};
+});
+
+TasksToolbar.displayName = 'TasksToolbar';

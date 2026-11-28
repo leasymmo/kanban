@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Archive,
@@ -12,6 +12,7 @@ import {
 import { Property } from '../../types';
 import { api } from '../../api/client';
 import { ensureWhiteTextContrast } from '../../utils/color';
+import { usePointerListReorder } from '../../hooks/usePointerListReorder';
 import { Badge, Button, Input, useConfirm } from '../ui';
 import { ADMIN_PRESET_COLORS, ColorSwatchPicker } from './ColorSwatchPicker';
 
@@ -50,161 +51,67 @@ export const AdminPropertiesTab: React.FC<AdminPropertiesTabProps> = ({
     color: '#3B82F6',
   });
 
-  // Désactivation avec résolution des tâches en cours
   const [deactivatingProperty, setDeactivatingProperty] = useState<Property | null>(null);
   const [pendingTasks, setPendingTasks] = useState<{ id: number; title: string }[]>([]);
 
-  // Drag & Drop Hébergements (Pointer Events)
-  const [draggedPropertyId, setDraggedPropertyId] = useState<number | null>(null);
-  const [dropPropertyTarget, setDropPropertyTarget] = useState<{
-    id: number;
-    position: 'before' | 'after';
-  } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const activeDragRef = useRef<{ id: number; startY: number; isDragging: boolean } | null>(null);
-  const dropTargetRef = useRef<{ id: number; position: 'before' | 'after' } | null>(null);
-  const dragCleanupRef = useRef<(() => void) | null>(null);
+  const propertiesRef = useRef(properties);
+  propertiesRef.current = properties;
 
-  useEffect(() => {
-    return () => {
-      dragCleanupRef.current?.();
-    };
-  }, []);
-
-  const startPointerDrag = useCallback(
-    (e: React.PointerEvent, propertyId: number) => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      e.stopPropagation();
-
-      dragCleanupRef.current?.();
-      activeDragRef.current = {
-        id: propertyId,
-        startY: e.clientY,
-        isDragging: false,
-      };
-      dropTargetRef.current = null;
-
-      const handlePointerMove = (moveEvent: PointerEvent) => {
-        const drag = activeDragRef.current;
-        if (!drag) return;
-
-        if (!drag.isDragging) {
-          if (Math.abs(moveEvent.clientY - drag.startY) < 4) return;
-          drag.isDragging = true;
-          document.body.style.userSelect = 'none';
-          setDraggedPropertyId(drag.id);
-        }
-
-        const scrollBox = scrollContainerRef.current;
-        if (scrollBox) {
-          const boxRect = scrollBox.getBoundingClientRect();
-          if (moveEvent.clientY < boxRect.top + 36) {
-            scrollBox.scrollTop -= 10;
-          } else if (moveEvent.clientY > boxRect.bottom - 36) {
-            scrollBox.scrollTop += 10;
-          }
-        }
-
-        const listEl = listRef.current;
-        if (!listEl) return;
-
-        const siblingEls = Array.from(listEl.querySelectorAll<HTMLElement>('[data-property-row]'))
-          .filter((el) => Number(el.dataset.propertyRow) !== drag.id)
-          .map((el) => ({
-            id: Number(el.dataset.propertyRow),
-            rect: el.getBoundingClientRect(),
-          }))
-          .filter((item) => item.id > 0)
-          .sort((a, b) => a.rect.top - b.rect.top);
-
-        if (siblingEls.length === 0) {
-          dropTargetRef.current = null;
-          setDropPropertyTarget(null);
-          return;
-        }
-
-        let nextTarget: { id: number; position: 'before' | 'after' } = {
-          id: siblingEls[siblingEls.length - 1].id,
-          position: 'after',
-        };
-
-        for (const item of siblingEls) {
-          const midpoint = item.rect.top + item.rect.height / 2;
-          if (moveEvent.clientY < midpoint) {
-            nextTarget = { id: item.id, position: 'before' };
-            break;
-          }
-        }
-
-        const prev = dropTargetRef.current;
-        if (!prev || prev.id !== nextTarget.id || prev.position !== nextTarget.position) {
-          dropTargetRef.current = nextTarget;
-          setDropPropertyTarget(nextTarget);
-        }
-      };
-
-      const cleanup = () => {
-        window.removeEventListener('pointermove', handlePointerMove);
-        window.removeEventListener('pointerup', handlePointerUp);
-        window.removeEventListener('pointercancel', handlePointerUp);
-        document.body.style.userSelect = '';
-        dragCleanupRef.current = null;
-      };
-
-      const handlePointerUp = async () => {
-        const drag = activeDragRef.current;
-        const target = dropTargetRef.current;
-
-        activeDragRef.current = null;
-        dropTargetRef.current = null;
-        setDraggedPropertyId(null);
-        setDropPropertyTarget(null);
-        cleanup();
-
-        if (!drag?.isDragging || !target) return;
-
-        const activeProps = properties.filter((p) => Number(p.is_active) === 1);
-        const inactiveProps = properties.filter((p) => Number(p.is_active) !== 1);
-        const fromIdx = activeProps.findIndex((p) => p.id === drag.id);
-        const targetIdx = activeProps.findIndex((p) => p.id === target.id);
-        if (fromIdx === -1 || targetIdx === -1) return;
-
-        const reorderedActive = [...activeProps];
-        const [moved] = reorderedActive.splice(fromIdx, 1);
-        const adjustedTargetIdx = reorderedActive.findIndex((p) => p.id === target.id);
-        const insertIdx = target.position === 'after' ? adjustedTargetIdx + 1 : adjustedTargetIdx;
-        reorderedActive.splice(insertIdx, 0, moved);
-
-        const nextAll = [...reorderedActive, ...inactiveProps].map((p, idx) => ({
-          ...p,
-          position: idx + 1,
-        }));
-
-        const previousProps = properties;
-        onPropertiesReordered(nextAll);
-
-        try {
-          const res = await api.reorderProperties(nextAll.map((p) => p.id));
-          if (res?.properties) {
-            onPropertiesReordered(res.properties);
-          }
-        } catch (err: unknown) {
-          onPropertiesReordered(previousProps);
-          const msg =
-            err instanceof Error
-              ? err.message
-              : "Erreur lors de la sauvegarde de l'ordre des hébergements.";
-          onFeedback('error', msg);
-        }
-      };
-
-      dragCleanupRef.current = cleanup;
-      window.addEventListener('pointermove', handlePointerMove);
-      window.addEventListener('pointerup', handlePointerUp);
-      window.addEventListener('pointercancel', handlePointerUp);
-    },
-    [properties, onPropertiesReordered, onFeedback, scrollContainerRef]
+  const activePropertyIds = useMemo(
+    () => properties.filter((p) => Number(p.is_active) === 1).map((p) => p.id),
+    [properties]
   );
+
+  const handleReorderActive = useCallback(
+    async (reorderedActiveIds: number[]) => {
+      const latestProps = propertiesRef.current;
+      const byId = new Map(latestProps.map((p) => [p.id, p]));
+      const reorderedActive = reorderedActiveIds
+        .map((id) => byId.get(id))
+        .filter((p): p is Property => !!p);
+      const inactiveProps = latestProps.filter((p) => Number(p.is_active) !== 1);
+
+      const nextAll = [...reorderedActive, ...inactiveProps].map((p, idx) => ({
+        ...p,
+        position: idx + 1,
+      }));
+
+      onPropertiesReordered(nextAll);
+
+      try {
+        const res = await api.reorderProperties(nextAll.map((p) => p.id));
+        if (res?.properties) {
+          onPropertiesReordered(res.properties);
+        }
+      } catch (err: unknown) {
+        onPropertiesReordered(latestProps);
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Erreur lors de la sauvegarde de l'ordre des hébergements.";
+        onFeedback('error', msg);
+      }
+    },
+    [onPropertiesReordered, onFeedback]
+  );
+
+  const getPropertyElement = useCallback(
+    (id: number) =>
+      listRef.current?.querySelector<HTMLElement>(`[data-property-row="${id}"]`) ?? null,
+    []
+  );
+
+  const {
+    draggingId: draggedPropertyId,
+    dropTarget: dropPropertyTarget,
+    startPointerDrag,
+  } = usePointerListReorder<number>({
+    itemIds: activePropertyIds,
+    onReorder: handleReorderActive,
+    getElementById: getPropertyElement,
+    scrollContainerRef,
+  });
 
   const handleStartCreate = () => {
     setEditingProperty(null);
@@ -305,10 +212,10 @@ export const AdminPropertiesTab: React.FC<AdminPropertiesTabProps> = ({
     setActionLoading(true);
     try {
       const res = await api.getPropertyPendingTasks(p.id);
-      const tasks = res.tasks.map((t) => ({ id: t.id, title: t.title }));
+      const pending = res.tasks.map((t) => ({ id: t.id, title: t.title }));
       setActionLoading(false);
 
-      if (tasks.length === 0) {
+      if (pending.length === 0) {
         const ok = await confirm({
           title: `Désactiver « ${p.name} » ?`,
           message:
@@ -324,7 +231,7 @@ export const AdminPropertiesTab: React.FC<AdminPropertiesTabProps> = ({
       }
 
       setDeactivatingProperty(p);
-      setPendingTasks(tasks);
+      setPendingTasks(pending);
     } catch (err: unknown) {
       setActionLoading(false);
       const msg =
@@ -362,7 +269,7 @@ export const AdminPropertiesTab: React.FC<AdminPropertiesTabProps> = ({
           )}
           {title}
         </h3>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
+        <Button size="sm" variant="ghost" disabled={actionLoading} onClick={onCancel}>
           Annuler
         </Button>
       </div>
@@ -396,7 +303,7 @@ export const AdminPropertiesTab: React.FC<AdminPropertiesTabProps> = ({
       />
 
       <div className="pt-2.5 border-t border-[var(--cdh-border-hairline)] flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel}>
+        <Button variant="ghost" size="sm" disabled={actionLoading} onClick={onCancel}>
           Annuler
         </Button>
         <Button type="submit" variant="primary" size="sm" isLoading={actionLoading}>
@@ -477,6 +384,7 @@ export const AdminPropertiesTab: React.FC<AdminPropertiesTabProps> = ({
                 <Button
                   size="sm"
                   variant="ghost"
+                  disabled={actionLoading}
                   onClick={() => {
                     setDeactivatingProperty(null);
                     setPendingTasks([]);
@@ -522,10 +430,7 @@ export const AdminPropertiesTab: React.FC<AdminPropertiesTabProps> = ({
                   {isActive && (
                     <button
                       type="button"
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        startPointerDrag(e, p.id);
-                      }}
+                      onPointerDown={(e) => startPointerDrag(e, p.id)}
                       className="p-1 -ml-1 text-[var(--cdh-text-tertiary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] rounded-cdh-sm cursor-grab active:cursor-grabbing shrink-0 touch-none transition-colors"
                       title="Maintenir et glisser pour réordonner"
                       aria-label={`Réordonner ${p.name}`}
@@ -583,6 +488,7 @@ export const AdminPropertiesTab: React.FC<AdminPropertiesTabProps> = ({
                   <Button
                     size="sm"
                     variant={isEditingThis ? 'secondary' : 'ghost'}
+                    disabled={actionLoading}
                     onClick={() => (isEditingThis ? setEditingProperty(null) : handleStartEdit(p))}
                     aria-label={`Modifier ${p.name}`}
                     title="Modifier cet hébergement"

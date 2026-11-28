@@ -42,7 +42,7 @@ interface ViewModeDropdownProps {
  * Sélecteur de vue compact Liquid Glass :
  * l'icône du bouton s'adapte dynamiquement à la vue active pour l'identifier d'un coup d'œil.
  */
-export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = ({
+export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = React.memo(({
   value,
   onChange,
   align = 'right'
@@ -159,4 +159,4 @@ export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = ({
         )}
     </div>
   );
-};
+});

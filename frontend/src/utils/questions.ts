@@ -13,7 +13,7 @@ export function hasFinalDecision(q: Pick<Question, 'final_answer'>): boolean {
 export function formatQuestionDate(rawDate?: string | null, withTime: boolean = false): string {
   if (!rawDate) return '';
   const normalized = rawDate.includes(' ') && !rawDate.includes('T')
-    ? rawDate.replace(' ', 'T')
+    ? rawDate.replace(/\s+/, 'T')
     : rawDate;
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) return '';

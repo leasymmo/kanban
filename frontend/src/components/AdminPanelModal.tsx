@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertCircle,
   CheckCircle2,
@@ -69,12 +70,21 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   } | null>(null);
   const feedbackTimerRef = useRef<number | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const baseId = useId();
 
   const dialogRef = useModalDialog({
     isOpen,
     onClose,
     canClose: !actionLoading,
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab('sprints');
+      setFeedbackMessage(null);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     return () => {
@@ -94,7 +104,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }, 4500);
   }, []);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const activeSprint = sprints.find((s) => s.status === 'active');
   const activePropertiesCount = properties.filter((p) => Number(p.is_active) === 1).length;
@@ -125,7 +135,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     },
   ];
 
-  return (
+  const handleTabKeyDown = (e: React.KeyboardEvent, idx: number) => {
+    let nextIdx: number | null = null;
+    if (e.key === 'ArrowRight') nextIdx = (idx + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') nextIdx = 0;
+    else if (e.key === 'End') nextIdx = tabs.length - 1;
+
+    if (nextIdx !== null) {
+      e.preventDefault();
+      const targetTab = tabs[nextIdx];
+      setActiveTab(targetTab.id);
+      tabRefs.current[targetTab.id]?.focus();
+    }
+  };
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 pb-[var(--cdh-vv-bottom,0px)] sm:p-4 bg-[var(--cdh-backdrop-scrim)] backdrop-blur-[6px] animate-backdrop-in"
       onMouseDown={(e) => {
@@ -142,11 +167,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         tabIndex={-1}
         className="cdh-glass-overlay w-full max-w-4xl h-[min(92dvh,calc(var(--cdh-vv-height,100dvh)-16px))] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-cdh-2xl sm:rounded-cdh-2xl overflow-hidden animate-sheet-up sm:animate-modal-in focus:outline-none"
       >
-        {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--cdh-border-hairline)] flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-cdh-md bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] flex items-center justify-center shrink-0">
-              <Shield className="w-4.5 h-4.5" strokeWidth={2} />
+              <Shield className="w-4 h-4" strokeWidth={2} />
             </div>
             <div className="min-w-0">
               <h2
@@ -172,21 +196,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           </button>
         </div>
 
-        {/* Navigation par Segmented Control Apple */}
         <div className="px-5 py-2.5 border-b border-[var(--cdh-border-hairline)] shrink-0 overflow-x-auto no-scrollbar">
           <div
             role="tablist"
             aria-label="Sections d'administration"
             className="inline-flex sm:grid sm:grid-cols-4 gap-1 p-1 rounded-cdh-md bg-[var(--cdh-surface-control)] border border-[var(--cdh-border-hairline)] min-w-max sm:min-w-0 w-full"
           >
-            {tabs.map((tab) => {
+            {tabs.map((tab, idx) => {
               const isActive = activeTab === tab.id;
+              const tabId = `${baseId}-tab-${tab.id}`;
+              const panelId = `${baseId}-panel-${tab.id}`;
               return (
                 <button
                   key={tab.id}
+                  id={tabId}
+                  ref={(el) => {
+                    tabRefs.current[tab.id] = el;
+                  }}
                   type="button"
                   role="tab"
                   aria-selected={isActive}
+                  aria-controls={panelId}
+                  tabIndex={isActive ? 0 : -1}
+                  onKeyDown={(e) => handleTabKeyDown(e, idx)}
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-cdh-sm text-[12.5px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     isActive
@@ -198,7 +230,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <span>{tab.label}</span>
                   {typeof tab.count === 'number' && (
                     <span
-                      className={`text-[11px] font-bold px-1.5 py-0.2 rounded-full ${
+                      className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
                         isActive
                           ? 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)]'
                           : 'bg-[var(--cdh-surface-input)] text-[var(--cdh-text-tertiary)]'
@@ -213,7 +245,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           </div>
         </div>
 
-        {/* Bannière de Feedback */}
         {feedbackMessage && (
           <div
             role="status"
@@ -240,8 +271,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           </div>
         )}
 
-        {/* Contenu principal */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-5">
+        <div
+          ref={scrollContainerRef}
+          role="tabpanel"
+          id={`${baseId}-panel-${activeTab}`}
+          aria-labelledby={`${baseId}-tab-${activeTab}`}
+          className="flex-1 overflow-y-auto p-5"
+        >
           {activeTab === 'sprints' && (
             <AdminSprintsTab
               sprints={sprints}
@@ -293,7 +329,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-3 border-t border-[var(--cdh-border-hairline)] bg-[var(--cdh-surface-control)] flex items-center justify-between gap-3 text-[12px] text-[var(--cdh-text-secondary)] shrink-0">
           <span className="truncate">
             Administrateur :{' '}
@@ -304,6 +339,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

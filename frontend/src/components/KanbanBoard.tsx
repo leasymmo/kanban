@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Task, TaskPriority, TaskStatus, User } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
@@ -32,17 +32,11 @@ interface KanbanBoardProps {
   onConsumeCreatedBatch?: () => void;
 }
 
-interface ColumnConfig {
-  id: TaskStatus;
-  title: string;
-  dotColor: string;
-}
-
-const COLUMNS: ColumnConfig[] = [
-  { id: 'todo', title: 'À faire', dotColor: 'var(--cdh-status-todo-dot)' },
-  { id: 'in_progress', title: 'En cours', dotColor: 'var(--cdh-status-progress-dot)' },
-  { id: 'blocked', title: 'Bloqué', dotColor: 'var(--cdh-status-blocked-dot)' },
-  { id: 'done', title: 'Terminé', dotColor: 'var(--cdh-status-done-dot)' }
+const COLUMNS: { id: TaskStatus; title: string }[] = [
+  { id: 'todo', title: 'À faire' },
+  { id: 'in_progress', title: 'En cours' },
+  { id: 'blocked', title: 'Bloqué' },
+  { id: 'done', title: 'Terminé' },
 ];
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
@@ -70,7 +64,40 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     canAddTasks !== undefined ? canAddTasks : (!isReadOnly && currentUser?.role === 'admin');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const visibleColumns = COLUMNS.filter(col => !hiddenStatuses.includes(col.id));
+  const visibleColumns = useMemo(
+    () => COLUMNS.filter(col => !hiddenStatuses.includes(col.id)),
+    [hiddenStatuses]
+  );
+
+  const tasksByStatus = useMemo(() => {
+    const grouped: Record<TaskStatus, Task[]> = {
+      todo: [],
+      in_progress: [],
+      blocked: [],
+      done: [],
+    };
+    for (const t of tasks) {
+      const normalized: TaskStatus = t.status === 'pending' ? 'todo' : t.status;
+      grouped[normalized].push(t);
+    }
+    return grouped;
+  }, [tasks]);
+
+  const getContainerId = useCallback(
+    (t: Task): TaskStatus => (t.status === 'pending' ? 'todo' : t.status),
+    []
+  );
+
+  const handleDropReorder = useCallback(
+    (draggedTask: Task, targetStatus: TaskStatus, orderedColumnTaskIds: number[]) => {
+      if (onReorderTask) {
+        onReorderTask(draggedTask.id, targetStatus, orderedColumnTaskIds);
+      } else if (draggedTask.status !== targetStatus) {
+        onUpdateStatus(draggedTask.id, targetStatus);
+      }
+    },
+    [onReorderTask, onUpdateStatus]
+  );
 
   const {
     draggedTaskId,
@@ -85,15 +112,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     handleDropOnContainer
   } = useCardDragAndDrop<TaskStatus>({
     tasks,
-    getContainerId: (t) => (t.status === 'pending' ? 'todo' : t.status),
+    getContainerId,
     isReadOnly,
-    onDropReorder: (draggedTask, targetStatus, orderedColumnTaskIds) => {
-      if (onReorderTask) {
-        onReorderTask(draggedTask.id, targetStatus, orderedColumnTaskIds);
-      } else if (draggedTask.status !== targetStatus) {
-        onUpdateStatus(draggedTask.id, targetStatus);
-      }
-    }
+    onDropReorder: handleDropReorder,
   });
 
   const getGridClass = (count: number) => {
@@ -103,49 +124,42 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     return 'md:grid-cols-2 lg:grid-cols-4';
   };
 
-  const scrollToColumn = (status: TaskStatus) => {
-    const idx = visibleColumns.findIndex(c => c.id === status);
-    if (idx === -1) return;
-
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
-    const targetLeft =
-      visibleColumns.length > 1
-        ? Math.round((idx / (visibleColumns.length - 1)) * maxScroll)
-        : 0;
-
-    container.scrollTo({ left: targetLeft, behavior: getScrollBehavior() });
-  };
-
   useEffect(() => {
     if (!lastCreatedBatch || isModalOpen) return;
 
     const targetStatus: TaskStatus =
       lastCreatedBatch.status === 'pending' ? 'todo' : lastCreatedBatch.status;
-    const isVisibleColumn = visibleColumns.some((c) => c.id === targetStatus);
+    const colIdx = visibleColumns.findIndex((c) => c.id === targetStatus);
     const hasVisibleTask = tasks.some((t) => lastCreatedBatch.ids.includes(t.id));
+    const batchIds = lastCreatedBatch.ids;
 
     onConsumeCreatedBatch?.();
-    if (!isVisibleColumn || !hasVisibleTask) return;
+    if (colIdx === -1 || !hasVisibleTask) return;
 
     const isMobile = window.innerWidth < 768;
-    if (isMobile) {
-      scrollToColumn(targetStatus);
+    const container = scrollContainerRef.current;
+    if (isMobile && container) {
+      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+      const targetLeft =
+        visibleColumns.length > 1
+          ? Math.round((colIdx / (visibleColumns.length - 1)) * maxScroll)
+          : 0;
+      container.scrollTo({ left: targetLeft, behavior: getScrollBehavior() });
     }
 
-    window.requestAnimationFrame(() => {
+    const rafId = window.requestAnimationFrame(() => {
       const colScrollEl = document.querySelector<HTMLElement>(
         `[data-kanban-col-scroll="${targetStatus}"]`
       );
       scrollContainersAndHighlightTasks({
-        horizontalEl: isMobile ? scrollContainerRef.current : null,
+        horizontalEl: isMobile ? container : null,
         verticalEl: colScrollEl,
-        taskIds: lastCreatedBatch.ids,
+        taskIds: batchIds,
       });
     });
-  }, [lastCreatedBatch, isModalOpen, tasks, visibleColumns]);
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [lastCreatedBatch, isModalOpen, tasks, visibleColumns, onConsumeCreatedBatch]);
 
   if (visibleColumns.length === 0) {
     return (
@@ -163,13 +177,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* Colonnes Liquid Glass à hauteur fixe plein écran (sans scroll de page) */}
       <div
         ref={scrollContainerRef}
         className={`flex-1 min-h-0 flex md:grid ${getGridClass(visibleColumns.length)} gap-3.5 sm:gap-4 items-stretch overflow-x-auto no-scrollbar md:overflow-visible snap-x snap-mandatory -mx-3 px-3 sm:mx-0 sm:px-0`}
       >
         {visibleColumns.map((col) => {
-          const colTasks = tasks.filter((t) => t.status === col.id);
+          const colTasks = tasksByStatus[col.id];
           const isHovered = activeDropContainer === col.id;
 
           return (
@@ -185,7 +198,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   : ''
               }`}
             >
-              {/* En-tête Colonne fixe */}
               <div className="flex items-center justify-between px-1.5 pb-2.5 mb-1 border-b border-[var(--cdh-border-hairline)] shrink-0">
                 <h3 className="flex items-center gap-2 min-w-0">
                   <TaskStatusIcon status={col.id} className="w-4 h-4 shrink-0" />
@@ -210,7 +222,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 )}
               </div>
 
-              {/* Liste des cartes avec scroll interne unique */}
               <div
                 data-kanban-col-scroll={col.id}
                 className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 -mx-2.5 pt-2.5 pb-4"

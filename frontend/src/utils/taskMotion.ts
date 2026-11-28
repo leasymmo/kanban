@@ -1,19 +1,11 @@
 import { TaskStatus } from '../types';
 
 export type TaskHaloTone = 'accent';
-export type TaskTransitionMode = 'appear' | 'move' | 'update' | 'disappear';
+type TaskTransitionMode = 'appear' | 'move' | 'update' | 'disappear';
 
 const haloTimers = new WeakMap<HTMLElement, number>();
 const flipAnimations = new WeakMap<HTMLElement, Animation>();
 const enterAnimations = new WeakMap<HTMLElement, Animation>();
-
-/**
- * Conserve un point d'extension unique ; le halo reste volontairement bleu Liquid Glass
- * afin de ne jamais entrer en conflit visuel avec l'or des étoiles ou les statuts.
- */
-export function getToneForStatus(_status?: TaskStatus | 'pending' | null): TaskHaloTone {
-  return 'accent';
-}
 
 export function prefersReducedMotion(): boolean {
   return (
@@ -82,11 +74,11 @@ function checkScrollAncestors(el: HTMLElement, rect: DOMRect, requireFull: boole
   return true;
 }
 
-export function isVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
+function isVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
   return checkScrollAncestors(el, rect, false);
 }
 
-export function isFullyVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
+function isFullyVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
   return checkScrollAncestors(el, rect, true);
 }
 

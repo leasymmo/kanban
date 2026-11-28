@@ -37,7 +37,7 @@
 
   input::placeholder,
   textarea::placeholder {
-    color: #64748b;
+    color: var(--cdh-text-tertiary);
     opacity: 1;
   }
 
@@ -90,13 +90,6 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(15, 23, 42, 0.32);
-}
-
-.kanban-board-bg {
-  background-color: #0c4a6e;
-  background-image: radial-gradient(#0369a1 1px, transparent 1px), radial-gradient(#0369a1 1px, #075985 1px);
-  background-size: 40px 40px;
-  background-position: 0 0, 20px 20px;
 }
 
 @media (prefers-reduced-motion: reduce) {

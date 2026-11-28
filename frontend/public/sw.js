@@ -1,6 +1,6 @@
 const CACHE_NAME = 'kanban-cdh-v1';
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -33,22 +33,27 @@ self.addEventListener('fetch', (event) => {
           }
           return res;
         })
-        .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')))
+        .catch(() =>
+          caches.match(req).then((cached) => cached || caches.match('./index.html') || caches.match('./'))
+        )
     );
     return;
   }
 
-  // Assets statiques (JS, CSS, icônes) : stale-while-revalidate
+  // Assets statiques (JS, CSS, icônes) : stale-while-revalidate sans rejet non géré hors-ligne
   if (url.pathname.includes('/assets/') || url.pathname.includes('/icons/')) {
     event.respondWith(
       caches.match(req).then((cached) => {
-        const networkFetch = fetch(req).then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-          }
-          return res;
-        });
+        const networkFetch = fetch(req)
+          .then((res) => {
+            if (res.ok) {
+              const clone = res.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+            }
+            return res;
+          })
+          .catch(() => cached || Response.error());
+
         return cached || networkFetch;
       })
     );

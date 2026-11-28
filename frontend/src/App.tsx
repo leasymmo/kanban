@@ -1,65 +1,77 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { User, Sprint, Task, Question, Property, TaskStatus } from './types';
-import { api } from './api/client';
+import { api, isNetworkError, setUnauthorizedHandler } from './api/client';
+import { useTheme } from './contexts/ThemeContext';
+import { useToast } from './contexts/ToastContext';
 import { useSprintTasks } from './hooks/useSprintTasks';
+import { useSprintQuestions } from './hooks/useSprintQuestions';
 import { getUserPreferences, saveUserPreferences } from './utils/cookies';
 import { scheduleTaskMotionFeedback } from './utils/taskMotion';
 import { Navbar } from './components/Navbar';
 import { TasksTab } from './components/TasksTab';
-import { QuestionsView } from './components/QuestionsView';
-import { MeetingView } from './components/MeetingView';
-import { TaskModal } from './components/TaskModal';
-import { QuestionModal } from './components/QuestionModal';
-import { MeetingQuickTaskModal } from './components/MeetingQuickTaskModal';
-import { CloseSprintModal } from './components/CloseSprintModal';
-import { LoginPage } from './components/LoginPage';
-import { AdminPanelModal } from './components/AdminPanelModal';
-import { ToastContainer, ToastItem, ToastType } from './components/ToastContainer';
-import { useConfirm } from './components/ui';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 
+const LoginPage = React.lazy(() =>
+  import('./components/LoginPage').then((m) => ({ default: m.LoginPage }))
+);
+const QuestionsView = React.lazy(() =>
+  import('./components/QuestionsView').then((m) => ({ default: m.QuestionsView }))
+);
+const MeetingView = React.lazy(() =>
+  import('./components/MeetingView').then((m) => ({ default: m.MeetingView }))
+);
+const TaskModal = React.lazy(() =>
+  import('./components/TaskModal').then((m) => ({ default: m.TaskModal }))
+);
+const CloseSprintModal = React.lazy(() =>
+  import('./components/CloseSprintModal').then((m) => ({ default: m.CloseSprintModal }))
+);
+const MeetingQuickTaskModal = React.lazy(() =>
+  import('./components/MeetingQuickTaskModal').then((m) => ({ default: m.MeetingQuickTaskModal }))
+);
+const QuestionModal = React.lazy(() =>
+  import('./components/QuestionModal').then((m) => ({ default: m.QuestionModal }))
+);
+const AdminPanelModal = React.lazy(() =>
+  import('./components/AdminPanelModal').then((m) => ({ default: m.AdminPanelModal }))
+);
+
+function sortProperties(list: Property[]): Property[] {
+  return [...list].sort(
+    (a, b) =>
+      Number(b.is_active) - Number(a.is_active) ||
+      (a.position ?? 0) - (b.position ?? 0) ||
+      a.name.localeCompare(b.name)
+  );
+}
+
+const ViewLoadingFallback: React.FC = () => (
+  <div className="flex flex-col items-center justify-center py-24">
+    <RefreshCw className="w-7 h-7 animate-spin text-[var(--cdh-accent)] mb-2.5" strokeWidth={1.75} />
+    <p className="text-xs font-medium text-[var(--cdh-text-secondary)]">Chargement…</p>
+  </div>
+);
+
 export const App: React.FC = () => {
-  const confirm = useConfirm();
+  const { theme, toggleTheme } = useTheme();
+  const { showToast, showSuccessToast, showErrorToast, setHasBottomDock } = useToast();
+
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [currentSprintId, setCurrentSprintId] = useState<number | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastIdRef = useRef(0);
-  const toastTimersRef = useRef<Map<number, number>>(new Map());
-  const crossTabModalTimerRef = useRef<number | null>(null);
-
-  // Onglets
   const [activeTab, setActiveTab] = useState<'tasks' | 'questions' | 'meeting'>('tasks');
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
-      return window.localStorage.getItem('cdh-theme') === 'dark' ? 'dark' : 'light';
-    }
-    return 'light';
-  });
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-    window.localStorage.setItem('cdh-theme', theme);
-    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeColorMeta) {
-      themeColorMeta.setAttribute('content', theme === 'dark' ? '#0B0F17' : '#F2F4F8');
-    }
-    const appleStatusMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-    if (appleStatusMeta) {
-      appleStatusMeta.setAttribute('content', theme === 'dark' ? 'black-translucent' : 'default');
-    }
-  }, [theme]);
-
-  const toggleTheme = useCallback(() => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
-  }, []);
+  const currentUserRef = useRef<User | null>(currentUser);
+  currentUserRef.current = currentUser;
+  const sprintsRef = useRef<Sprint[]>(sprints);
+  sprintsRef.current = sprints;
+  const sprintReqIdRef = useRef(0);
+  const crossTabModalTimerRef = useRef<number | null>(null);
 
   // Modales
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -75,56 +87,29 @@ export const App: React.FC = () => {
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [editingMeetingQuestion, setEditingMeetingQuestion] = useState<Question | null>(null);
 
-  const dismissToast = useCallback((id: number) => {
-    const timer = toastTimersRef.current.get(id);
-    if (timer) {
-      window.clearTimeout(timer);
-      toastTimersRef.current.delete(id);
-    }
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
-
-  const showToast = useCallback((message: string, type: ToastType = 'info') => {
-    const id = ++toastIdRef.current;
-    setToasts(prev => [...prev.slice(-3), { id, type, message }]);
-    const duration = type === 'error' ? 5500 : 3200;
-    const timer = window.setTimeout(() => {
-      toastTimersRef.current.delete(id);
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, duration);
-    toastTimersRef.current.set(id, timer);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-      toastTimersRef.current.clear();
-      if (crossTabModalTimerRef.current !== null) {
-        window.clearTimeout(crossTabModalTimerRef.current);
-      }
-    };
-  }, []);
-
-  const showSuccessToast = useCallback((msg: string) => showToast(msg, 'success'), [showToast]);
-  const showErrorToast = useCallback((msg: string) => showToast(msg, 'error'), [showToast]);
+  const questionsSetterRef = useRef<React.Dispatch<React.SetStateAction<Question[]>>>(() => {});
+  const tasksSetterRef = useRef<React.Dispatch<React.SetStateAction<Task[]>>>(() => {});
 
   const loadSprintDetails = useCallback(async (sprintId: number) => {
+    const reqId = ++sprintReqIdRef.current;
     try {
       const details = await api.getSprintDetails(sprintId);
+      if (reqId !== sprintReqIdRef.current) return;
       if (details.success) {
-        setTasks(details.tasks);
-        setQuestions(details.questions);
+        tasksSetterRef.current(details.tasks);
+        questionsSetterRef.current(details.questions);
         setIsReadOnly(details.is_read_only);
       }
     } catch (err: any) {
+      if (reqId !== sprintReqIdRef.current) return;
       console.error('Erreur chargement sprint :', err);
-      const sprint = sprints.find(s => s.id === sprintId);
-      setIsReadOnly(sprint?.status === 'closed' && currentUser?.role !== 'admin');
-      if (!(err instanceof TypeError)) {
+      const sprint = sprintsRef.current.find((s) => s.id === sprintId);
+      setIsReadOnly(sprint?.status === 'closed' && currentUserRef.current?.role !== 'admin');
+      if (!isNetworkError(err)) {
         showErrorToast(err?.message || 'Impossible de charger les détails du sprint.');
       }
     }
-  }, [sprints, currentUser, showErrorToast]);
+  }, [showErrorToast]);
 
   const {
     tasks,
@@ -150,12 +135,71 @@ export const App: React.FC = () => {
     onSuccess: showSuccessToast,
     onError: showErrorToast
   });
+  tasksSetterRef.current = setTasks;
 
-  useEffect(() => {
-    loadInitialData();
+  const {
+    questions,
+    setQuestions,
+    handleAddQuestion,
+    handleUpdateQuestion,
+    handleDeleteQuestion,
+    handleAddAnswer,
+    handleUpdateAnswer,
+    handleDeleteAnswer,
+    handleSetQuestionDecision
+  } = useSprintQuestions({
+    currentSprintId,
+    currentUser,
+    allUsers,
+    reloadSprintDetails: loadSprintDetails,
+    onSuccess: showSuccessToast,
+    onError: showErrorToast
+  });
+  questionsSetterRef.current = setQuestions;
+
+  const clearCrossTabTimer = useCallback(() => {
+    if (crossTabModalTimerRef.current !== null) {
+      window.clearTimeout(crossTabModalTimerRef.current);
+      crossTabModalTimerRef.current = null;
+    }
   }, []);
 
-  const loadWorkspaceData = async () => {
+  const resetWorkspaceState = useCallback(() => {
+    clearCrossTabTimer();
+    sprintReqIdRef.current += 1;
+    setCurrentUser(null);
+    setProperties([]);
+    setSprints([]);
+    setCurrentSprintId(null);
+    setTasks([]);
+    setQuestions([]);
+    setIsReadOnly(false);
+    setApiError(null);
+    setIsTaskModalOpen(false);
+    setEditingTask(null);
+    setIsCloseSprintModalOpen(false);
+    setIsAdminPanelOpen(false);
+    setIsMeetingQuickModalOpen(false);
+    setEditingPendingTask(null);
+    setIsQuestionModalOpen(false);
+    setEditingMeetingQuestion(null);
+  }, [clearCrossTabTimer, setTasks, setQuestions]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (currentUserRef.current) {
+        resetWorkspaceState();
+        showErrorToast('Session expirée. Veuillez vous reconnecter.');
+      }
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [resetWorkspaceState, showErrorToast]);
+
+  useEffect(() => {
+    return () => clearCrossTabTimer();
+  }, [clearCrossTabTimer]);
+
+  const loadWorkspaceData = useCallback(async () => {
     const [propsRes, sprintsRes] = await Promise.all([
       api.getProperties(true).catch(() => ({ success: false, properties: [] as Property[] })),
       api.getSprints().catch(() => ({ success: false, sprints: [] as Sprint[] }))
@@ -167,9 +211,11 @@ export const App: React.FC = () => {
 
     if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
       setSprints(sprintsRes.sprints);
-      const active = sprintsRes.sprints.find(s => s.status === 'active') || sprintsRes.sprints[0];
+      const active = sprintsRes.sprints.find((s) => s.status === 'active') || sprintsRes.sprints[0];
       setCurrentSprintId(active.id);
+      const reqId = ++sprintReqIdRef.current;
       const details = await api.getSprintDetails(active.id);
+      if (reqId !== sprintReqIdRef.current) return;
       if (details.success) {
         setTasks(details.tasks);
         setQuestions(details.questions);
@@ -177,30 +223,27 @@ export const App: React.FC = () => {
       }
     } else {
       setSprints([]);
+      setCurrentSprintId(null);
       setTasks([]);
       setQuestions([]);
     }
-  };
+  }, [setTasks, setQuestions]);
 
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     setApiError(null);
     try {
-      const usersRes = await api.getUsers().catch(() => ({ success: false, users: [] as User[] }));
+      const [usersRes, meRes] = await Promise.all([
+        api.getUsers().catch(() => ({ success: false, users: [] as User[] })),
+        api.getMe().catch(() => null)
+      ]);
+
       if (usersRes?.users && usersRes.users.length > 0) {
         setAllUsers(usersRes.users);
       }
 
-      let meRes: { success: boolean; user: User } | null = null;
-      try {
-        meRes = await api.getMe();
-      } catch {
-        meRes = null;
-      }
-
       if (!meRes?.user) {
         setCurrentUser(null);
-        setIsLoading(false);
         return;
       }
 
@@ -215,9 +258,13 @@ export const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [loadWorkspaceData]);
 
-  const handleLoginSuccess = async (user: User) => {
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  const handleLoginSuccess = useCallback(async (user: User) => {
     setIsLoading(true);
     setApiError(null);
     setCurrentUser(user);
@@ -236,37 +283,38 @@ export const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [loadWorkspaceData, showToast]);
 
-  const handleChangeTab = (tab: 'tasks' | 'questions' | 'meeting') => {
+  const handleChangeTab = useCallback((tab: 'tasks' | 'questions' | 'meeting') => {
+    clearCrossTabTimer();
     setActiveTab(tab);
-    if (currentUser) {
-      saveUserPreferences(currentUser.id, { activeTab: tab });
+    if (currentUserRef.current) {
+      saveUserPreferences(currentUserRef.current.id, { activeTab: tab });
     }
-  };
+  }, [clearCrossTabTimer]);
 
-  const handleLoginSubmit = async (emailOrId: string | number, password: string) => {
+  const handleLoginSubmit = useCallback(async (emailOrId: string | number, password: string) => {
     return api.login(emailOrId, password);
-  };
+  }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await api.logout();
     } catch (err) {
       console.warn('Erreur déconnexion :', err);
     } finally {
-      setCurrentUser(null);
       localStorage.removeItem('kanban_token');
+      resetWorkspaceState();
       showToast('Session déconnectée.', 'info');
     }
-  };
+  }, [resetWorkspaceState, showToast]);
 
-  const handleSelectSprint = (id: number) => {
+  const handleSelectSprint = useCallback((id: number) => {
     setCurrentSprintId(id);
     loadSprintDetails(id);
-  };
+  }, [loadSprintDetails]);
 
-  const openCreateTaskModal = (options?: {
+  const openCreateTaskModal = useCallback((options?: {
     status?: TaskStatus;
     propertyId?: number | null;
     assignedTo?: number | null;
@@ -278,163 +326,10 @@ export const App: React.FC = () => {
     setTaskModalInitialAssignedTo(options?.assignedTo);
     setTaskModalCreationSource(options?.source || (activeTab === 'meeting' ? 'meeting' : 'tasks'));
     setIsTaskModalOpen(true);
-  };
+  }, [activeTab]);
 
-  // Questions : Ajout / Modif / Suppr
-  const handleAddQuestion = async (data: any) => {
-    try {
-      await api.createQuestion(data);
-      if (currentSprintId) await loadSprintDetails(currentSprintId);
-      showSuccessToast('Question ajoutée avec succès.');
-    } catch (err: any) {
-      if (!(err instanceof TypeError)) {
-        showErrorToast(err?.message || "Impossible d'ajouter cette question.");
-        throw err;
-      }
-      const targetUser = allUsers.find(u => u.id === data.user_id) || currentUser;
-      const newQ: Question = {
-        id: Date.now(),
-        sprint_id: currentSprintId || 1,
-        user_id: data.user_id || currentUser?.id || 1,
-        user_name: targetUser?.name,
-        user_initials: targetUser?.initials,
-        user_color: targetUser?.avatar_color,
-        created_by: currentUser?.id || 1,
-        title: data.title,
-        details: data.details,
-        final_answer: null,
-        answers: [],
-        can_edit: true,
-        can_delete: true,
-        can_decide: true
-      };
-      setQuestions(prev => [...prev, newQ]);
-      showSuccessToast('Question ajoutée localement.');
-    }
-  };
-
-  const handleUpdateQuestion = async (id: number, data: Partial<Question>) => {
-    let previousQuestions: Question[] = [];
-    const reassignedUser = data.user_id !== undefined
-      ? allUsers.find(u => u.id === data.user_id)
-      : undefined;
-    setQuestions(prev => {
-      previousQuestions = prev;
-      return prev.map(q =>
-        q.id === id
-          ? {
-              ...q,
-              ...data,
-              ...(reassignedUser
-                ? {
-                    user_name: reassignedUser.name,
-                    user_initials: reassignedUser.initials,
-                    user_color: reassignedUser.avatar_color
-                  }
-                : {})
-            }
-          : q
-      );
-    });
-    try {
-      await api.updateQuestion(id, data);
-      if (data.user_id !== undefined && currentSprintId) {
-        await loadSprintDetails(currentSprintId);
-      }
-      showSuccessToast('Question mise à jour.');
-    } catch (err: any) {
-      if (!(err instanceof TypeError)) {
-        setQuestions(previousQuestions);
-        showErrorToast(err?.message || 'Impossible de modifier cette question.');
-        throw err;
-      }
-      showSuccessToast('Question mise à jour localement.');
-    }
-  };
-
-  const handleDeleteQuestion = async (id: number) => {
-    const confirmed = await confirm({
-      title: 'Supprimer la question',
-      message: 'Voulez-vous vraiment supprimer cette question ?',
-      confirmLabel: 'Supprimer',
-      variant: 'danger',
-    });
-    if (!confirmed) return;
-    let previousQuestions: Question[] = [];
-    setQuestions(prev => {
-      previousQuestions = prev;
-      return prev.filter(q => q.id !== id);
-    });
-    try {
-      await api.deleteQuestion(id);
-      showSuccessToast('Question supprimée.');
-    } catch (err: any) {
-      if (!(err instanceof TypeError)) {
-        setQuestions(previousQuestions);
-        showErrorToast(err?.message || 'Impossible de supprimer cette question.');
-      }
-    }
-  };
-
-  const handleAddAnswer = async (questionId: number, content: string) => {
-    try {
-      await api.addQuestionAnswer(questionId, content);
-      if (currentSprintId) await loadSprintDetails(currentSprintId);
-      showSuccessToast('Proposition de réponse ajoutée.');
-    } catch (e: any) {
-      if (e?.status === 409 && currentSprintId) {
-        await loadSprintDetails(currentSprintId);
-      }
-      showErrorToast(e?.message || "Erreur lors de l'envoi de la proposition.");
-      throw e;
-    }
-  };
-
-  const handleUpdateAnswer = async (answerId: number, content: string) => {
-    try {
-      await api.updateQuestionAnswer(answerId, content);
-      if (currentSprintId) await loadSprintDetails(currentSprintId);
-      showSuccessToast('Proposition mise à jour.');
-    } catch (e: any) {
-      showErrorToast(e?.message || 'Erreur lors de la modification de la réponse.');
-      throw e;
-    }
-  };
-
-  const handleDeleteAnswer = async (answerId: number) => {
-    const confirmed = await confirm({
-      title: 'Supprimer la proposition',
-      message: 'Supprimer cette proposition de réponse ?',
-      confirmLabel: 'Supprimer',
-      variant: 'danger',
-    });
-    if (!confirmed) return;
-    try {
-      await api.deleteQuestionAnswer(answerId);
-      if (currentSprintId) await loadSprintDetails(currentSprintId);
-      showSuccessToast('Proposition supprimée.');
-    } catch (e: any) {
-      showErrorToast(e?.message || 'Erreur lors de la suppression.');
-    }
-  };
-
-  const handleSetQuestionDecision = async (questionId: number, finalAnswer: string) => {
-    try {
-      await api.setQuestionDecision(questionId, finalAnswer);
-      if (currentSprintId) await loadSprintDetails(currentSprintId);
-      showSuccessToast(
-        finalAnswer.trim()
-          ? 'Réponse définitive enregistrée.'
-          : 'Réponse définitive supprimée.'
-      );
-    } catch (e: any) {
-      showErrorToast(e?.message || "Erreur lors de l'enregistrement de la décision.");
-      throw e;
-    }
-  };
-
-  const handleConfirmCloseSprint = async (nextName: string, notes: string) => {
-    const current = sprints.find(s => s.id === currentSprintId);
+  const handleConfirmCloseSprint = useCallback(async (nextName: string, notes: string) => {
+    const current = sprints.find((s) => s.id === currentSprintId);
     if (!current) return;
 
     try {
@@ -448,7 +343,7 @@ export const App: React.FC = () => {
         return;
       }
     } catch (err: any) {
-      if (!(err instanceof TypeError)) {
+      if (!isNetworkError(err)) {
         showErrorToast(err?.message || 'Impossible de clôturer ce sprint.');
         throw err;
       }
@@ -462,10 +357,10 @@ export const App: React.FC = () => {
         started_at: new Date().toISOString()
       };
 
-      const updatedSprints = sprints.map(s => (s.id === current.id ? { ...s, status: 'closed' as const } : s));
+      const updatedSprints = sprints.map((s) => (s.id === current.id ? { ...s, status: 'closed' as const } : s));
       setSprints([newSprint, ...updatedSprints]);
 
-      const pendingTasks = tasks.filter(t => t.status !== 'done');
+      const pendingTasks = tasks.filter((t) => t.status !== 'done');
       const rolledOverTasks: Task[] = pendingTasks.map((t, idx) => {
         const wasPending = t.status === 'pending';
         if (wasPending && !t.assigned_to) {
@@ -477,7 +372,7 @@ export const App: React.FC = () => {
             is_starred: false,
             is_new: false,
             position: idx + 1,
-            subtasks: (t.subtasks || []).map(st => ({ ...st }))
+            subtasks: (t.subtasks || []).map((st) => ({ ...st }))
           };
         }
         return {
@@ -488,7 +383,7 @@ export const App: React.FC = () => {
           is_starred: false,
           is_new: wasPending,
           position: idx + 1,
-          subtasks: (t.subtasks || []).map(st => ({ ...st }))
+          subtasks: (t.subtasks || []).map((st) => ({ ...st }))
         };
       });
 
@@ -497,10 +392,10 @@ export const App: React.FC = () => {
       setQuestions([]);
       showSuccessToast(`Le sprint ${current.name} a été clôturé localement (${rolledOverTasks.length} tâches transférées).`);
     }
-  };
+  }, [sprints, currentSprintId, tasks, showSuccessToast, showErrorToast, loadSprintDetails, setTasks, setQuestions]);
 
   // Administration des sprints
-  const handleSprintReopened = async (sprintId: number) => {
+  const handleSprintReopened = useCallback(async (sprintId: number) => {
     try {
       await api.reopenSprint(sprintId);
       const sprintsRes = await api.getSprints();
@@ -514,9 +409,9 @@ export const App: React.FC = () => {
       showErrorToast(err?.message || 'Impossible de réouvrir ce sprint.');
       throw err;
     }
-  };
+  }, [loadSprintDetails, showSuccessToast, showErrorToast]);
 
-  const handleSprintUpdated = async (sprintId: number, data: Partial<Sprint>) => {
+  const handleSprintUpdated = useCallback(async (sprintId: number, data: Partial<Sprint>) => {
     try {
       await api.updateSprint(sprintId, data);
       const sprintsRes = await api.getSprints();
@@ -531,26 +426,38 @@ export const App: React.FC = () => {
       showErrorToast(err?.message || 'Impossible de modifier ce sprint.');
       throw err;
     }
-  };
+  }, [currentSprintId, loadSprintDetails, showSuccessToast, showErrorToast]);
 
-  const handleSprintDeleted = async (sprintId: number) => {
+  const handleSprintDeleted = useCallback(async (_sprintId: number) => {
     try {
-      await api.deleteSprint(sprintId);
+      await api.deleteSprint(_sprintId);
       const sprintsRes = await api.getSprints();
       if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
         setSprints(sprintsRes.sprints);
-        const nextSprint = sprintsRes.sprints.find(s => s.status === 'active') || sprintsRes.sprints[0];
+        const nextSprint = sprintsRes.sprints.find((s) => s.status === 'active') || sprintsRes.sprints[0];
         setCurrentSprintId(nextSprint.id);
         await loadSprintDetails(nextSprint.id);
+      } else {
+        setSprints([]);
+        setCurrentSprintId(null);
+        setTasks([]);
+        setQuestions([]);
       }
       showSuccessToast('Sprint supprimé.');
     } catch (err: any) {
       showErrorToast(err?.message || 'Impossible de supprimer ce sprint.');
       throw err;
     }
-  };
+  }, [loadSprintDetails, showSuccessToast, showErrorToast, setTasks, setQuestions]);
 
-  const activeSprint = sprints.find(s => s.id === currentSprintId) || sprints[0];
+  const activeSprint = useMemo(
+    () => sprints.find((s) => s.id === currentSprintId) || sprints[0] || null,
+    [sprints, currentSprintId]
+  );
+
+  useEffect(() => {
+    setHasBottomDock(!!currentUser && activeTab === 'meeting' && !!activeSprint);
+  }, [currentUser, activeTab, activeSprint, setHasBottomDock]);
 
   // Si une tâche est créée hors de l'onglet Tâches, consommer le batch pour jouer le halo sur la vue active
   useEffect(() => {
@@ -571,7 +478,7 @@ export const App: React.FC = () => {
     if (!currentUser || isLoading || apiError || activeTab === 'meeting') return;
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
 
       const targetEl = e.target as HTMLElement | null;
       if (targetEl && targetEl.closest('input, textarea, select, [contenteditable="true"]')) {
@@ -591,14 +498,13 @@ export const App: React.FC = () => {
 
       const keyLower = e.key.toLowerCase();
 
-      if (keyLower === 'n' || e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') {
+      if ((keyLower === 'n' || e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') && activeSprint) {
         e.preventDefault();
         if (activeTab === 'questions') {
-          if (crossTabModalTimerRef.current !== null) {
-            window.clearTimeout(crossTabModalTimerRef.current);
-          }
+          clearCrossTabTimer();
           saveUserPreferences(currentUser.id, { taskFilter: 'me' });
-          handleChangeTab('tasks');
+          setActiveTab('tasks');
+          saveUserPreferences(currentUser.id, { activeTab: 'tasks' });
           crossTabModalTimerRef.current = window.setTimeout(() => {
             crossTabModalTimerRef.current = null;
             openCreateTaskModal({
@@ -615,7 +521,7 @@ export const App: React.FC = () => {
         const contextualAssignedTo: number | null =
           currentFilter === 'me'
             ? currentUser.id
-            : typeof currentFilter === 'number' && allUsers.some(u => u.id === currentFilter)
+            : typeof currentFilter === 'number' && allUsers.some((u) => u.id === currentFilter)
             ? currentFilter
             : currentUser.role === 'write'
             ? currentUser.id
@@ -633,10 +539,9 @@ export const App: React.FC = () => {
       if (keyLower === 'q' && activeSprint) {
         e.preventDefault();
         if (activeTab === 'tasks') {
-          if (crossTabModalTimerRef.current !== null) {
-            window.clearTimeout(crossTabModalTimerRef.current);
-          }
-          handleChangeTab('questions');
+          clearCrossTabTimer();
+          setActiveTab('questions');
+          saveUserPreferences(currentUser.id, { activeTab: 'questions' });
           crossTabModalTimerRef.current = window.setTimeout(() => {
             crossTabModalTimerRef.current = null;
             setEditingMeetingQuestion(null);
@@ -663,38 +568,61 @@ export const App: React.FC = () => {
     isCloseSprintModalOpen,
     isMeetingQuickModalOpen,
     isAdminPanelOpen,
-    isQuestionModalOpen
+    isQuestionModalOpen,
+    clearCrossTabTimer,
+    openCreateTaskModal
   ]);
-
-  const sortProperties = (list: Property[]) =>
-    [...list].sort(
-      (a, b) =>
-        Number(b.is_active) - Number(a.is_active) ||
-        (a.position ?? 0) - (b.position ?? 0) ||
-        a.name.localeCompare(b.name)
-    );
 
   // Les tâches au statut 'pending' ou sans responsable ne sont jamais visibles dans l'onglet Tâches
   const boardTasks = useMemo(
-    () => tasks.filter(t => t.status !== 'pending' && !!t.assigned_to),
+    () => tasks.filter((t) => t.status !== 'pending' && !!t.assigned_to),
     [tasks]
   );
 
-  // Logements visibles selon le sprint affiché :
-  // - Sprint ouvert : uniquement les logements actifs
-  // - Sprint archivé : logements actifs + logements désactivés contenant des tâches sur ce sprint
+  // Logements visibles selon le sprint affiché
   const sprintProperties = useMemo(() => {
     const ordered = sortProperties(properties);
     if (!activeSprint || activeSprint.status !== 'closed') {
-      return ordered.filter(p => Number(p.is_active) === 1);
+      return ordered.filter((p) => Number(p.is_active) === 1);
     }
     const usedPropIds = new Set(
-      boardTasks.map(t => t.property_id).filter((id): id is number => id !== null && id !== undefined)
+      boardTasks.map((t) => t.property_id).filter((id): id is number => id !== null && id !== undefined)
     );
     return ordered
-      .filter(p => Number(p.is_active) === 1 || usedPropIds.has(p.id))
+      .filter((p) => Number(p.is_active) === 1 || usedPropIds.has(p.id))
       .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name));
   }, [properties, activeSprint, boardTasks]);
+
+  const handleEditTask = useCallback((t: Task) => {
+    setEditingTask(t);
+    setIsTaskModalOpen(true);
+  }, []);
+
+  const handleOpenCloseSprintModal = useCallback(() => {
+    setIsCloseSprintModalOpen(true);
+  }, []);
+
+  const handleMeetingAddNewTask = useCallback((pendingTaskToEdit?: Task | null) => {
+    setEditingPendingTask(pendingTaskToEdit || null);
+    setIsMeetingQuickModalOpen(true);
+  }, []);
+
+  const handleMeetingAddNewQuestion = useCallback(() => {
+    setEditingMeetingQuestion(null);
+    setIsQuestionModalOpen(true);
+  }, []);
+
+  const handleMeetingEditQuestion = useCallback((question: Question) => {
+    setEditingMeetingQuestion(question);
+    setIsQuestionModalOpen(true);
+  }, []);
+
+  const hasAnyModalOpen =
+    isTaskModalOpen ||
+    isCloseSprintModalOpen ||
+    isMeetingQuickModalOpen ||
+    (isAdminPanelOpen && currentUser?.role === 'admin') ||
+    isQuestionModalOpen;
 
   if (isLoading && !currentUser) {
     return (
@@ -711,18 +639,13 @@ export const App: React.FC = () => {
 
   if (!currentUser) {
     return (
-      <>
-        <ToastContainer
-          toasts={toasts}
-          onDismiss={dismissToast}
-          hasBottomDock={activeTab === 'meeting' && !!activeSprint}
-        />
+      <Suspense fallback={<ViewLoadingFallback />}>
         <LoginPage
           users={allUsers}
           onLoginSuccess={handleLoginSuccess}
           onLoginSubmit={handleLoginSubmit}
         />
-      </>
+      </Suspense>
     );
   }
 
@@ -755,12 +678,6 @@ export const App: React.FC = () => {
             : 'py-4 sm:py-6'
         }`}
       >
-        <ToastContainer
-          toasts={toasts}
-          onDismiss={dismissToast}
-          hasBottomDock={activeTab === 'meeting' && !!activeSprint}
-        />
-
         {apiError && (
           <div className="mb-6 p-4 rounded-cdh-xl cdh-glass-overlay border-[var(--cdh-danger-accent)]/30 text-[var(--cdh-danger)] flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -771,6 +688,7 @@ export const App: React.FC = () => {
               </div>
             </div>
             <button
+              type="button"
               onClick={() => loadInitialData()}
               className="px-3.5 py-1.5 text-xs font-semibold bg-[var(--cdh-danger-accent)] hover:opacity-90 text-white rounded-cdh-sm transition-all cursor-pointer"
             >
@@ -798,10 +716,7 @@ export const App: React.FC = () => {
                 lastCreatedBatch={lastCreatedBatch}
                 isTaskModalOpen={isTaskModalOpen}
                 onConsumeCreatedBatch={consumeLastCreatedBatch}
-                onEditTask={(t) => {
-                  setEditingTask(t);
-                  setIsTaskModalOpen(true);
-                }}
+                onEditTask={handleEditTask}
                 onDeleteTask={deleteTask}
                 onToggleSubtask={toggleSubtask}
                 onAddSubtask={addSubtask}
@@ -817,21 +732,23 @@ export const App: React.FC = () => {
 
             {activeTab === 'questions' && (
               activeSprint ? (
-                <QuestionsView
-                  questions={questions}
-                  users={allUsers}
-                  currentUser={currentUser}
-                  sprintId={activeSprint.id}
-                  onAddQuestion={handleAddQuestion}
-                  onUpdateQuestion={handleUpdateQuestion}
-                  onDeleteQuestion={handleDeleteQuestion}
-                  onAddAnswer={handleAddAnswer}
-                  onUpdateAnswer={handleUpdateAnswer}
-                  onDeleteAnswer={handleDeleteAnswer}
-                  isReadOnly={isReadOnly}
-                />
+                <Suspense fallback={<ViewLoadingFallback />}>
+                  <QuestionsView
+                    questions={questions}
+                    users={allUsers}
+                    currentUser={currentUser}
+                    sprintId={activeSprint.id}
+                    onAddQuestion={handleAddQuestion}
+                    onUpdateQuestion={handleUpdateQuestion}
+                    onDeleteQuestion={handleDeleteQuestion}
+                    onAddAnswer={handleAddAnswer}
+                    onUpdateAnswer={handleUpdateAnswer}
+                    onDeleteAnswer={handleDeleteAnswer}
+                    isReadOnly={isReadOnly}
+                  />
+                </Suspense>
               ) : (
-                <div className="bg-white rounded-2xl border border-black/[0.12] p-10 text-center text-slate-500 text-sm">
+                <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center text-[var(--cdh-text-secondary)] text-sm">
                   Aucun sprint configuré pour l'onglet Questions.
                 </div>
               )
@@ -839,47 +756,30 @@ export const App: React.FC = () => {
 
             {activeTab === 'meeting' && (
               activeSprint ? (
-                <MeetingView
-                  sprint={activeSprint}
-                  tasks={tasks}
-                  questions={questions}
-                  users={allUsers}
-                  currentUser={currentUser}
-                  properties={sprintProperties}
-                  onOpenCloseSprintModal={() => setIsCloseSprintModalOpen(true)}
-                  onUpdateTaskStatus={updateTaskStatus}
-                  onAssignTask={assignTask}
-                  onDeleteTask={deleteTask}
-                  onToggleSubtask={toggleSubtask}
-                  onSetQuestionDecision={handleSetQuestionDecision}
-                  onEditTask={(t) => {
-                    setEditingTask(t);
-                    setIsTaskModalOpen(true);
-                  }}
-                  onToggleStar={toggleStar}
-                  onAddNewTask={(pendingTaskToEdit) => {
-                    setEditingPendingTask(pendingTaskToEdit || null);
-                    setIsMeetingQuickModalOpen(true);
-                  }}
-                  onAddNewQuestion={() => {
-                    setEditingMeetingQuestion(null);
-                    setIsQuestionModalOpen(true);
-                  }}
-                  onEditQuestion={(question) => {
-                    setEditingMeetingQuestion(question);
-                    setIsQuestionModalOpen(true);
-                  }}
-                  hasOpenModal={
-                    isTaskModalOpen ||
-                    isCloseSprintModalOpen ||
-                    isMeetingQuickModalOpen ||
-                    (isAdminPanelOpen && currentUser?.role === 'admin') ||
-                    isQuestionModalOpen
-                  }
-                  isReadOnly={isReadOnly}
-                />
+                <Suspense fallback={<ViewLoadingFallback />}>
+                  <MeetingView
+                    sprint={activeSprint}
+                    tasks={tasks}
+                    questions={questions}
+                    users={allUsers}
+                    currentUser={currentUser}
+                    onOpenCloseSprintModal={handleOpenCloseSprintModal}
+                    onUpdateTaskStatus={updateTaskStatus}
+                    onAssignTask={assignTask}
+                    onDeleteTask={deleteTask}
+                    onToggleSubtask={toggleSubtask}
+                    onSetQuestionDecision={handleSetQuestionDecision}
+                    onEditTask={handleEditTask}
+                    onToggleStar={toggleStar}
+                    onAddNewTask={handleMeetingAddNewTask}
+                    onAddNewQuestion={handleMeetingAddNewQuestion}
+                    onEditQuestion={handleMeetingEditQuestion}
+                    hasOpenModal={hasAnyModalOpen}
+                    isReadOnly={isReadOnly}
+                  />
+                </Suspense>
               ) : (
-                <div className="bg-white rounded-2xl border border-black/[0.12] p-10 text-center text-slate-500 text-sm">
+                <div className="cdh-glass-column rounded-cdh-2xl p-10 text-center text-[var(--cdh-text-secondary)] text-sm">
                   Aucun sprint configuré pour la vue réunion.
                 </div>
               )
@@ -888,115 +788,135 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      <TaskModal
-        isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
-        task={editingTask}
-        sprintId={currentSprintId || 1}
-        currentUser={currentUser}
-        users={allUsers}
-        properties={sprintProperties}
-        initialStatus={taskModalInitialStatus}
-        initialPropertyId={taskModalInitialPropertyId}
-        initialAssignedTo={taskModalInitialAssignedTo}
-        creationSource={taskModalCreationSource}
-        onSave={saveTask}
-      />
+      {isTaskModalOpen && activeSprint && (
+        <Suspense fallback={null}>
+          <TaskModal
+            isOpen
+            onClose={() => setIsTaskModalOpen(false)}
+            task={editingTask}
+            sprintId={activeSprint.id}
+            currentUser={currentUser}
+            users={allUsers}
+            properties={sprintProperties}
+            initialStatus={taskModalInitialStatus}
+            initialPropertyId={taskModalInitialPropertyId}
+            initialAssignedTo={taskModalInitialAssignedTo}
+            creationSource={taskModalCreationSource}
+            onSave={saveTask}
+          />
+        </Suspense>
+      )}
 
-      <CloseSprintModal
-        isOpen={isCloseSprintModalOpen}
-        onClose={() => setIsCloseSprintModalOpen(false)}
-        currentSprint={activeSprint}
-        tasks={tasks}
-        questions={questions}
-        onConfirmClose={handleConfirmCloseSprint}
-      />
+      {isCloseSprintModalOpen && activeSprint && (
+        <Suspense fallback={null}>
+          <CloseSprintModal
+            isOpen
+            onClose={() => setIsCloseSprintModalOpen(false)}
+            currentSprint={activeSprint}
+            tasks={tasks}
+            questions={questions}
+            onConfirmClose={handleConfirmCloseSprint}
+          />
+        </Suspense>
+      )}
 
-      <MeetingQuickTaskModal
-        isOpen={isMeetingQuickModalOpen}
-        onClose={() => {
-          setIsMeetingQuickModalOpen(false);
-          setEditingPendingTask(null);
-        }}
-        sprintId={currentSprintId || 1}
-        nextSprintNumber={(activeSprint?.number ?? 0) + 1}
-        currentUser={currentUser}
-        users={allUsers}
-        properties={sprintProperties}
-        editingTask={editingPendingTask}
-        onSave={saveTask}
-      />
+      {isMeetingQuickModalOpen && activeSprint && (
+        <Suspense fallback={null}>
+          <MeetingQuickTaskModal
+            isOpen
+            onClose={() => {
+              setIsMeetingQuickModalOpen(false);
+              setEditingPendingTask(null);
+            }}
+            sprintId={activeSprint.id}
+            nextSprintNumber={activeSprint.number + 1}
+            currentUser={currentUser}
+            users={allUsers}
+            properties={sprintProperties}
+            editingTask={editingPendingTask}
+            onSave={saveTask}
+          />
+        </Suspense>
+      )}
 
-      <QuestionModal
-        isOpen={isQuestionModalOpen}
-        onClose={() => {
-          setIsQuestionModalOpen(false);
-          setEditingMeetingQuestion(null);
-        }}
-        sprintId={currentSprintId || 1}
-        users={allUsers}
-        currentUser={currentUser}
-        editingQuestion={editingMeetingQuestion}
-        onAddQuestion={handleAddQuestion}
-        onUpdateQuestion={handleUpdateQuestion}
-      />
+      {isQuestionModalOpen && activeSprint && (
+        <Suspense fallback={null}>
+          <QuestionModal
+            isOpen
+            onClose={() => {
+              setIsQuestionModalOpen(false);
+              setEditingMeetingQuestion(null);
+            }}
+            sprintId={activeSprint.id}
+            users={allUsers}
+            currentUser={currentUser}
+            editingQuestion={editingMeetingQuestion}
+            onAddQuestion={handleAddQuestion}
+            onUpdateQuestion={handleUpdateQuestion}
+          />
+        </Suspense>
+      )}
 
-      <AdminPanelModal
-        isOpen={isAdminPanelOpen && currentUser?.role === 'admin'}
-        onClose={() => setIsAdminPanelOpen(false)}
-        currentUser={currentUser}
-        users={allUsers}
-        sprints={sprints}
-        properties={properties}
-        currentSprintId={currentSprintId}
-        onSprintReopened={handleSprintReopened}
-        onSprintUpdated={handleSprintUpdated}
-        onSprintDeleted={handleSprintDeleted}
-        onUserCreated={(newUser) => {
-          setAllUsers([...allUsers, newUser]);
-          showSuccessToast(`Associé « ${newUser.name} » créé.`);
-        }}
-        onUserUpdated={(updatedUser) => {
-          setAllUsers(allUsers.map(u => (u.id === updatedUser.id ? updatedUser : u)));
-          if (currentUser?.id === updatedUser.id) {
-            setCurrentUser(updatedUser);
-          }
-          showSuccessToast(`Associé « ${updatedUser.name} » mis à jour.`);
-        }}
-        onUserDeleted={async (deletedId) => {
-          setAllUsers(prev => prev.filter(u => u.id !== deletedId));
-          if (currentSprintId) {
-            await loadSprintDetails(currentSprintId);
-          }
-          showSuccessToast('Associé supprimé.');
-        }}
-        onPropertyCreated={(newProp) => {
-          setProperties(prev => sortProperties([...prev, newProp]));
-          showSuccessToast(`Hébergement « ${newProp.name} » ajouté.`);
-        }}
-        onPropertyUpdated={(updatedProp) => {
-          setProperties(prev => sortProperties(prev.map(p => (p.id === updatedProp.id ? updatedProp : p))));
-          if (currentSprintId) {
-            loadSprintDetails(currentSprintId);
-          }
-          showSuccessToast(`Hébergement « ${updatedProp.name} » mis à jour.`);
-        }}
-        onPropertyStatusChanged={async (updatedProp) => {
-          setProperties(prev => sortProperties(prev.map(p => (p.id === updatedProp.id ? updatedProp : p))));
-          if (currentSprintId) {
-            await loadSprintDetails(currentSprintId);
-          }
-          showSuccessToast(
-            Number(updatedProp.is_active) === 1
-              ? `Hébergement « ${updatedProp.name} » réactivé.`
-              : `Hébergement « ${updatedProp.name} » archivé.`
-          );
-        }}
-        onPropertiesReordered={(orderedProps) => {
-          setProperties(orderedProps);
-          showSuccessToast('Ordre des hébergements mis à jour.');
-        }}
-      />
+      {isAdminPanelOpen && currentUser?.role === 'admin' && (
+        <Suspense fallback={null}>
+          <AdminPanelModal
+            isOpen
+            onClose={() => setIsAdminPanelOpen(false)}
+            currentUser={currentUser}
+            users={allUsers}
+            sprints={sprints}
+            properties={properties}
+            currentSprintId={currentSprintId}
+            onSprintReopened={handleSprintReopened}
+            onSprintUpdated={handleSprintUpdated}
+            onSprintDeleted={handleSprintDeleted}
+            onUserCreated={(newUser) => {
+              setAllUsers((prev) => [...prev, newUser]);
+              showSuccessToast(`Associé « ${newUser.name} » créé.`);
+            }}
+            onUserUpdated={(updatedUser) => {
+              setAllUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+              if (currentUser?.id === updatedUser.id) {
+                setCurrentUser(updatedUser);
+              }
+              showSuccessToast(`Associé « ${updatedUser.name} » mis à jour.`);
+            }}
+            onUserDeleted={async (deletedId) => {
+              setAllUsers((prev) => prev.filter((u) => u.id !== deletedId));
+              if (currentSprintId) {
+                await loadSprintDetails(currentSprintId);
+              }
+              showSuccessToast('Associé supprimé.');
+            }}
+            onPropertyCreated={(newProp) => {
+              setProperties((prev) => sortProperties([...prev, newProp]));
+              showSuccessToast(`Hébergement « ${newProp.name} » ajouté.`);
+            }}
+            onPropertyUpdated={(updatedProp) => {
+              setProperties((prev) => sortProperties(prev.map((p) => (p.id === updatedProp.id ? updatedProp : p))));
+              if (currentSprintId) {
+                loadSprintDetails(currentSprintId);
+              }
+              showSuccessToast(`Hébergement « ${updatedProp.name} » mis à jour.`);
+            }}
+            onPropertyStatusChanged={async (updatedProp) => {
+              setProperties((prev) => sortProperties(prev.map((p) => (p.id === updatedProp.id ? updatedProp : p))));
+              if (currentSprintId) {
+                await loadSprintDetails(currentSprintId);
+              }
+              showSuccessToast(
+                Number(updatedProp.is_active) === 1
+                  ? `Hébergement « ${updatedProp.name} » réactivé.`
+                  : `Hébergement « ${updatedProp.name} » archivé.`
+              );
+            }}
+            onPropertiesReordered={(orderedProps) => {
+              setProperties(orderedProps);
+              showSuccessToast('Ordre des hébergements mis à jour.');
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

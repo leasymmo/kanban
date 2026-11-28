@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'write' | 'read';
+type UserRole = 'admin' | 'write' | 'read';
 
 export interface User {
   id: number;
@@ -26,8 +26,6 @@ export interface Subtask {
   title: string;
   is_done: number | boolean;
   position: number;
-  created_sprint_id?: number | null;
-  deleted_sprint_id?: number | null;
   children?: Subtask[];
 }
 
@@ -59,11 +57,9 @@ export interface Task {
   is_unplanned?: number | boolean;
   is_starred?: number | boolean;
   is_new?: number | boolean;
-  parent_task_id?: number | null;
   subtasks: Subtask[];
   can_edit?: boolean;
   can_delete?: boolean;
-  can_assign?: boolean;
   can_star?: boolean;
 }
 

@@ -245,7 +245,7 @@ export const MeetingHeader: React.FC<MeetingHeaderProps> = ({
                 }`}
               >
                 <span
-                  className={`w-4.5 h-4.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10.5px] font-bold tabular-nums shrink-0 ${
+                  className={`w-[18px] h-[18px] min-w-[18px] rounded-full flex items-center justify-center text-[10.5px] font-bold tabular-nums shrink-0 ${
                     isActive
                       ? 'bg-[var(--cdh-accent)] text-white'
                       : 'bg-[var(--cdh-surface-control-hover)] text-[var(--cdh-text-secondary)]'

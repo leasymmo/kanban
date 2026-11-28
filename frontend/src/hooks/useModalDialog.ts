@@ -1,14 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 let openModalCounter = 0;
 let previousBodyOverflow = '';
 let previousHtmlOverflow = '';
 let previousHtmlOverscroll = '';
+const modalStack: symbol[] = [];
 
 const FIRST_FIELD_SELECTOR = [
   'input:not([disabled]):not([type="hidden"])',
   'textarea:not([disabled])',
-  'select:not([disabled])'
+  'select:not([disabled])',
 ].join(', ');
 
 const FOCUSABLE_SELECTOR = [
@@ -17,7 +18,7 @@ const FOCUSABLE_SELECTOR = [
   'input:not([disabled]):not([type="hidden"])',
   'select:not([disabled])',
   'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])'
+  '[tabindex]:not([tabindex="-1"])',
 ].join(', ');
 
 interface UseModalDialogOptions {
@@ -29,7 +30,7 @@ interface UseModalDialogOptions {
 
 /**
  * Gère l'accessibilité et l'ergonomie d'une modale :
- * - Fermeture via Échap
+ * - Fermeture via Échap (strictement sur la modale au sommet de la pile)
  * - Verrouillage du scroll du body (compatible modales empilées)
  * - Focus initial à l'ouverture, piège Tab/Shift+Tab interne et restauration du focus à la fermeture
  */
@@ -37,19 +38,24 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
   isOpen,
   onClose,
   canClose = true,
-  initialFocusRef
+  initialFocusRef,
 }: UseModalDialogOptions) {
   const dialogRef = useRef<T>(null);
   const onCloseRef = useRef(onClose);
   const canCloseRef = useRef(canClose);
 
-  onCloseRef.current = onClose;
-  canCloseRef.current = canClose;
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+    canCloseRef.current = canClose;
+  });
 
   useEffect(() => {
     if (!isOpen) return;
 
+    const modalToken = Symbol('modal');
+    modalStack.push(modalToken);
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialogElSnapshot = dialogRef.current;
 
     if (openModalCounter === 0) {
       previousBodyOverflow = document.body.style.overflow;
@@ -114,8 +120,7 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
       const containerRect = scrollParent.getBoundingClientRect();
       const fieldRect = activeEl.getBoundingClientRect();
       const isOutOfComfortZone =
-        fieldRect.top < containerRect.top + 12 ||
-        fieldRect.bottom > containerRect.bottom - 16;
+        fieldRect.top < containerRect.top + 12 || fieldRect.bottom > containerRect.bottom - 16;
 
       if (!isOutOfComfortZone) return;
 
@@ -150,7 +155,6 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
       if (focusScrollTimer !== null) {
         window.clearTimeout(focusScrollTimer);
       }
-      // Re-vérifier après la fin de l'animation d'ouverture du clavier virtuel iOS/Android
       focusScrollTimer = window.setTimeout(scrollFocusedFieldInModal, 280);
     };
 
@@ -158,13 +162,17 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
     const vv = window.visualViewport;
     vv?.addEventListener('resize', syncVisualViewport);
     vv?.addEventListener('scroll', syncVisualViewport);
-    dialogRef.current?.addEventListener('focusin', handleFocusIn);
+    dialogElSnapshot?.addEventListener('focusin', handleFocusIn);
+
+    const isTopModal = () => modalStack[modalStack.length - 1] === modalToken;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isTopModal()) return;
+
       if (e.key === 'Escape') {
         if (canCloseRef.current) {
           e.preventDefault();
-          e.stopPropagation();
+          e.stopImmediatePropagation();
           onCloseRef.current();
         }
         return;
@@ -174,9 +182,9 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
       const dialogEl = dialogRef.current;
       if (!dialogEl) return;
 
-      const focusables = Array.from(
-        dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
-      ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      const focusables = Array.from(dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+        (el) => el.getClientRects().length > 0 || el === document.activeElement
+      );
 
       if (focusables.length === 0) {
         e.preventDefault();
@@ -200,6 +208,7 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
     };
 
     const handleBackgroundScroll = (e: WheelEvent | TouchEvent) => {
+      if (!isTopModal()) return;
       const target = e.target as HTMLElement | null;
       if (!target) return;
       const dialogEl = dialogRef.current;
@@ -213,16 +222,20 @@ export function useModalDialog<T extends HTMLElement = HTMLDivElement>({
     document.addEventListener('touchmove', handleBackgroundScroll, { passive: false });
 
     return () => {
+      const idx = modalStack.lastIndexOf(modalToken);
+      if (idx !== -1) modalStack.splice(idx, 1);
+
       window.cancelAnimationFrame(rafId);
       if (focusScrollTimer !== null) {
         window.clearTimeout(focusScrollTimer);
       }
       vv?.removeEventListener('resize', syncVisualViewport);
       vv?.removeEventListener('scroll', syncVisualViewport);
-      dialogRef.current?.removeEventListener('focusin', handleFocusIn);
+      dialogElSnapshot?.removeEventListener('focusin', handleFocusIn);
       document.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('wheel', handleBackgroundScroll);
       document.removeEventListener('touchmove', handleBackgroundScroll);
+
       openModalCounter = Math.max(0, openModalCounter - 1);
       if (openModalCounter === 0) {
         document.body.style.overflow = previousBodyOverflow;

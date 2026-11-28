@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Star, UserPlus } from 'lucide-react';
 import { TaskPriority, TaskStatus, User } from '../../types';
+import { useAnchoredPopover } from '../../hooks/useAnchoredPopover';
 import { Avatar } from './Avatar';
 import { DatePicker } from './DatePicker';
 import { StatusIconPicker } from './StatusIconPicker';
-import { computePopoverPosition, PopoverStylePosition, toPopoverStyle } from './popoverPosition';
 import {
   TASK_PRIORITY_META,
   TaskPriorityIcon,
@@ -70,11 +70,23 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
   onToggleStar,
 }) => {
   const [openMenu, setOpenMenu] = useState<ActivePopover>(null);
-  const [menuPos, setMenuPos] = useState<PopoverStylePosition>({ bottom: 0, left: 0, maxHeight: 300 });
-
   const assigneeBtnRef = useRef<HTMLButtonElement>(null);
   const priorityBtnRef = useRef<HTMLButtonElement>(null);
+  const activeTriggerRef = openMenu === 'assignee' ? assigneeBtnRef : priorityBtnRef;
   const popoverRef = useRef<HTMLDivElement>(null);
+  const handleClose = useCallback(() => setOpenMenu(null), []);
+
+  const popoverStyle = useAnchoredPopover({
+    isOpen: openMenu !== null,
+    onClose: handleClose,
+    triggerRef: activeTriggerRef,
+    popoverRef,
+    width: 220,
+    preferredPlacement: 'above',
+    minSpaceNeeded: 200,
+    gap: 8,
+    viewportPadding: 8,
+  });
 
   const selectedUser = users.find((u) => u.id === assignedTo) || null;
   const resolvedAssignee = selectedUser
@@ -95,68 +107,9 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
   const pillSizeClass = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
   const canEditAssigneeBtn = assigneeEditable && !disabled;
 
-  const computeMenuPosition = (btn: HTMLButtonElement | null): PopoverStylePosition =>
-    computePopoverPosition(btn, {
-      width: 220,
-      preferredPlacement: 'above',
-      minSpaceNeeded: 200,
-      gap: 8,
-      viewportPadding: 8
-    });
-
-  const openPopoverFor = (type: Exclude<ActivePopover, null>, btn: HTMLButtonElement | null) => {
-    if (openMenu === type) {
-      setOpenMenu(null);
-      return;
-    }
-    if (btn) {
-      setMenuPos(computeMenuPosition(btn));
-    }
-    setOpenMenu(type);
+  const toggleMenu = (type: Exclude<ActivePopover, null>) => {
+    setOpenMenu((prev) => (prev === type ? null : type));
   };
-
-  useEffect(() => {
-    if (!openMenu) return;
-
-    const handleResize = () => {
-      const activeBtn =
-        openMenu === 'assignee'
-          ? assigneeBtnRef.current
-          : priorityBtnRef.current;
-      if (activeBtn) {
-        setMenuPos(computeMenuPosition(activeBtn));
-      }
-    };
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        popoverRef.current?.contains(target) ||
-        assigneeBtnRef.current?.contains(target) ||
-        priorityBtnRef.current?.contains(target)
-      ) {
-        return;
-      }
-      setOpenMenu(null);
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        setOpenMenu(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('resize', handleResize);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [openMenu]);
 
   return (
     <div
@@ -169,10 +122,11 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
           ref={assigneeBtnRef}
           type="button"
           disabled={!canEditAssigneeBtn}
+          aria-haspopup="listbox"
           aria-expanded={canEditAssigneeBtn ? openMenu === 'assignee' : undefined}
           aria-label={resolvedAssignee ? `Responsable : ${resolvedAssignee.name}` : 'À attribuer'}
           title={resolvedAssignee ? `Responsable : ${resolvedAssignee.name}` : (canEditAssigneeBtn ? 'Choisir un responsable' : 'À attribuer')}
-          onClick={() => canEditAssigneeBtn && openPopoverFor('assignee', assigneeBtnRef.current)}
+          onClick={() => canEditAssigneeBtn && toggleMenu('assignee')}
           className={`${pillSizeClass} rounded-full flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
             canEditAssigneeBtn
               ? 'active:scale-95 cursor-pointer hover:ring-2 hover:ring-[var(--cdh-accent-soft)]'
@@ -211,10 +165,11 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
         ref={priorityBtnRef}
         type="button"
         disabled={disabled}
+        aria-haspopup="listbox"
         aria-expanded={!disabled ? openMenu === 'priority' : undefined}
         aria-label={`Priorité : ${priorityMeta.label}`}
         title={`Priorité : ${priorityMeta.label}`}
-        onClick={() => !disabled && openPopoverFor('priority', priorityBtnRef.current)}
+        onClick={() => !disabled && toggleMenu('priority')}
         className={`${pillSizeClass} rounded-full flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cdh-border-focus)] ${
           disabled ? 'cursor-default' : 'active:scale-95 cursor-pointer hover:opacity-85'
         }`}
@@ -223,7 +178,7 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
         <TaskPriorityIcon priority={priority} className="w-3.5 h-3.5" />
       </button>
 
-      {/* 4. Échéance (icône calendrier -> pilule date au choix, rouge si dépassée) */}
+      {/* 4. Échéance */}
       <DatePicker
         variant="icon-pill"
         size={size}
@@ -234,7 +189,7 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
         ariaLabel="Date d'échéance"
       />
 
-      {/* 5. Mise en avant réunion (étoile, optionnelle) */}
+      {/* 5. Mise en avant réunion */}
       {showStar && (
         <button
           type="button"
@@ -278,16 +233,15 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
         createPortal(
           <div
             ref={popoverRef}
-            role="listbox"
-            style={toPopoverStyle(menuPos, 220)}
-            className="fixed z-[80] cdh-glass-overlay rounded-cdh-xl p-1.5 animate-fade-in space-y-0.5 overflow-y-auto"
+            style={popoverStyle}
+            className="fixed z-[80] cdh-glass-overlay rounded-cdh-xl p-1.5 animate-fade-in overflow-y-auto"
           >
             {openMenu === 'assignee' && (
               <>
                 <div className="px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--cdh-text-tertiary)]">
                   Responsable
                 </div>
-                <div className="max-h-52 overflow-y-auto space-y-0.5">
+                <div role="listbox" aria-label="Responsable" className="max-h-52 overflow-y-auto space-y-0.5">
                   {allowUnassign && (
                     <button
                       type="button"
@@ -345,33 +299,35 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
                 <div className="px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--cdh-text-tertiary)]">
                   Priorité
                 </div>
-                {(['low', 'medium', 'high'] as TaskPriority[]).map((pr) => {
-                  const meta = TASK_PRIORITY_META[pr];
-                  const isSelected = priority === pr;
-                  return (
-                    <button
-                      key={pr}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => {
-                        onChangePriority(pr);
-                        setOpenMenu(null);
-                      }}
-                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-cdh-sm text-[12.5px] transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] font-semibold'
-                          : 'text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)]'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <TaskPriorityIcon priority={pr} className="w-3.5 h-3.5 shrink-0" />
-                        <span>{meta.label}</span>
-                      </span>
-                      {isSelected && <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />}
-                    </button>
-                  );
-                })}
+                <div role="listbox" aria-label="Priorité" className="space-y-0.5">
+                  {(['low', 'medium', 'high'] as TaskPriority[]).map((pr) => {
+                    const meta = TASK_PRIORITY_META[pr];
+                    const isSelected = priority === pr;
+                    return (
+                      <button
+                        key={pr}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          onChangePriority(pr);
+                          setOpenMenu(null);
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-cdh-sm text-[12.5px] transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] font-semibold'
+                            : 'text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)]'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <TaskPriorityIcon priority={pr} className="w-3.5 h-3.5 shrink-0" />
+                          <span>{meta.label}</span>
+                        </span>
+                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />}
+                      </button>
+                    );
+                  })}
+                </div>
               </>
             )}
           </div>,

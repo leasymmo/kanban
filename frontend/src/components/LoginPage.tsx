@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { User } from '../types';
 import { BlurredIconSwap } from './BlurredIconSwap';
 import { Avatar, Badge, Button } from './ui';
@@ -6,11 +6,13 @@ import { Lock, Mail, Eye, EyeOff, LogIn, Shield, UserCheck, AlertCircle } from '
 
 interface LoginPageProps {
   users: User[];
-  onLoginSuccess: (user: User, token: string) => void;
+  onLoginSuccess: (user: User) => void;
   onLoginSubmit: (emailOrId: string | number, password: string) => Promise<any>;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onLoginSubmit }) => {
+  const emailInputId = useId();
+  const passwordInputId = useId();
   const [selectedUser, setSelectedUser] = useState<User | null>(users[0] || null);
   const [customEmail, setCustomEmail] = useState('');
   const [isManualMode, setIsManualMode] = useState(false);
@@ -45,7 +47,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
     try {
       const res = await onLoginSubmit(emailOrId, password);
       if (res?.success && res?.user) {
-        onLoginSuccess(res.user, res.token);
+        onLoginSuccess(res.user);
       } else {
         setError(res?.error || 'Échec de la connexion.');
       }
@@ -89,7 +91,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
 
         <div className="p-6 sm:p-7">
           {error && (
-            <div className="mb-5 p-3.5 rounded-cdh-md bg-[var(--cdh-danger-soft)] border border-[var(--cdh-danger-accent)]/25 text-[var(--cdh-danger)] flex items-start gap-2.5 text-xs animate-shake">
+            <div role="alert" className="mb-5 p-3.5 rounded-cdh-md bg-[var(--cdh-danger-soft)] border border-[var(--cdh-danger-accent)]/25 text-[var(--cdh-danger)] flex items-start gap-2.5 text-xs animate-shake">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" strokeWidth={2} />
               <div className="flex-1 font-medium">{error}</div>
             </div>
@@ -151,7 +153,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
             ) : (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-[11.5px] font-semibold text-[var(--cdh-text-secondary)] uppercase tracking-wider">
+                  <label htmlFor={emailInputId} className="block text-[11.5px] font-semibold text-[var(--cdh-text-secondary)] uppercase tracking-wider">
                     Adresse email
                   </label>
                   <button
@@ -168,6 +170,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
                 <div className="relative">
                   <Mail className="w-4 h-4 text-[var(--cdh-text-tertiary)] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
                   <input
+                    id={emailInputId}
                     type="email"
                     inputMode="email"
                     autoComplete="email"
@@ -183,12 +186,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLoginSuccess, onL
             )}
 
             <div>
-              <label className="block text-[11.5px] font-semibold text-[var(--cdh-text-secondary)] uppercase tracking-wider mb-1.5">
+              <label htmlFor={passwordInputId} className="block text-[11.5px] font-semibold text-[var(--cdh-text-secondary)] uppercase tracking-wider mb-1.5">
                 Mot de passe
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-[var(--cdh-text-tertiary)] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
                 <input
+                  id={passwordInputId}
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   enterKeyHint="go"
