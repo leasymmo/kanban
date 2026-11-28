@@ -1,22 +1,86 @@
 import { TaskPriority, TaskStatus } from '../types';
 
 export type AssigneeFilterPref = 'all' | 'me' | number;
+export type TaskViewMode = 'kanban' | 'property' | 'list';
+export type TaskListSortKey =
+  | 'alpha'
+  | 'status'
+  | 'priority'
+  | 'due_date'
+  | 'created_at'
+  | 'property'
+  | 'assignee'
+  | 'subtasks';
+export type TaskListSortDir = 'asc' | 'desc';
+export type TaskListColumnId =
+  | 'status'
+  | 'title'
+  | 'property'
+  | 'priority'
+  | 'assignee'
+  | 'due_date'
+  | 'subtasks'
+  | 'created_at';
+
+export const DEFAULT_TASK_LIST_COLUMNS: TaskListColumnId[] = [
+  'status',
+  'title',
+  'property',
+  'priority',
+  'assignee',
+  'due_date',
+  'subtasks',
+];
 
 export interface UserUiPreferences {
   activeTab: 'tasks' | 'questions' | 'meeting';
-  taskViewMode: 'kanban' | 'property';
+  taskViewMode: TaskViewMode;
   taskFilter: AssigneeFilterPref;
   taskSearchQuery: string;
   hiddenPropertyIds: number[];
   hiddenStatuses: TaskStatus[];
   hiddenPriorities: TaskPriority[];
   hideEmptyProperties: boolean;
+  taskListSortBy: TaskListSortKey;
+  taskListSortDir: TaskListSortDir;
+  taskListVisibleColumns: TaskListColumnId[];
 }
 
 const VALID_TABS = new Set(['tasks', 'questions', 'meeting']);
-const VALID_VIEW_MODES = new Set(['kanban', 'property']);
+const VALID_VIEW_MODES = new Set<TaskViewMode>(['kanban', 'property', 'list']);
 const VALID_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'blocked', 'done']);
 const VALID_PRIORITIES = new Set<TaskPriority>(['low', 'medium', 'high']);
+const VALID_LIST_SORTS = new Set<TaskListSortKey>([
+  'alpha',
+  'status',
+  'priority',
+  'due_date',
+  'created_at',
+  'property',
+  'assignee',
+  'subtasks',
+]);
+const VALID_LIST_SORT_DIRS = new Set<TaskListSortDir>(['asc', 'desc']);
+const VALID_LIST_COLUMNS = new Set<TaskListColumnId>([
+  'status',
+  'title',
+  'property',
+  'priority',
+  'assignee',
+  'due_date',
+  'subtasks',
+  'created_at',
+]);
+
+export function sanitizeTaskListColumns(cols: unknown): TaskListColumnId[] {
+  if (!Array.isArray(cols)) return [...DEFAULT_TASK_LIST_COLUMNS];
+  const filtered = cols.filter(
+    (col): col is TaskListColumnId =>
+      typeof col === 'string' && VALID_LIST_COLUMNS.has(col as TaskListColumnId)
+  );
+  const unique = Array.from(new Set(filtered));
+  return unique.includes('title') ? unique : ['title', ...unique];
+}
 
 function getCookieKey(userId: number): string {
   return `kanban_prefs_u_${userId}`;
@@ -96,6 +160,24 @@ export function getUserPreferences(userId: number): Partial<UserUiPreferences> {
 
     if (typeof parsed.hideEmptyProperties === 'boolean') {
       prefs.hideEmptyProperties = parsed.hideEmptyProperties;
+    }
+
+    if (
+      typeof parsed.taskListSortBy === 'string' &&
+      VALID_LIST_SORTS.has(parsed.taskListSortBy as TaskListSortKey)
+    ) {
+      prefs.taskListSortBy = parsed.taskListSortBy as TaskListSortKey;
+    }
+
+    if (
+      typeof parsed.taskListSortDir === 'string' &&
+      VALID_LIST_SORT_DIRS.has(parsed.taskListSortDir as TaskListSortDir)
+    ) {
+      prefs.taskListSortDir = parsed.taskListSortDir as TaskListSortDir;
+    }
+
+    if (Array.isArray(parsed.taskListVisibleColumns)) {
+      prefs.taskListVisibleColumns = sanitizeTaskListColumns(parsed.taskListVisibleColumns);
     }
 
     return prefs;

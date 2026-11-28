@@ -1,11 +1,13 @@
 import React from 'react';
 import { User, Property, Task, TaskPriority, TaskStatus } from '../types';
 import { AssigneeFilter, TASK_PRIORITY_OPTIONS, TASK_STATUS_OPTIONS } from '../hooks/useTaskFilters';
+import { TaskViewMode } from '../utils/cookies';
 import { MultiFilterOption, UnifiedFilterDropdown } from './UnifiedFilterDropdown';
+import { ViewModeDropdown } from './ViewModeDropdown';
 import { Avatar, Button, SearchInput } from './ui';
 import { ensureWhiteTextContrast } from '../utils/color';
 import {
-  Plus, LayoutGrid, Home, UserCheck,
+  Plus, Home, UserCheck, Users,
   SlidersHorizontal, RotateCcw, Flag
 } from 'lucide-react';
 
@@ -30,8 +32,8 @@ interface TasksToolbarProps {
   onSetHiddenPriorities: (priorities: TaskPriority[]) => void;
   hasActiveFilters: boolean;
   onResetFilters: () => void;
-  taskViewMode: 'kanban' | 'property';
-  onChangeViewMode: (mode: 'kanban' | 'property') => void;
+  taskViewMode: TaskViewMode;
+  onChangeViewMode: (mode: TaskViewMode) => void;
   isReadOnly: boolean;
   onAddNewTask: () => void;
 }
@@ -92,6 +94,20 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
       {/* Zone 1 : Filtres par associé + CTA mobile */}
       <div className="flex items-center justify-between gap-1.5 min-w-0 lg:flex-1">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
+          <button
+            type="button"
+            aria-pressed={taskFilter === 'all'}
+            onClick={() => onChangeTaskFilter('all')}
+            className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[34px] lg:min-h-[30px] rounded-full text-[12px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
+              taskFilter === 'all'
+                ? 'bg-[var(--cdh-accent)] text-white shadow-sm'
+                : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
+            <span>Tout le sprint ({facetFilteredTasks.length})</span>
+          </button>
+
           {currentUser && (
             <button
               type="button"
@@ -218,38 +234,12 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
           )}
         </div>
 
-        {/* Segmented Control vue Kanban / Logement */}
-        <div className="flex items-center p-0.5 bg-[var(--cdh-surface-control)] rounded-cdh-md shrink-0">
-          <button
-            type="button"
-            aria-pressed={taskViewMode === 'kanban'}
-            onClick={() => onChangeViewMode('kanban')}
-            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 min-h-[30px] rounded-cdh-sm text-[12px] font-semibold transition-all cursor-pointer ${
-              taskViewMode === 'kanban'
-                ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-cdh-card'
-                : 'text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
-            }`}
-            title="Vue Kanban par statut"
-          >
-            <LayoutGrid className="w-3.5 h-3.5" strokeWidth={2} />
-            <span className="hidden sm:inline">Statut</span>
-          </button>
-
-          <button
-            type="button"
-            aria-pressed={taskViewMode === 'property'}
-            onClick={() => onChangeViewMode('property')}
-            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 min-h-[30px] rounded-cdh-sm text-[12px] font-semibold transition-all cursor-pointer ${
-              taskViewMode === 'property'
-                ? 'bg-[var(--cdh-surface-card-hover)] text-[var(--cdh-text-primary)] shadow-cdh-card'
-                : 'text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)]'
-            }`}
-            title="Vue groupée par logement"
-          >
-            <Home className="w-3.5 h-3.5" strokeWidth={2} />
-            <span className="hidden sm:inline">Logement</span>
-          </button>
-        </div>
+        {/* Sélecteur de vue compact avec icône dynamique */}
+        <ViewModeDropdown
+          value={taskViewMode}
+          onChange={onChangeViewMode}
+          align="right"
+        />
 
         {!isReadOnly && currentUser?.role !== 'read' && (
           <Button

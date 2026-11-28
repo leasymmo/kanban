@@ -46,6 +46,9 @@ export interface Task {
   assigned_to_color?: string;
   created_by: number;
   created_by_name?: string;
+  created_by_initials?: string;
+  created_at?: string;
+  updated_at?: string;
   property_id: number | null;
   property_name?: string;
   property_code?: string;

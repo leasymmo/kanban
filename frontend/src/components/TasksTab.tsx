@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
 import { CreatedTaskBatch } from '../utils/taskMotion';
 import { useTaskFilters } from '../hooks/useTaskFilters';
-import { getUserPreferences, saveUserPreferences } from '../utils/cookies';
+import { getUserPreferences, saveUserPreferences, TaskViewMode } from '../utils/cookies';
 import { TasksToolbar } from './TasksToolbar';
 import { KanbanBoard } from './KanbanBoard';
 import { PropertyBoard } from './PropertyBoard';
+import { SprintListBoard } from './SprintListBoard';
 
 interface TasksTabProps {
   tasks: Task[];
@@ -55,7 +56,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
   onToggleStar,
   onOpenCreateTask
 }) => {
-  const [taskViewMode, setTaskViewModeState] = useState<'kanban' | 'property'>(() => {
+  const [taskViewMode, setTaskViewModeState] = useState<TaskViewMode>(() => {
     if (!currentUser) return 'kanban';
     return getUserPreferences(currentUser.id).taskViewMode ?? 'kanban';
   });
@@ -67,7 +68,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
   }, [currentUser?.id]);
 
   const handleChangeViewMode = useCallback(
-    (mode: 'kanban' | 'property') => {
+    (mode: TaskViewMode) => {
       setTaskViewModeState(mode);
       if (currentUser) {
         saveUserPreferences(currentUser.id, { taskViewMode: mode });
@@ -177,7 +178,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           isModalOpen={isTaskModalOpen}
           onConsumeCreatedBatch={onConsumeCreatedBatch}
         />
-      ) : (
+      ) : taskViewMode === 'property' ? (
         <PropertyBoard
           tasks={filteredTasks}
           properties={properties}
@@ -197,6 +198,36 @@ export const TasksTab: React.FC<TasksTabProps> = ({
             onOpenCreateTask({
               status: 'todo',
               propertyId: propertyId ?? null,
+              assignedTo: contextualAssignedTo,
+              source: 'tasks'
+            })
+          }
+          canAddTasks={canUseBoardQuickAdd}
+          isReadOnly={isReadOnly}
+          lastCreatedBatch={lastCreatedBatch}
+          isModalOpen={isTaskModalOpen}
+          onConsumeCreatedBatch={onConsumeCreatedBatch}
+        />
+      ) : (
+        <SprintListBoard
+          tasks={filteredTasks}
+          allUsers={allUsers}
+          currentUser={currentUser}
+          totalSprintTasksCount={facetFilteredTasks.length}
+          isFilteredByAssignee={taskFilter !== 'all'}
+          onShowAllSprint={() => setTaskFilter('all')}
+          onEditTask={onEditTask}
+          onDeleteTask={onDeleteTask}
+          onToggleSubtask={onToggleSubtask}
+          onAddSubtask={onAddSubtask}
+          onUpdateStatus={onUpdateStatus}
+          onAssignTask={onAssignTask}
+          onQuickUpdateTask={onQuickUpdateTask}
+          onToggleStar={onToggleStar}
+          onAddNewTask={() =>
+            onOpenCreateTask({
+              status: 'todo',
+              propertyId: null,
               assignedTo: contextualAssignedTo,
               source: 'tasks'
             })

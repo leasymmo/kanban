@@ -174,3 +174,41 @@
   will-change: opacity;
   animation: cdh-halo-fade 720ms var(--cdh-ease-out, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
 }
+
+/* ==========================================================================
+   Accordéon fluide des cartes-lignes (Liste globale du sprint)
+   ========================================================================== */
+.cdh-accordion-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 280ms var(--cdh-ease-spring, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity 200ms var(--cdh-ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    visibility 0s linear 280ms;
+}
+
+.cdh-accordion-panel[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 280ms var(--cdh-ease-spring, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity 200ms var(--cdh-ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    visibility 0s;
+}
+
+.cdh-accordion-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.cdh-accordion-content {
+  transform: translateY(-6px);
+  transition: transform 260ms var(--cdh-ease-spring, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.cdh-accordion-panel[data-open="true"] .cdh-accordion-content {
+  transform: translateY(0);
+}
