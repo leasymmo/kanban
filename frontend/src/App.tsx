@@ -199,66 +199,52 @@ export const App: React.FC = () => {
     return () => clearCrossTabTimer();
   }, [clearCrossTabTimer]);
 
-  const loadWorkspaceData = useCallback(async () => {
-    const [propsRes, sprintsRes] = await Promise.all([
-      api.getProperties(true).catch(() => ({ success: false, properties: [] as Property[] })),
-      api.getSprints().catch(() => ({ success: false, sprints: [] as Sprint[] }))
-    ]);
-
-    if (propsRes?.properties) {
-      setProperties(propsRes.properties);
-    }
-
-    if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
-      setSprints(sprintsRes.sprints);
-      const active = sprintsRes.sprints.find((s) => s.status === 'active') || sprintsRes.sprints[0];
-      setCurrentSprintId(active.id);
-      const reqId = ++sprintReqIdRef.current;
-      const details = await api.getSprintDetails(active.id);
-      if (reqId !== sprintReqIdRef.current) return;
-      if (details.success) {
-        setTasks(details.tasks);
-        setQuestions(details.questions);
-        setIsReadOnly(details.is_read_only);
+  const applyBootstrapPayload = useCallback(
+    (boot: Awaited<ReturnType<typeof api.bootstrap>>) => {
+      if (boot.users && boot.users.length > 0) {
+        setAllUsers(boot.users);
       }
-    } else {
-      setSprints([]);
-      setCurrentSprintId(null);
-      setTasks([]);
-      setQuestions([]);
-    }
-  }, [setTasks, setQuestions]);
+
+      if (!boot.authenticated || !boot.user) {
+        setCurrentUser(null);
+        return false;
+      }
+
+      setCurrentUser(boot.user);
+      const userPrefs = getUserPreferences(boot.user.id);
+      setActiveTab(userPrefs.activeTab ?? 'tasks');
+      setProperties(boot.properties ?? []);
+      setSprints(boot.sprints ?? []);
+
+      if (boot.sprint_details) {
+        setCurrentSprintId(boot.sprint_details.sprint.id);
+        setTasks(boot.sprint_details.tasks);
+        setQuestions(boot.sprint_details.questions);
+        setIsReadOnly(boot.sprint_details.is_read_only);
+      } else {
+        setCurrentSprintId(null);
+        setTasks([]);
+        setQuestions([]);
+        setIsReadOnly(false);
+      }
+      return true;
+    },
+    [setTasks, setQuestions]
+  );
 
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     setApiError(null);
     try {
-      const [usersRes, meRes] = await Promise.all([
-        api.getUsers().catch(() => ({ success: false, users: [] as User[] })),
-        api.getMe().catch(() => null)
-      ]);
-
-      if (usersRes?.users && usersRes.users.length > 0) {
-        setAllUsers(usersRes.users);
-      }
-
-      if (!meRes?.user) {
-        setCurrentUser(null);
-        return;
-      }
-
-      setCurrentUser(meRes.user);
-      const userPrefs = getUserPreferences(meRes.user.id);
-      setActiveTab(userPrefs.activeTab ?? 'tasks');
-
-      await loadWorkspaceData();
+      const boot = await api.bootstrap();
+      applyBootstrapPayload(boot);
     } catch (e: any) {
       console.error('Erreur de chargement API :', e);
       setApiError(e?.message || "Impossible de joindre l'API REST.");
     } finally {
       setIsLoading(false);
     }
-  }, [loadWorkspaceData]);
+  }, [applyBootstrapPayload]);
 
   useEffect(() => {
     loadInitialData();
@@ -271,11 +257,8 @@ export const App: React.FC = () => {
     const userPrefs = getUserPreferences(user.id);
     setActiveTab(userPrefs.activeTab ?? 'tasks');
     try {
-      const usersRes = await api.getUsers().catch(() => ({ success: false, users: [] as User[] }));
-      if (usersRes?.users && usersRes.users.length > 0) {
-        setAllUsers(usersRes.users);
-      }
-      await loadWorkspaceData();
+      const boot = await api.bootstrap();
+      applyBootstrapPayload(boot);
       showToast(`Bienvenue, ${user.name} !`, 'success');
     } catch (e: any) {
       console.error('Erreur de chargement API :', e);
@@ -283,7 +266,7 @@ export const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [loadWorkspaceData, showToast]);
+  }, [applyBootstrapPayload, showToast]);
 
   const handleChangeTab = useCallback((tab: 'tasks' | 'questions' | 'meeting') => {
     clearCrossTabTimer();
@@ -626,7 +609,7 @@ export const App: React.FC = () => {
 
   if (isLoading && !currentUser) {
     return (
-      <div className="min-h-dvh cdh-canvas-bg flex flex-col items-center justify-center p-4">
+      <div className="min-h-dvh flex flex-col items-center justify-center p-4">
         <div className="cdh-glass-overlay rounded-cdh-2xl px-8 py-7 flex flex-col items-center">
           <div className="w-10 h-10 border-[3px] border-[var(--cdh-accent-soft)] border-t-[var(--cdh-accent)] rounded-full animate-spin mb-3.5" />
           <p className="text-[13.5px] font-semibold text-[var(--cdh-text-primary)]">
@@ -652,7 +635,7 @@ export const App: React.FC = () => {
   const isFixedViewportTab = activeTab === 'tasks' && !isLoading && !apiError;
 
   return (
-    <div className={`${isFixedViewportTab ? 'h-dvh overflow-hidden' : 'min-h-dvh'} cdh-canvas-bg text-[var(--cdh-text-primary)] flex flex-col`}>
+    <div className={`${isFixedViewportTab ? 'h-dvh overflow-hidden' : 'min-h-dvh'} text-[var(--cdh-text-primary)] flex flex-col`}>
       <Navbar
         currentUser={currentUser}
         sprints={sprints}

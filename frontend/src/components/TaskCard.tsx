@@ -103,7 +103,10 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({
   const handleToggleStar = useCallback(() => onToggleStar?.(task.id), [onToggleStar, task.id]);
 
   return (
-    <div className="relative cdh-card-slot">
+    <div
+      className="relative cdh-card-slot"
+      data-dragging-slot={isDragging ? 'true' : undefined}
+    >
       {dropIndicator === 'before' && (
         <div className="pointer-events-none h-0.5 bg-[var(--cdh-accent)] rounded-full mb-1.5 shadow-sm animate-pulse motion-reduce:animate-none" />
       )}

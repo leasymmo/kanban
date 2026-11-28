@@ -11,6 +11,18 @@ use PDO;
 
 class PropertyController {
     /**
+     * Liste brute des hébergements
+     */
+    public static function fetchPropertiesList(PDO $db, bool $includeInactive = false): array {
+        if ($includeInactive) {
+            $stmt = $db->query("SELECT * FROM properties ORDER BY is_active DESC, position ASC, name ASC, id ASC");
+        } else {
+            $stmt = $db->query("SELECT * FROM properties WHERE is_active = 1 ORDER BY position ASC, name ASC, id ASC");
+        }
+        return $stmt->fetchAll();
+    }
+
+    /**
      * GET /api/properties
      * Liste des logements (actifs par défaut, ou tous avec ?include_inactive=1)
      */
@@ -19,12 +31,7 @@ class PropertyController {
         $db = Database::getConnection();
 
         $includeInactive = !empty($_GET['include_inactive']) && $_GET['include_inactive'] !== '0';
-        if ($includeInactive) {
-            $stmt = $db->query("SELECT * FROM properties ORDER BY is_active DESC, position ASC, name ASC, id ASC");
-        } else {
-            $stmt = $db->query("SELECT * FROM properties WHERE is_active = 1 ORDER BY position ASC, name ASC, id ASC");
-        }
-        $properties = $stmt->fetchAll();
+        $properties = self::fetchPropertiesList($db, $includeInactive);
 
         Response::json([
             'success' => true,

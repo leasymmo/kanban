@@ -207,8 +207,10 @@ export const SprintListTaskItem: React.FC<SprintListTaskItemProps> = React.memo(
         data-task-card-id={task.id}
         data-expanded={isExpanded}
         className={`cdh-surface-card rounded-cdh-lg overflow-hidden ${
-          task.is_starred ? 'cdh-card-starred' : ''
-        } ${!task.is_starred && task.status === 'blocked' ? 'cdh-card-blocked' : ''} ${
+          isExpanded ? '' : 'cdh-list-row-slot'
+        } ${task.is_starred ? 'cdh-card-starred' : ''} ${
+          !task.is_starred && task.status === 'blocked' ? 'cdh-card-blocked' : ''
+        } ${
           isExpanded
             ? 'ring-1 ring-[var(--cdh-accent)]/35 shadow-cdh-card-hover bg-[var(--cdh-surface-card-hover)]'
             : ''

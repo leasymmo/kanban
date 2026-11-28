@@ -7,16 +7,13 @@ use App\Response;
 use App\Auth;
 use App\Request;
 use App\QuestionHelper;
+use PDO;
 
 class SprintController {
     /**
-     * GET /api/sprints
-     * Liste tous les sprints avec statistiques
+     * Liste des sprints avec statistiques agrégées
      */
-    public function list(): void {
-        Auth::requireAuth();
-        $db = Database::getConnection();
-
+    public static function fetchSprintsList(PDO $db): array {
         $stmt = $db->query("
             SELECT s.*,
                    u.name as closed_by_name,
@@ -41,11 +38,87 @@ class SprintController {
             ) q_agg ON q_agg.sprint_id = s.id
             ORDER BY s.number DESC
         ");
-        $sprints = $stmt->fetchAll();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Détail complet (tâches, sous-tâches, questions) pour un sprint donné
+     */
+    public static function fetchSprintDetailsPayload(PDO $db, array $sprint, array $currentUser): array {
+        $id = (int)$sprint['id'];
+
+        $stmtTasks = $db->prepare("
+            SELECT t.id, t.title, t.description, t.created_by,
+                   t.property_id, t.priority, t.due_date,
+                   t.created_at, t.updated_at,
+                   st.sprint_id, st.status, st.assigned_to, st.position, st.is_unplanned, st.is_starred, st.is_new,
+                   p.name as property_name, p.color as property_color, p.code as property_code,
+                   ua.name as assigned_to_name, ua.initials as assigned_to_initials, ua.avatar_color as assigned_to_color,
+                   COALESCE(uc.name, 'Ancien associé') as created_by_name,
+                   COALESCE(uc.initials, '?') as created_by_initials
+            FROM sprint_tasks st
+            JOIN tasks t ON t.id = st.task_id
+            LEFT JOIN properties p ON p.id = t.property_id
+            LEFT JOIN users ua ON ua.id = st.assigned_to
+            LEFT JOIN users uc ON uc.id = t.created_by
+            WHERE st.sprint_id = ?
+            ORDER BY st.position ASC, t.id ASC
+        ");
+        $stmtTasks->execute([$id]);
+        $tasks = $stmtTasks->fetchAll();
+
+        $taskIds = array_column($tasks, 'id');
+        $subtasksMap = \App\SubtaskStateHelper::fetchResolvedSubtasksForTasks(
+            $db,
+            $taskIds,
+            $id,
+            isset($sprint['number']) ? (int)$sprint['number'] : null,
+            $sprint['status'] ?? null
+        );
+
+        $isSprintClosed = ($sprint['status'] === 'closed');
+        $isAdmin = ($currentUser['role'] === 'admin');
+        $isWrite = ($currentUser['role'] === 'write');
+
+        foreach ($tasks as &$task) {
+            $task['subtasks'] = $subtasksMap[$task['id']] ?? [];
+            $isOwner = ($task['assigned_to'] == $currentUser['id'])
+                || ($task['assigned_to'] === null && $task['created_by'] == $currentUser['id']);
+            $canModify = $isAdmin || (!$isSprintClosed && $isWrite && $isOwner);
+
+            $task['can_edit'] = $canModify;
+            $task['can_delete'] = $canModify;
+            $task['can_assign'] = $isAdmin;
+            $task['can_star'] = $canModify && ($task['status'] !== 'pending');
+        }
+        unset($task);
+
+        $questions = QuestionHelper::hydrateQuestionsForSprint(
+            $db,
+            $id,
+            (string)($sprint['status'] ?? 'active'),
+            $currentUser
+        );
+
+        return [
+            'sprint' => $sprint,
+            'tasks' => $tasks,
+            'questions' => $questions,
+            'is_read_only' => ($sprint['status'] === 'closed' && $currentUser['role'] !== 'admin')
+        ];
+    }
+
+    /**
+     * GET /api/sprints
+     * Liste tous les sprints avec statistiques
+     */
+    public function list(): void {
+        Auth::requireAuth();
+        $db = Database::getConnection();
 
         Response::json([
             'success' => true,
-            'sprints' => $sprints
+            'sprints' => self::fetchSprintsList($db)
         ]);
     }
 
@@ -97,69 +170,8 @@ class SprintController {
             Response::error('Sprint introuvable', 404);
         }
 
-        // Récupération des tâches du sprint via la table d'association N-N sprint_tasks
-        $stmtTasks = $db->prepare("
-            SELECT t.id, t.title, t.description, t.created_by,
-                   t.property_id, t.priority, t.due_date,
-                   t.created_at, t.updated_at,
-                   st.sprint_id, st.status, st.assigned_to, st.position, st.is_unplanned, st.is_starred, st.is_new,
-                   p.name as property_name, p.color as property_color, p.code as property_code,
-                   ua.name as assigned_to_name, ua.initials as assigned_to_initials, ua.avatar_color as assigned_to_color,
-                   COALESCE(uc.name, 'Ancien associé') as created_by_name,
-                   COALESCE(uc.initials, '?') as created_by_initials
-            FROM sprint_tasks st
-            JOIN tasks t ON t.id = st.task_id
-            LEFT JOIN properties p ON p.id = t.property_id
-            LEFT JOIN users ua ON ua.id = st.assigned_to
-            LEFT JOIN users uc ON uc.id = t.created_by
-            WHERE st.sprint_id = ?
-            ORDER BY st.position ASC, t.id ASC
-        ");
-        $stmtTasks->execute([$id]);
-        $tasks = $stmtTasks->fetchAll();
-
-        // Récupération de toutes les sous-tâches du sprint (visibilité et état différentiel si archivé)
-        $taskIds = array_column($tasks, 'id');
-        $subtasksMap = \App\SubtaskStateHelper::fetchResolvedSubtasksForTasks(
-            $db,
-            $taskIds,
-            (int)$sprint['id'],
-            isset($sprint['number']) ? (int)$sprint['number'] : null,
-            $sprint['status'] ?? null
-        );
-
-        $isSprintClosed = ($sprint['status'] === 'closed');
-        $isAdmin = ($currentUser['role'] === 'admin');
-        $isWrite = ($currentUser['role'] === 'write');
-
-        // Attachement des sous-tâches et calcul des droits d'édition (sprint clôturé = lecture seule pour non-admins)
-        foreach ($tasks as &$task) {
-            $task['subtasks'] = $subtasksMap[$task['id']] ?? [];
-            $isOwner = ($task['assigned_to'] == $currentUser['id'])
-                || ($task['assigned_to'] === null && $task['created_by'] == $currentUser['id']);
-            $canModify = $isAdmin || (!$isSprintClosed && $isWrite && $isOwner);
-
-            $task['can_edit'] = $canModify;
-            $task['can_delete'] = $canModify;
-            $task['can_assign'] = $isAdmin;
-            $task['can_star'] = $canModify && ($task['status'] !== 'pending');
-        }
-
-        // Récupération des questions du sprint via QuestionHelper
-        $questions = QuestionHelper::hydrateQuestionsForSprint(
-            $db,
-            (int)$sprint['id'],
-            (string)($sprint['status'] ?? 'active'),
-            $currentUser
-        );
-
-        Response::json([
-            'success' => true,
-            'sprint' => $sprint,
-            'tasks' => $tasks,
-            'questions' => $questions,
-            'is_read_only' => ($sprint['status'] === 'closed' && $currentUser['role'] !== 'admin')
-        ]);
+        $payload = self::fetchSprintDetailsPayload($db, $sprint, $currentUser);
+        Response::json(array_merge(['success' => true], $payload));
     }
 
     /**

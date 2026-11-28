@@ -26,6 +26,7 @@ spl_autoload_register(function ($class) {
 
 use App\Router;
 use App\Controllers\AuthController;
+use App\Controllers\BootstrapController;
 use App\Controllers\SprintController;
 use App\Controllers\TaskController;
 use App\Controllers\QuestionController;
@@ -55,7 +56,8 @@ $router->add('GET', '/api/test', function() {
     }
 });
 
-// --- Authentification ---
+// --- Authentification & Bootstrap ---
+$router->add('GET', '/api/bootstrap', [BootstrapController::class, 'index']);
 $router->add('POST', '/api/auth/login', [AuthController::class, 'login']);
 $router->add('GET', '/api/auth/me', [AuthController::class, 'me']);
 $router->add('POST', '/api/auth/logout', [AuthController::class, 'logout']);

@@ -71,6 +71,24 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
 
+  // Bootstrap (1 requête au chargement initial)
+  async bootstrap() {
+    return request<{
+      success: boolean;
+      authenticated: boolean;
+      user: User | null;
+      users: User[];
+      properties?: Property[];
+      sprints?: Sprint[];
+      sprint_details?: {
+        sprint: Sprint;
+        tasks: Task[];
+        questions: Question[];
+        is_read_only: boolean;
+      } | null;
+    }>('/bootstrap');
+  },
+
   // Auth
   async login(userIdOrEmail: number | string, password: string) {
     const body: Record<string, any> = { password };

@@ -6,8 +6,30 @@ use App\Database;
 use App\Response;
 use App\Auth;
 use App\Request;
+use PDO;
 
 class UserController {
+    /**
+     * Liste brute des utilisateurs selon le statut de connexion
+     */
+    public static function fetchUsersList(PDO $db, ?array $currentUser): array {
+        if (!$currentUser) {
+            $stmt = $db->query("
+                SELECT id, name, avatar_color, initials
+                FROM users
+                ORDER BY id ASC
+            ");
+            return $stmt->fetchAll();
+        }
+
+        $stmt = $db->query("
+            SELECT id, name, email, role, avatar_color, initials, created_at
+            FROM users
+            ORDER BY id ASC
+        ");
+        return $stmt->fetchAll();
+    }
+
     /**
      * GET /api/users
      * Liste des associés pour les filtres et attributions
@@ -15,24 +37,7 @@ class UserController {
     public function list(): void {
         $db = Database::getConnection();
         $currentUser = Auth::getCurrentUser();
-
-        if (!$currentUser) {
-            // Utilisateur non connecté : liste publique minimale pour le sélecteur d'avatar
-            $stmt = $db->query("
-                SELECT id, name, avatar_color, initials
-                FROM users
-                ORDER BY id ASC
-            ");
-            $users = $stmt->fetchAll();
-        } else {
-            // Utilisateur connecté : liste complète
-            $stmt = $db->query("
-                SELECT id, name, email, role, avatar_color, initials, created_at
-                FROM users
-                ORDER BY id ASC
-            ");
-            $users = $stmt->fetchAll();
-        }
+        $users = self::fetchUsersList($db, $currentUser);
 
         Response::json([
             'success' => true,
