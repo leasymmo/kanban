@@ -78,7 +78,7 @@ export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = ({
         aria-haspopup="dialog"
         aria-label={`Vue active : ${activeOption.label}. Changer de vue`}
         title={`Vue active : ${activeOption.label}`}
-        className={`flex items-center gap-1.5 text-[12px] border rounded-cdh-md px-2.5 py-1.5 min-h-[38px] sm:min-h-[34px] font-semibold transition-all active:scale-[0.98] cursor-pointer ${
+        className={`flex items-center gap-1.5 text-[12px] border rounded-cdh-md px-2 sm:px-2.5 py-1.5 min-h-[38px] sm:min-h-[34px] font-semibold transition-all active:scale-[0.98] cursor-pointer ${
           isOpen
             ? 'bg-[var(--cdh-accent-soft)] border-[var(--cdh-accent)]/30 text-[var(--cdh-info)]'
             : 'bg-[var(--cdh-surface-control)] border-[var(--cdh-border-hairline)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'

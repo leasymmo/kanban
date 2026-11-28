@@ -2,12 +2,12 @@ import React from 'react';
 import { User, Property, Task, TaskPriority, TaskStatus } from '../types';
 import { AssigneeFilter, TASK_PRIORITY_OPTIONS, TASK_STATUS_OPTIONS } from '../hooks/useTaskFilters';
 import { TaskViewMode } from '../utils/cookies';
+import { AssigneeFilterDropdown } from './AssigneeFilterDropdown';
 import { MultiFilterOption, UnifiedFilterDropdown } from './UnifiedFilterDropdown';
 import { ViewModeDropdown } from './ViewModeDropdown';
-import { Avatar, Button, SearchInput } from './ui';
-import { ensureWhiteTextContrast } from '../utils/color';
+import { Button, SearchInput } from './ui';
 import {
-  Plus, Home, UserCheck, Users,
+  Plus, Home,
   SlidersHorizontal, RotateCcw, Flag
 } from 'lucide-react';
 
@@ -91,74 +91,16 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
 
   return (
     <div className="relative z-20 shrink-0 cdh-glass-chrome px-2.5 py-2 sm:px-3 sm:py-2 rounded-cdh-xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
-      {/* Zone 1 : Filtres par associé + CTA mobile */}
-      <div className="flex items-center justify-between gap-1.5 min-w-0 lg:flex-1">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
-          <button
-            type="button"
-            aria-pressed={taskFilter === 'all'}
-            onClick={() => onChangeTaskFilter('all')}
-            className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[34px] lg:min-h-[30px] rounded-full text-[12px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
-              taskFilter === 'all'
-                ? 'bg-[var(--cdh-accent)] text-white shadow-sm'
-                : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
-            <span>Tout le sprint ({facetFilteredTasks.length})</span>
-          </button>
+      {/* Zone 1 : Recherche élargie (et bouton "+ Tâche" sur mobile < lg) */}
+      <div className="flex items-center gap-2 min-w-0 lg:flex-1 lg:max-w-xs xl:max-w-sm">
+        <SearchInput
+          value={taskSearchQuery}
+          onChange={(e) => onChangeSearchQuery(e.target.value)}
+          onClear={() => onChangeSearchQuery('')}
+          placeholder="Rechercher…"
+          className="flex-1 min-w-0"
+        />
 
-          {currentUser && (
-            <button
-              type="button"
-              aria-pressed={taskFilter === 'me'}
-              onClick={() => onChangeTaskFilter('me')}
-              className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 min-h-[34px] lg:min-h-[30px] rounded-full text-[12px] font-semibold transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
-                taskFilter === 'me'
-                  ? 'bg-[var(--cdh-accent)] text-white shadow-sm'
-                  : 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-accent)] hover:opacity-85'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5 shrink-0" strokeWidth={2.25} />
-              <span>Mes tâches ({facetFilteredTasks.filter(t => t.assigned_to === currentUser.id).length})</span>
-            </button>
-          )}
-
-          {allUsers
-            .filter(u => u.id !== currentUser?.id)
-            .map(u => {
-              const count = facetFilteredTasks.filter(t => t.assigned_to === u.id).length;
-              const isSelected = taskFilter === u.id;
-              const avatarBg = ensureWhiteTextContrast(u.avatar_color);
-              const firstName = u.name.split(' ')[0];
-
-              return (
-                <button
-                  key={u.id}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => onChangeTaskFilter(u.id)}
-                  title={`${u.name} (${count})`}
-                  className={`shrink-0 flex items-center gap-1.5 pl-1 pr-2.5 py-1 min-h-[34px] lg:min-h-[30px] rounded-full text-[12px] font-medium transition-all active:scale-[0.98] cursor-pointer tabular-nums ${
-                    isSelected
-                      ? 'text-white shadow-sm'
-                      : 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control-hover)]'
-                  }`}
-                  style={isSelected ? { backgroundColor: avatarBg } : undefined}
-                >
-                  <Avatar
-                    initials={u.initials}
-                    color={avatarBg}
-                    size="xs"
-                    className={isSelected ? 'ring-white/40' : ''}
-                  />
-                  <span>{firstName} ({count})</span>
-                </button>
-              );
-            })}
-        </div>
-
-        {/* Bouton "+ Tâche" visible en haut à droite sur mobile (< lg) */}
         {!isReadOnly && currentUser?.role !== 'read' && (
           <Button
             variant="primary"
@@ -172,14 +114,14 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
         )}
       </div>
 
-      {/* Zone 2 : Recherche, multi-filtres, switch de vue & bouton création (1 ligne sur lg+) */}
+      {/* Zone 2 : Trio de contrôle unifié (Responsable, Filtres, Vue) + CTA desktop */}
       <div className="flex items-center justify-between lg:justify-end gap-1.5 sm:gap-2 shrink-0 flex-wrap sm:flex-nowrap">
-        <SearchInput
-          value={taskSearchQuery}
-          onChange={(e) => onChangeSearchQuery(e.target.value)}
-          onClear={() => onChangeSearchQuery('')}
-          placeholder="Rechercher…"
-          className="flex-1 min-w-[120px] sm:flex-none sm:w-40 xl:w-48"
+        <AssigneeFilterDropdown
+          value={taskFilter}
+          onChange={onChangeTaskFilter}
+          currentUser={currentUser}
+          allUsers={allUsers}
+          facetFilteredTasks={facetFilteredTasks}
         />
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -227,19 +169,19 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
               onClick={onResetFilters}
               aria-label="Réinitialiser les filtres"
               title="Réinitialiser les filtres"
-              className="p-2 min-h-[34px] min-w-[34px] rounded-cdh-md flex items-center justify-center text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] transition-colors cursor-pointer"
+              className="p-2 min-h-[38px] sm:min-h-[34px] min-w-[34px] rounded-cdh-md flex items-center justify-center text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] hover:bg-[var(--cdh-surface-control)] transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
             </button>
           )}
-        </div>
 
-        {/* Sélecteur de vue compact avec icône dynamique */}
-        <ViewModeDropdown
-          value={taskViewMode}
-          onChange={onChangeViewMode}
-          align="right"
-        />
+          {/* Sélecteur de vue compact avec icône dynamique */}
+          <ViewModeDropdown
+            value={taskViewMode}
+            onChange={onChangeViewMode}
+            align="right"
+          />
+        </div>
 
         {!isReadOnly && currentUser?.role !== 'read' && (
           <Button
