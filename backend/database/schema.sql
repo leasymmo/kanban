@@ -71,6 +71,12 @@ CREATE TABLE `tasks` (
   `parent_task_id` INT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_tasks_prop_id` (`property_id`, `id`),
+  INDEX `idx_tasks_created_id` (`created_at`, `id`),
+  INDEX `idx_tasks_updated_id` (`updated_at`, `id`),
+  INDEX `idx_tasks_due_id` (`due_date`, `id`),
+  INDEX `idx_tasks_prio_id` (`priority`, `id`),
+  INDEX `idx_tasks_title_id` (`title`(100), `id`),
   FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE RESTRICT,
   FOREIGN KEY (`property_id`) REFERENCES `properties`(`id`) ON DELETE SET NULL,
   FOREIGN KEY (`parent_task_id`) REFERENCES `tasks`(`id`) ON DELETE SET NULL
@@ -91,6 +97,9 @@ CREATE TABLE `sprint_tasks` (
   UNIQUE KEY `uniq_sprint_task` (`sprint_id`, `task_id`),
   INDEX `idx_sprint_status_pos` (`sprint_id`, `status`, `position`),
   INDEX `idx_sprint_assigned` (`sprint_id`, `assigned_to`),
+  INDEX `idx_st_sprint_status_pos_task` (`sprint_id`, `status`, `position`, `task_id`),
+  INDEX `idx_st_sprint_assigned_status_pos` (`sprint_id`, `assigned_to`, `status`, `position`, `task_id`),
+  INDEX `idx_st_sprint_pos_task` (`sprint_id`, `position`, `task_id`),
   FOREIGN KEY (`sprint_id`) REFERENCES `sprints`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`assigned_to`) REFERENCES `users`(`id`) ON DELETE SET NULL
@@ -137,6 +146,8 @@ CREATE TABLE `questions` (
   `final_answer` TEXT NULL DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_questions_sprint_user` (`sprint_id`, `user_id`, `id`),
+  INDEX `idx_questions_sprint_created_id` (`sprint_id`, `created_at`, `id`),
+  INDEX `idx_questions_sprint_user_created_id` (`sprint_id`, `user_id`, `created_at`, `id`),
   FOREIGN KEY (`sprint_id`) REFERENCES `sprints`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE

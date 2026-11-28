@@ -78,6 +78,7 @@ $router->add('POST', '/api/properties/{id}/reactivate', [PropertyController::cla
 // --- Sprints ---
 $router->add('GET', '/api/sprints', [SprintController::class, 'list']);
 $router->add('GET', '/api/sprints/current', [SprintController::class, 'current']);
+$router->add('GET', '/api/sprints/{id}/summary', [SprintController::class, 'summary']);
 $router->add('GET', '/api/sprints/{id}', [SprintController::class, 'get']);
 $router->add('PUT', '/api/sprints/{id}', [SprintController::class, 'update']);
 $router->add('DELETE', '/api/sprints/{id}', [SprintController::class, 'delete']);
@@ -85,6 +86,7 @@ $router->add('POST', '/api/sprints/{id}/close', [SprintController::class, 'close
 $router->add('POST', '/api/sprints/{id}/reopen', [SprintController::class, 'reopen']);
 
 // --- Tâches ---
+$router->add('GET', '/api/tasks', [TaskController::class, 'list']);
 $router->add('POST', '/api/tasks', [TaskController::class, 'create']);
 $router->add('PATCH', '/api/tasks/reorder', [TaskController::class, 'reorder']);
 $router->add('PUT', '/api/tasks/{id}', [TaskController::class, 'update']);

@@ -5,11 +5,12 @@ namespace App\Controllers;
 use App\Auth;
 use App\Database;
 use App\Response;
+use App\Pagination\PaginationException;
 
 class BootstrapController {
     /**
      * GET /api/bootstrap
-     * Charge en une seule requête l'état initial complet de l'application.
+     * Charge en une seule requête l'état initial paginé de l'application.
      */
     public function index(): void {
         $db = Database::getConnection();
@@ -39,9 +40,13 @@ class BootstrapController {
             $activeSprint = $sprints[0];
         }
 
-        $sprintDetails = $activeSprint
-            ? SprintController::fetchSprintDetailsPayload($db, $activeSprint, $currentUser)
-            : null;
+        try {
+            $sprintDetails = $activeSprint
+                ? SprintController::fetchSprintDetailsPayload($db, $activeSprint, $currentUser, $_GET)
+                : null;
+        } catch (PaginationException $e) {
+            Response::error($e->getMessage(), $e->getStatusCode());
+        }
 
         Response::json([
             'success' => true,

@@ -1,12 +1,36 @@
 import React, { Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { User, Sprint, Task, Question, Property, TaskStatus } from './types';
-import { api, isNetworkError, setUnauthorizedHandler } from './api/client';
+import {
+  User,
+  Sprint,
+  Task,
+  Question,
+  Property,
+  TaskStatus,
+  SprintDetailsPayload,
+} from './types';
+import { api, isAbortError, isNetworkError, setUnauthorizedHandler } from './api/client';
 import { useTheme } from './contexts/ThemeContext';
 import { useToast } from './contexts/ToastContext';
-import { useSprintTasks } from './hooks/useSprintTasks';
-import { useSprintQuestions } from './hooks/useSprintQuestions';
-import { getUserPreferences, saveUserPreferences } from './utils/cookies';
-import { scheduleTaskMotionFeedback } from './utils/taskMotion';
+import { useTaskFilters } from './hooks/useTaskFilters';
+import { useSprintListPrefs } from './hooks/useSprintListPrefs';
+import { usePaginatedTasks } from './hooks/usePaginatedTasks';
+import { usePaginatedQuestions } from './hooks/usePaginatedQuestions';
+import { EMPTY_MEETING_SUMMARY, useMeetingData } from './hooks/useMeetingData';
+import { QuestionStoreAdapter, useSprintQuestions } from './hooks/useSprintQuestions';
+import { TaskStoreAdapter, useSprintTasks } from './hooks/useSprintTasks';
+import {
+  getLastUserId,
+  getUserPreferences,
+  saveLastUserId,
+  saveUserPreferences,
+  TaskViewMode,
+} from './utils/cookies';
+import {
+  buildSprintDetailsRequestParams,
+  QuestionQueryCriteria,
+  TaskQueryCriteria,
+} from './utils/paginationParams';
+import { CreatedTaskBatch, scheduleTaskMotionFeedback } from './utils/taskMotion';
 import { Navbar } from './components/Navbar';
 import { TasksTab } from './components/TasksTab';
 import { RefreshCw, AlertCircle } from 'lucide-react';
@@ -65,12 +89,56 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [apiError, setApiError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'tasks' | 'questions' | 'meeting'>('tasks');
+  const [lastCreatedBatch, setLastCreatedBatch] = useState<CreatedTaskBatch | null>(null);
+
+  const initialHintUserId = useMemo(() => getLastUserId(), []);
+  const [taskViewMode, setTaskViewModeState] = useState<TaskViewMode>(() => {
+    if (!initialHintUserId) return 'kanban';
+    return getUserPreferences(initialHintUserId).taskViewMode ?? 'kanban';
+  });
+  const [hideEmptyProperties, setHideEmptyProperties] = useState<boolean>(() => {
+    if (!initialHintUserId) return true;
+    return getUserPreferences(initialHintUserId).hideEmptyProperties ?? true;
+  });
+
+  const loadedPrefsUserIdRef = useRef<number | null>(initialHintUserId);
+  useEffect(() => {
+    const uid = currentUser?.id ?? null;
+    if (!uid || loadedPrefsUserIdRef.current === uid) return;
+    loadedPrefsUserIdRef.current = uid;
+    const prefs = getUserPreferences(uid);
+    setTaskViewModeState(prefs.taskViewMode ?? 'kanban');
+    setHideEmptyProperties(prefs.hideEmptyProperties ?? true);
+  }, [currentUser?.id]);
+
+  const handleChangeViewMode = useCallback(
+    (mode: TaskViewMode) => {
+      setTaskViewModeState(mode);
+      if (currentUser?.id) {
+        saveUserPreferences(currentUser.id, { taskViewMode: mode });
+      }
+    },
+    [currentUser?.id]
+  );
+
+  const handleToggleHideEmptyProperties = useCallback(() => {
+    setHideEmptyProperties((prev) => {
+      const next = !prev;
+      if (currentUser?.id) {
+        saveUserPreferences(currentUser.id, { hideEmptyProperties: next });
+      }
+      return next;
+    });
+  }, [currentUser?.id]);
 
   const currentUserRef = useRef<User | null>(currentUser);
   currentUserRef.current = currentUser;
   const sprintsRef = useRef<Sprint[]>(sprints);
   sprintsRef.current = sprints;
+  const currentSprintIdRef = useRef<number | null>(currentSprintId);
+  currentSprintIdRef.current = currentSprintId;
   const sprintReqIdRef = useRef(0);
+  const sprintAbortRef = useRef<AbortController | null>(null);
   const crossTabModalTimerRef = useRef<number | null>(null);
 
   // Modales
@@ -87,35 +155,189 @@ export const App: React.FC = () => {
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [editingMeetingQuestion, setEditingMeetingQuestion] = useState<Question | null>(null);
 
-  const questionsSetterRef = useRef<React.Dispatch<React.SetStateAction<Question[]>>>(() => {});
-  const tasksSetterRef = useRef<React.Dispatch<React.SetStateAction<Task[]>>>(() => {});
+  // Filtres & préférences de tri des tâches
+  const taskFilters = useTaskFilters(properties, currentUser);
+  const listPrefs = useSprintListPrefs(currentUser);
 
-  const loadSprintDetails = useCallback(async (sprintId: number) => {
-    const reqId = ++sprintReqIdRef.current;
-    try {
-      const details = await api.getSprintDetails(sprintId);
-      if (reqId !== sprintReqIdRef.current) return;
-      if (details.success) {
-        tasksSetterRef.current(details.tasks);
-        questionsSetterRef.current(details.questions);
-        setIsReadOnly(details.is_read_only);
+  // Store paginé des tâches (Vue Kanban / Logements / Tableau)
+  const paginatedTasks = usePaginatedTasks({
+    sprintId: currentSprintId,
+    viewMode: taskViewMode,
+    criteria: {
+      taskFilter: taskFilters.taskFilter,
+      search: taskFilters.taskSearchQuery,
+      hiddenStatuses: taskFilters.hiddenStatuses,
+      hiddenPriorities: taskFilters.hiddenPriorities,
+      hiddenPropertyIds: taskFilters.hiddenPropertyIds,
+      dueState: taskFilters.taskDueState,
+      starredOnly: taskFilters.taskStarredOnly,
+      unplannedOnly: taskFilters.taskUnplannedOnly,
+      hideEmptyProperties,
+      listSortBy: listPrefs.sortBy,
+      listSortDir: listPrefs.sortDir,
+      boardSortBy: listPrefs.boardSortBy,
+      boardSortDir: listPrefs.boardSortDir,
+    },
+    enabled: !!currentUser && !!currentSprintId && activeTab === 'tasks',
+    onError: showErrorToast,
+  });
+
+  // Store paginé des questions (Onglet Questions)
+  const paginatedQuestions = usePaginatedQuestions({
+    sprintId: currentSprintId,
+    enabled: !!currentUser && !!currentSprintId && activeTab === 'questions',
+    onError: showErrorToast,
+  });
+
+  // Store paginé de la vue Réunion (chargé uniquement quand l'onglet Réunion est actif)
+  const meetingData = useMeetingData({
+    sprintId: currentSprintId,
+    enabled: !!currentUser && !!currentSprintId && activeTab === 'meeting',
+    onError: showErrorToast,
+  });
+
+  const buildCurrentTaskCriteria = useCallback(
+    (sprintId: number, userId: number | null): TaskQueryCriteria => {
+      const prefs = userId ? getUserPreferences(userId) : {};
+      return {
+        sprintId,
+        viewMode: prefs.taskViewMode ?? 'kanban',
+        taskFilter: prefs.taskFilter ?? 'me',
+        search: prefs.taskSearchQuery ?? '',
+        hiddenStatuses: prefs.hiddenStatuses ?? [],
+        hiddenPriorities: prefs.hiddenPriorities ?? [],
+        hiddenPropertyIds: prefs.hiddenPropertyIds ?? [],
+        dueState: prefs.taskDueState ?? 'all',
+        starredOnly: prefs.taskStarredOnly ?? false,
+        unplannedOnly: prefs.taskUnplannedOnly ?? false,
+        hideEmptyProperties: prefs.hideEmptyProperties ?? true,
+        listSortBy: prefs.taskListSortBy ?? 'priority',
+        listSortDir: prefs.taskListSortDir ?? 'asc',
+        boardSortBy: prefs.taskBoardSortBy ?? 'position',
+        boardSortDir: prefs.taskBoardSortDir ?? 'asc',
+      };
+    },
+    []
+  );
+
+  const buildDefaultQuestionCriteria = useCallback(
+    (sprintId: number): QuestionQueryCriteria => ({
+      sprintId,
+      userFilter: 'me',
+      search: '',
+      decisionStatus: 'all',
+      hasAnswers: 'all',
+      answeredByMe: null,
+      sortBy: 'created_at',
+      sortDir: 'asc',
+    }),
+    []
+  );
+
+  const applySprintDetailsPayload = useCallback(
+    (details: SprintDetailsPayload, prefUserId: number | null, matchedHintUser: boolean) => {
+      setIsReadOnly(details.is_read_only);
+      meetingData.setMeetingSummary(details.meeting_summary || EMPTY_MEETING_SUMMARY);
+      meetingData.reloadIfActive();
+
+      if (matchedHintUser) {
+        paginatedTasks.hydrateFromServerPayload(
+          details.tasks_page,
+          buildCurrentTaskCriteria(details.sprint.id, prefUserId)
+        );
+        paginatedQuestions.hydrateFromServerPayload(
+          details.questions_page,
+          buildDefaultQuestionCriteria(details.sprint.id)
+        );
+      } else {
+        paginatedTasks.resetStore();
+        paginatedQuestions.resetStore();
       }
-    } catch (err: any) {
-      if (reqId !== sprintReqIdRef.current) return;
-      console.error('Erreur chargement sprint :', err);
-      const sprint = sprintsRef.current.find((s) => s.id === sprintId);
-      setIsReadOnly(sprint?.status === 'closed' && currentUserRef.current?.role !== 'admin');
-      if (!isNetworkError(err)) {
-        showErrorToast(err?.message || 'Impossible de charger les détails du sprint.');
+    },
+    [
+      buildCurrentTaskCriteria,
+      buildDefaultQuestionCriteria,
+      meetingData,
+      paginatedTasks,
+      paginatedQuestions,
+    ]
+  );
+
+  const loadSprintDetails = useCallback(
+    async (sprintId: number) => {
+      sprintAbortRef.current?.abort();
+      const controller = new AbortController();
+      sprintAbortRef.current = controller;
+      const reqId = ++sprintReqIdRef.current;
+
+      try {
+        const uid = currentUserRef.current?.id ?? null;
+        const reqParams = buildSprintDetailsRequestParams(uid, sprintId);
+        const details = await api.getSprintDetails(sprintId, reqParams, controller.signal);
+        if (reqId !== sprintReqIdRef.current || !details.success) return;
+        applySprintDetailsPayload(details, uid, true);
+      } catch (err: any) {
+        if (isAbortError(err) || reqId !== sprintReqIdRef.current) return;
+        console.error('Erreur chargement sprint :', err);
+        const sprint = sprintsRef.current.find((s) => s.id === sprintId);
+        setIsReadOnly(sprint?.status === 'closed' && currentUserRef.current?.role !== 'admin');
+        if (!isNetworkError(err)) {
+          showErrorToast(err?.message || 'Impossible de charger les détails du sprint.');
+        }
       }
-    }
-  }, [showErrorToast]);
+    },
+    [applySprintDetailsPayload, showErrorToast]
+  );
+
+  const taskStoreAdapter = useMemo<TaskStoreAdapter>(
+    () => ({
+      findTask: (taskId) =>
+        paginatedTasks.findLoadedTask(taskId) ??
+        meetingData.allMeetingTasks.find((t) => t.id === taskId),
+      findTaskBySubtaskId: (subtaskId) =>
+        paginatedTasks.loadedTasks.find((t) =>
+          (t.subtasks || []).some((st) => st.id === subtaskId)
+        ) ??
+        meetingData.allMeetingTasks.find((t) =>
+          (t.subtasks || []).some((st) => st.id === subtaskId)
+        ),
+      patchTask: (taskId, updater) => {
+        paginatedTasks.patchTaskInStore(taskId, updater);
+        meetingData.patchMeetingTask(taskId, updater);
+      },
+      moveTask: (opts) => {
+        paginatedTasks.moveTaskOptimistic(opts);
+        meetingData.patchMeetingTask(opts.taskId, (t) => ({
+          ...t,
+          ...(opts.targetStatus !== undefined ? { status: opts.targetStatus } : {}),
+          ...(opts.targetPropertyId !== undefined
+            ? { property_id: opts.targetPropertyId, ...opts.propertyPatch }
+            : {}),
+        }));
+      },
+      insertCreatedTasks: (createdTasks) => {
+        paginatedTasks.insertCreatedTasks(createdTasks);
+        meetingData.insertMeetingTasks(createdTasks);
+      },
+      removeTask: (taskId) => {
+        paginatedTasks.removeTaskFromStore(taskId);
+        meetingData.removeMeetingTask(taskId);
+      },
+      refreshFacets: () => paginatedTasks.refreshFacetsSilently(),
+      refreshSummary: () => meetingData.refreshSummary(currentSprintIdRef.current ?? undefined),
+      onCreatedBatch: (batch) => setLastCreatedBatch(batch),
+      fallbackReload: async () => {
+        await Promise.all([
+          paginatedTasks.reloadCurrentView(),
+          meetingData.refreshSummary(currentSprintIdRef.current ?? undefined),
+        ]);
+        meetingData.reloadIfActive();
+      },
+    }),
+    [paginatedTasks, meetingData]
+  );
 
   const {
-    tasks,
-    setTasks,
-    lastCreatedBatch,
-    consumeLastCreatedBatch,
     saveTask,
     updateTaskStatus,
     quickUpdateTask,
@@ -125,37 +347,63 @@ export const App: React.FC = () => {
     deleteTask,
     toggleSubtask,
     addSubtask,
-    toggleStar
+    toggleStar,
   } = useSprintTasks({
     currentSprintId,
     currentUser,
     allUsers,
     properties,
-    reloadSprintDetails: loadSprintDetails,
+    store: taskStoreAdapter,
     onSuccess: showSuccessToast,
-    onError: showErrorToast
+    onError: showErrorToast,
   });
-  tasksSetterRef.current = setTasks;
+
+  const questionStoreAdapter = useMemo<QuestionStoreAdapter>(
+    () => ({
+      findQuestion: (qId) =>
+        paginatedQuestions.questions.find((q) => q.id === qId) ??
+        meetingData.meetingQuestions.find((q) => q.id === qId),
+      patchQuestion: (qId, updater) => {
+        paginatedQuestions.patchQuestionInStore(qId, updater);
+        meetingData.patchMeetingQuestion(qId, updater);
+      },
+      insertCreatedQuestion: (created) => {
+        paginatedQuestions.insertCreatedQuestion(created, currentUserRef.current?.id);
+        meetingData.insertMeetingQuestion(created);
+      },
+      removeQuestion: (qId) => {
+        paginatedQuestions.removeQuestionFromStore(qId);
+        meetingData.removeMeetingQuestion(qId);
+      },
+      refreshFacets: () => paginatedQuestions.refreshFacetsSilently(),
+      refreshSummary: () => meetingData.refreshSummary(currentSprintIdRef.current ?? undefined),
+      fallbackReload: async () => {
+        await Promise.all([
+          paginatedQuestions.reloadCurrent(),
+          meetingData.refreshSummary(currentSprintIdRef.current ?? undefined),
+        ]);
+        meetingData.reloadIfActive();
+      },
+    }),
+    [paginatedQuestions, meetingData]
+  );
 
   const {
-    questions,
-    setQuestions,
     handleAddQuestion,
     handleUpdateQuestion,
     handleDeleteQuestion,
     handleAddAnswer,
     handleUpdateAnswer,
     handleDeleteAnswer,
-    handleSetQuestionDecision
+    handleSetQuestionDecision,
   } = useSprintQuestions({
     currentSprintId,
     currentUser,
     allUsers,
-    reloadSprintDetails: loadSprintDetails,
+    store: questionStoreAdapter,
     onSuccess: showSuccessToast,
-    onError: showErrorToast
+    onError: showErrorToast,
   });
-  questionsSetterRef.current = setQuestions;
 
   const clearCrossTabTimer = useCallback(() => {
     if (crossTabModalTimerRef.current !== null) {
@@ -166,15 +414,15 @@ export const App: React.FC = () => {
 
   const resetWorkspaceState = useCallback(() => {
     clearCrossTabTimer();
+    sprintAbortRef.current?.abort();
     sprintReqIdRef.current += 1;
     setCurrentUser(null);
     setProperties([]);
     setSprints([]);
     setCurrentSprintId(null);
-    setTasks([]);
-    setQuestions([]);
     setIsReadOnly(false);
     setApiError(null);
+    setLastCreatedBatch(null);
     setIsTaskModalOpen(false);
     setEditingTask(null);
     setIsCloseSprintModalOpen(false);
@@ -183,11 +431,15 @@ export const App: React.FC = () => {
     setEditingPendingTask(null);
     setIsQuestionModalOpen(false);
     setEditingMeetingQuestion(null);
-  }, [clearCrossTabTimer, setTasks, setQuestions]);
+    paginatedTasks.resetStore();
+    paginatedQuestions.resetStore();
+    meetingData.resetStore();
+  }, [clearCrossTabTimer, paginatedTasks, paginatedQuestions, meetingData]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
       if (currentUserRef.current) {
+        saveLastUserId(null);
         resetWorkspaceState();
         showErrorToast('Session expirée. Veuillez vous reconnecter.');
       }
@@ -200,7 +452,7 @@ export const App: React.FC = () => {
   }, [clearCrossTabTimer]);
 
   const applyBootstrapPayload = useCallback(
-    (boot: Awaited<ReturnType<typeof api.bootstrap>>) => {
+    (boot: Awaited<ReturnType<typeof api.bootstrap>>, hintUserIdUsed: number | null) => {
       if (boot.users && boot.users.length > 0) {
         setAllUsers(boot.users);
       }
@@ -210,6 +462,7 @@ export const App: React.FC = () => {
         return false;
       }
 
+      saveLastUserId(boot.user.id);
       setCurrentUser(boot.user);
       const userPrefs = getUserPreferences(boot.user.id);
       setActiveTab(userPrefs.activeTab ?? 'tasks');
@@ -218,26 +471,31 @@ export const App: React.FC = () => {
 
       if (boot.sprint_details) {
         setCurrentSprintId(boot.sprint_details.sprint.id);
-        setTasks(boot.sprint_details.tasks);
-        setQuestions(boot.sprint_details.questions);
-        setIsReadOnly(boot.sprint_details.is_read_only);
+        applySprintDetailsPayload(
+          boot.sprint_details,
+          boot.user.id,
+          hintUserIdUsed === boot.user.id
+        );
       } else {
         setCurrentSprintId(null);
-        setTasks([]);
-        setQuestions([]);
         setIsReadOnly(false);
+        paginatedTasks.resetStore();
+        paginatedQuestions.resetStore();
+        meetingData.resetStore();
       }
       return true;
     },
-    [setTasks, setQuestions]
+    [applySprintDetailsPayload, paginatedTasks, paginatedQuestions, meetingData]
   );
 
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     setApiError(null);
+    const hintUserId = getLastUserId();
     try {
-      const boot = await api.bootstrap();
-      applyBootstrapPayload(boot);
+      const bootParams = hintUserId ? buildSprintDetailsRequestParams(hintUserId) : buildSprintDetailsRequestParams(null);
+      const boot = await api.bootstrap(bootParams);
+      applyBootstrapPayload(boot, hintUserId);
     } catch (e: any) {
       console.error('Erreur de chargement API :', e);
       setApiError(e?.message || "Impossible de joindre l'API REST.");
@@ -250,31 +508,39 @@ export const App: React.FC = () => {
     loadInitialData();
   }, [loadInitialData]);
 
-  const handleLoginSuccess = useCallback(async (user: User) => {
-    setIsLoading(true);
-    setApiError(null);
-    setCurrentUser(user);
-    const userPrefs = getUserPreferences(user.id);
-    setActiveTab(userPrefs.activeTab ?? 'tasks');
-    try {
-      const boot = await api.bootstrap();
-      applyBootstrapPayload(boot);
-      showToast(`Bienvenue, ${user.name} !`, 'success');
-    } catch (e: any) {
-      console.error('Erreur de chargement API :', e);
-      setApiError(e?.message || "Impossible de joindre l'API REST.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [applyBootstrapPayload, showToast]);
+  const handleLoginSuccess = useCallback(
+    async (user: User) => {
+      setIsLoading(true);
+      setApiError(null);
+      saveLastUserId(user.id);
+      setCurrentUser(user);
+      const userPrefs = getUserPreferences(user.id);
+      setActiveTab(userPrefs.activeTab ?? 'tasks');
+      try {
+        const bootParams = buildSprintDetailsRequestParams(user.id);
+        const boot = await api.bootstrap(bootParams);
+        applyBootstrapPayload(boot, user.id);
+        showToast(`Bienvenue, ${user.name} !`, 'success');
+      } catch (e: any) {
+        console.error('Erreur de chargement API :', e);
+        setApiError(e?.message || "Impossible de joindre l'API REST.");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [applyBootstrapPayload, showToast]
+  );
 
-  const handleChangeTab = useCallback((tab: 'tasks' | 'questions' | 'meeting') => {
-    clearCrossTabTimer();
-    setActiveTab(tab);
-    if (currentUserRef.current) {
-      saveUserPreferences(currentUserRef.current.id, { activeTab: tab });
-    }
-  }, [clearCrossTabTimer]);
+  const handleChangeTab = useCallback(
+    (tab: 'tasks' | 'questions' | 'meeting') => {
+      clearCrossTabTimer();
+      setActiveTab(tab);
+      if (currentUserRef.current) {
+        saveUserPreferences(currentUserRef.current.id, { activeTab: tab });
+      }
+    },
+    [clearCrossTabTimer]
+  );
 
   const handleLoginSubmit = useCallback(async (emailOrId: string | number, password: string) => {
     return api.login(emailOrId, password);
@@ -287,151 +553,136 @@ export const App: React.FC = () => {
       console.warn('Erreur déconnexion :', err);
     } finally {
       localStorage.removeItem('kanban_token');
+      saveLastUserId(null);
       resetWorkspaceState();
       showToast('Session déconnectée.', 'info');
     }
   }, [resetWorkspaceState, showToast]);
 
-  const handleSelectSprint = useCallback((id: number) => {
-    setCurrentSprintId(id);
-    loadSprintDetails(id);
-  }, [loadSprintDetails]);
+  const handleSelectSprint = useCallback(
+    (id: number) => {
+      setCurrentSprintId(id);
+      loadSprintDetails(id);
+    },
+    [loadSprintDetails]
+  );
 
-  const openCreateTaskModal = useCallback((options?: {
-    status?: TaskStatus;
-    propertyId?: number | null;
-    assignedTo?: number | null;
-    source?: 'tasks' | 'meeting';
-  }) => {
-    setEditingTask(null);
-    setTaskModalInitialStatus(options?.status || 'todo');
-    setTaskModalInitialPropertyId(options?.propertyId ?? null);
-    setTaskModalInitialAssignedTo(options?.assignedTo);
-    setTaskModalCreationSource(options?.source || (activeTab === 'meeting' ? 'meeting' : 'tasks'));
-    setIsTaskModalOpen(true);
-  }, [activeTab]);
+  const openCreateTaskModal = useCallback(
+    (options?: {
+      status?: TaskStatus;
+      propertyId?: number | null;
+      assignedTo?: number | null;
+      source?: 'tasks' | 'meeting';
+    }) => {
+      setEditingTask(null);
+      setTaskModalInitialStatus(options?.status || 'todo');
+      setTaskModalInitialPropertyId(options?.propertyId ?? null);
+      setTaskModalInitialAssignedTo(options?.assignedTo);
+      setTaskModalCreationSource(options?.source || (activeTab === 'meeting' ? 'meeting' : 'tasks'));
+      setIsTaskModalOpen(true);
+    },
+    [activeTab]
+  );
 
-  const handleConfirmCloseSprint = useCallback(async (nextName: string, notes: string) => {
-    const current = sprints.find((s) => s.id === currentSprintId);
-    if (!current) return;
+  const handleConfirmCloseSprint = useCallback(
+    async (nextName: string, notes: string) => {
+      const current = sprints.find((s) => s.id === currentSprintId);
+      if (!current) return;
 
-    try {
-      const res = await api.closeSprint(current.id, nextName, notes);
-      if (res.success) {
-        showSuccessToast(res.message || 'Sprint clôturé avec succès.');
-        const sprintsRes = await api.getSprints();
-        setSprints(sprintsRes.sprints);
-        setCurrentSprintId(res.new_sprint_id);
-        await loadSprintDetails(res.new_sprint_id);
-        return;
-      }
-    } catch (err: any) {
-      if (!isNetworkError(err)) {
-        showErrorToast(err?.message || 'Impossible de clôturer ce sprint.');
-        throw err;
-      }
-      const nextNumber = current.number + 1;
-      const newSprintId = Date.now();
-      const newSprint: Sprint = {
-        id: newSprintId,
-        number: nextNumber,
-        name: nextName || `Point ${nextNumber}`,
-        status: 'active',
-        started_at: new Date().toISOString()
-      };
-
-      const updatedSprints = sprints.map((s) => (s.id === current.id ? { ...s, status: 'closed' as const } : s));
-      setSprints([newSprint, ...updatedSprints]);
-
-      const pendingTasks = tasks.filter((t) => t.status !== 'done');
-      const rolledOverTasks: Task[] = pendingTasks.map((t, idx) => {
-        const wasPending = t.status === 'pending';
-        if (wasPending && !t.assigned_to) {
-          return {
-            ...t,
-            sprint_id: newSprintId,
-            status: 'pending',
-            is_unplanned: false,
-            is_starred: false,
-            is_new: false,
-            position: idx + 1,
-            subtasks: (t.subtasks || []).map((st) => ({ ...st }))
-          };
+      try {
+        const res = await api.closeSprint(current.id, nextName, notes);
+        if (res.success) {
+          showSuccessToast(res.message || 'Sprint clôturé avec succès.');
+          const sprintsRes = await api.getSprints();
+          setSprints(sprintsRes.sprints);
+          setCurrentSprintId(res.new_sprint_id);
+          await loadSprintDetails(res.new_sprint_id);
+          return;
         }
-        return {
-          ...t,
-          sprint_id: newSprintId,
-          status: wasPending ? 'todo' : t.status,
-          is_unplanned: false,
-          is_starred: false,
-          is_new: wasPending,
-          position: idx + 1,
-          subtasks: (t.subtasks || []).map((st) => ({ ...st }))
-        };
-      });
-
-      setCurrentSprintId(newSprintId);
-      setTasks(rolledOverTasks);
-      setQuestions([]);
-      showSuccessToast(`Le sprint ${current.name} a été clôturé localement (${rolledOverTasks.length} tâches transférées).`);
-    }
-  }, [sprints, currentSprintId, tasks, showSuccessToast, showErrorToast, loadSprintDetails, setTasks, setQuestions]);
+      } catch (err: any) {
+        if (!isNetworkError(err)) {
+          showErrorToast(err?.message || 'Impossible de clôturer ce sprint.');
+          throw err;
+        }
+        showErrorToast('Impossible de clôturer un sprint sans connexion API.');
+      }
+    },
+    [sprints, currentSprintId, showSuccessToast, showErrorToast, loadSprintDetails]
+  );
 
   // Administration des sprints
-  const handleSprintReopened = useCallback(async (sprintId: number) => {
-    try {
-      await api.reopenSprint(sprintId);
-      const sprintsRes = await api.getSprints();
-      if (sprintsRes?.sprints) {
-        setSprints(sprintsRes.sprints);
-        setCurrentSprintId(sprintId);
-        await loadSprintDetails(sprintId);
-      }
-      showSuccessToast('Sprint réouvert avec succès.');
-    } catch (err: any) {
-      showErrorToast(err?.message || 'Impossible de réouvrir ce sprint.');
-      throw err;
-    }
-  }, [loadSprintDetails, showSuccessToast, showErrorToast]);
-
-  const handleSprintUpdated = useCallback(async (sprintId: number, data: Partial<Sprint>) => {
-    try {
-      await api.updateSprint(sprintId, data);
-      const sprintsRes = await api.getSprints();
-      if (sprintsRes?.sprints) {
-        setSprints(sprintsRes.sprints);
-        if (currentSprintId === sprintId) {
+  const handleSprintReopened = useCallback(
+    async (sprintId: number) => {
+      try {
+        await api.reopenSprint(sprintId);
+        const sprintsRes = await api.getSprints();
+        if (sprintsRes?.sprints) {
+          setSprints(sprintsRes.sprints);
+          setCurrentSprintId(sprintId);
           await loadSprintDetails(sprintId);
         }
+        showSuccessToast('Sprint réouvert avec succès.');
+      } catch (err: any) {
+        showErrorToast(err?.message || 'Impossible de réouvrir ce sprint.');
+        throw err;
       }
-      showSuccessToast('Sprint mis à jour.');
-    } catch (err: any) {
-      showErrorToast(err?.message || 'Impossible de modifier ce sprint.');
-      throw err;
-    }
-  }, [currentSprintId, loadSprintDetails, showSuccessToast, showErrorToast]);
+    },
+    [loadSprintDetails, showSuccessToast, showErrorToast]
+  );
 
-  const handleSprintDeleted = useCallback(async (_sprintId: number) => {
-    try {
-      await api.deleteSprint(_sprintId);
-      const sprintsRes = await api.getSprints();
-      if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
-        setSprints(sprintsRes.sprints);
-        const nextSprint = sprintsRes.sprints.find((s) => s.status === 'active') || sprintsRes.sprints[0];
-        setCurrentSprintId(nextSprint.id);
-        await loadSprintDetails(nextSprint.id);
-      } else {
-        setSprints([]);
-        setCurrentSprintId(null);
-        setTasks([]);
-        setQuestions([]);
+  const handleSprintUpdated = useCallback(
+    async (sprintId: number, data: Partial<Sprint>) => {
+      try {
+        await api.updateSprint(sprintId, data);
+        const sprintsRes = await api.getSprints();
+        if (sprintsRes?.sprints) {
+          setSprints(sprintsRes.sprints);
+          if (currentSprintId === sprintId) {
+            await loadSprintDetails(sprintId);
+          }
+        }
+        showSuccessToast('Sprint mis à jour.');
+      } catch (err: any) {
+        showErrorToast(err?.message || 'Impossible de modifier ce sprint.');
+        throw err;
       }
-      showSuccessToast('Sprint supprimé.');
-    } catch (err: any) {
-      showErrorToast(err?.message || 'Impossible de supprimer ce sprint.');
-      throw err;
-    }
-  }, [loadSprintDetails, showSuccessToast, showErrorToast, setTasks, setQuestions]);
+    },
+    [currentSprintId, loadSprintDetails, showSuccessToast, showErrorToast]
+  );
+
+  const handleSprintDeleted = useCallback(
+    async (_sprintId: number) => {
+      try {
+        await api.deleteSprint(_sprintId);
+        const sprintsRes = await api.getSprints();
+        if (sprintsRes?.sprints && sprintsRes.sprints.length > 0) {
+          setSprints(sprintsRes.sprints);
+          const nextSprint =
+            sprintsRes.sprints.find((s) => s.status === 'active') || sprintsRes.sprints[0];
+          setCurrentSprintId(nextSprint.id);
+          await loadSprintDetails(nextSprint.id);
+        } else {
+          setSprints([]);
+          setCurrentSprintId(null);
+          paginatedTasks.resetStore();
+          paginatedQuestions.resetStore();
+          meetingData.resetStore();
+        }
+        showSuccessToast('Sprint supprimé.');
+      } catch (err: any) {
+        showErrorToast(err?.message || 'Impossible de supprimer ce sprint.');
+        throw err;
+      }
+    },
+    [
+      loadSprintDetails,
+      showSuccessToast,
+      showErrorToast,
+      paginatedTasks,
+      paginatedQuestions,
+      meetingData,
+    ]
+  );
 
   const activeSprint = useMemo(
     () => sprints.find((s) => s.id === currentSprintId) || sprints[0] || null,
@@ -441,6 +692,8 @@ export const App: React.FC = () => {
   useEffect(() => {
     setHasBottomDock(!!currentUser && activeTab === 'meeting' && !!activeSprint);
   }, [currentUser, activeTab, activeSprint, setHasBottomDock]);
+
+  const consumeLastCreatedBatch = useCallback(() => setLastCreatedBatch(null), []);
 
   // Si une tâche est créée hors de l'onglet Tâches, consommer le batch pour jouer le halo sur la vue active
   useEffect(() => {
@@ -494,13 +747,13 @@ export const App: React.FC = () => {
               status: 'todo',
               propertyId: null,
               assignedTo: currentUser.id,
-              source: 'tasks'
+              source: 'tasks',
             });
           }, 220);
           return;
         }
 
-        const currentFilter = getUserPreferences(currentUser.id).taskFilter ?? 'me';
+        const currentFilter = taskFilters.taskFilter;
         const contextualAssignedTo: number | null =
           currentFilter === 'me'
             ? currentUser.id
@@ -514,7 +767,7 @@ export const App: React.FC = () => {
           status: 'todo',
           propertyId: null,
           assignedTo: contextualAssignedTo,
-          source: 'tasks'
+          source: 'tasks',
         });
         return;
       }
@@ -546,6 +799,7 @@ export const App: React.FC = () => {
     activeTab,
     activeSprint,
     allUsers,
+    taskFilters.taskFilter,
     isReadOnly,
     isTaskModalOpen,
     isCloseSprintModalOpen,
@@ -553,28 +807,25 @@ export const App: React.FC = () => {
     isAdminPanelOpen,
     isQuestionModalOpen,
     clearCrossTabTimer,
-    openCreateTaskModal
+    openCreateTaskModal,
   ]);
 
-  // Les tâches au statut 'pending' ou sans responsable ne sont jamais visibles dans l'onglet Tâches
-  const boardTasks = useMemo(
-    () => tasks.filter((t) => t.status !== 'pending' && !!t.assigned_to),
-    [tasks]
-  );
-
-  // Logements visibles selon le sprint affiché
+  // Logements visibles selon le sprint affiché (basé sur les agrégats serveur pour ne manquer aucun bien)
   const sprintProperties = useMemo(() => {
     const ordered = sortProperties(properties);
     if (!activeSprint || activeSprint.status !== 'closed') {
       return ordered.filter((p) => Number(p.is_active) === 1);
     }
-    const usedPropIds = new Set(
-      boardTasks.map((t) => t.property_id).filter((id): id is number => id !== null && id !== undefined)
-    );
+    const propCounts = paginatedTasks.facets.property_counts || {};
     return ordered
-      .filter((p) => Number(p.is_active) === 1 || usedPropIds.has(p.id))
-      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name));
-  }, [properties, activeSprint, boardTasks]);
+      .filter((p) => Number(p.is_active) === 1 || (propCounts[String(p.id)]?.total ?? 0) > 0)
+      .sort(
+        (a, b) =>
+          (a.position ?? 0) - (b.position ?? 0) ||
+          Number(b.is_active) - Number(a.is_active) ||
+          a.name.localeCompare(b.name)
+      );
+  }, [properties, activeSprint, paginatedTasks.facets.property_counts]);
 
   const handleEditTask = useCallback((t: Task) => {
     setEditingTask(t);
@@ -582,8 +833,11 @@ export const App: React.FC = () => {
   }, []);
 
   const handleOpenCloseSprintModal = useCallback(() => {
+    if (currentSprintIdRef.current) {
+      meetingData.refreshSummary(currentSprintIdRef.current);
+    }
     setIsCloseSprintModalOpen(true);
-  }, []);
+  }, [meetingData]);
 
   const handleMeetingAddNewTask = useCallback((pendingTaskToEdit?: Task | null) => {
     setEditingPendingTask(pendingTaskToEdit || null);
@@ -691,11 +945,61 @@ export const App: React.FC = () => {
           <>
             {activeTab === 'tasks' && (
               <TasksTab
-                tasks={boardTasks}
                 properties={sprintProperties}
                 allUsers={allUsers}
                 currentUser={currentUser}
                 isReadOnly={isReadOnly}
+                taskViewMode={taskViewMode}
+                onChangeViewMode={handleChangeViewMode}
+                hideEmptyProperties={hideEmptyProperties}
+                onToggleHideEmptyProperties={handleToggleHideEmptyProperties}
+                taskFilter={taskFilters.taskFilter}
+                onChangeTaskFilter={taskFilters.setTaskFilter}
+                taskSearchQuery={taskFilters.taskSearchQuery}
+                onChangeSearchQuery={taskFilters.setTaskSearchQuery}
+                hiddenPropertyIds={taskFilters.hiddenPropertyIds}
+                allPropertyFilterIds={taskFilters.allPropertyFilterIds}
+                onToggleProperty={taskFilters.togglePropertyVisibility}
+                onSetHiddenProperties={taskFilters.setHiddenPropertyIds}
+                hiddenStatuses={taskFilters.hiddenStatuses}
+                onToggleStatus={taskFilters.toggleStatusVisibility}
+                onSetHiddenStatuses={taskFilters.setHiddenStatuses}
+                hiddenPriorities={taskFilters.hiddenPriorities}
+                onTogglePriority={taskFilters.togglePriorityVisibility}
+                onSetHiddenPriorities={taskFilters.setHiddenPriorities}
+                taskDueState={taskFilters.taskDueState}
+                onChangeDueState={taskFilters.setTaskDueState}
+                taskStarredOnly={taskFilters.taskStarredOnly}
+                onToggleStarredOnly={() =>
+                  taskFilters.setTaskStarredOnly(!taskFilters.taskStarredOnly)
+                }
+                taskUnplannedOnly={taskFilters.taskUnplannedOnly}
+                onToggleUnplannedOnly={() =>
+                  taskFilters.setTaskUnplannedOnly(!taskFilters.taskUnplannedOnly)
+                }
+                hasActiveFilters={taskFilters.hasActiveFilters}
+                onResetFilters={taskFilters.resetFilters}
+                listSortBy={listPrefs.sortBy}
+                listSortDir={listPrefs.sortDir}
+                visibleColumns={listPrefs.visibleColumns}
+                onSelectListSort={listPrefs.handleSelectSort}
+                onToggleListSortDir={listPrefs.handleToggleSortDir}
+                onToggleColumn={listPrefs.handleToggleColumn}
+                onResetColumns={listPrefs.handleResetColumns}
+                boardSortBy={listPrefs.boardSortBy}
+                boardSortDir={listPrefs.boardSortDir}
+                onSelectBoardSort={listPrefs.handleSelectBoardSort}
+                onToggleBoardSortDir={listPrefs.handleToggleBoardSortDir}
+                groups={paginatedTasks.groups}
+                listItems={paginatedTasks.listItems}
+                listPagination={paginatedTasks.listPagination}
+                loadedTasks={paginatedTasks.loadedTasks}
+                facets={paginatedTasks.facets}
+                isRefreshing={paginatedTasks.isRefreshing || paginatedTasks.isLoadingInitial}
+                isLoadingMoreList={paginatedTasks.isLoadingMoreList}
+                loadingMoreColumns={paginatedTasks.loadingMoreColumns}
+                onLoadMoreColumn={paginatedTasks.loadMoreColumn}
+                onLoadMoreList={paginatedTasks.loadMoreList}
                 lastCreatedBatch={lastCreatedBatch}
                 isTaskModalOpen={isTaskModalOpen}
                 onConsumeCreatedBatch={consumeLastCreatedBatch}
@@ -717,7 +1021,28 @@ export const App: React.FC = () => {
               activeSprint ? (
                 <Suspense fallback={<ViewLoadingFallback />}>
                   <QuestionsView
-                    questions={questions}
+                    questions={paginatedQuestions.questions}
+                    pagination={paginatedQuestions.pagination}
+                    facets={paginatedQuestions.facets}
+                    isLoading={paginatedQuestions.isLoading}
+                    isLoadingMore={paginatedQuestions.isLoadingMore}
+                    onLoadMore={paginatedQuestions.loadMore}
+                    userFilter={paginatedQuestions.userFilter}
+                    onChangeUserFilter={paginatedQuestions.setUserFilter}
+                    searchQuery={paginatedQuestions.searchQuery}
+                    onChangeSearchQuery={paginatedQuestions.setSearchQuery}
+                    decisionStatus={paginatedQuestions.decisionStatus}
+                    onChangeDecisionStatus={paginatedQuestions.setDecisionStatus}
+                    hasAnswers={paginatedQuestions.hasAnswers}
+                    onChangeHasAnswers={paginatedQuestions.setHasAnswers}
+                    answeredByMe={paginatedQuestions.answeredByMe}
+                    onChangeAnsweredByMe={paginatedQuestions.setAnsweredByMe}
+                    sortBy={paginatedQuestions.sortBy}
+                    sortDir={paginatedQuestions.sortDir}
+                    onSelectSort={paginatedQuestions.handleSelectSort}
+                    onToggleSortDir={paginatedQuestions.handleToggleSortDir}
+                    hasActiveFilters={paginatedQuestions.hasActiveFilters}
+                    onResetFilters={paginatedQuestions.resetFilters}
                     users={allUsers}
                     currentUser={currentUser}
                     sprintId={activeSprint.id}
@@ -742,8 +1067,18 @@ export const App: React.FC = () => {
                 <Suspense fallback={<ViewLoadingFallback />}>
                   <MeetingView
                     sprint={activeSprint}
-                    tasks={tasks}
-                    questions={questions}
+                    tasks={meetingData.allMeetingTasks}
+                    questions={meetingData.meetingQuestions}
+                    meetingSummary={meetingData.meetingSummary}
+                    retroGroups={meetingData.retroGroups}
+                    loadingRetroUsers={meetingData.loadingRetroUsers}
+                    onLoadMoreRetroForUser={meetingData.loadMoreRetroForUser}
+                    pendingPagination={meetingData.pendingPagination}
+                    isLoadingMorePending={meetingData.isLoadingMorePending}
+                    onLoadMorePending={meetingData.loadMorePending}
+                    questionsPagination={meetingData.questionsPagination}
+                    isLoadingMoreQuestions={meetingData.isLoadingMoreQuestions}
+                    onLoadMoreMeetingQuestions={meetingData.loadMoreMeetingQuestions}
                     users={allUsers}
                     currentUser={currentUser}
                     onOpenCloseSprintModal={handleOpenCloseSprintModal}
@@ -796,8 +1131,7 @@ export const App: React.FC = () => {
             isOpen
             onClose={() => setIsCloseSprintModalOpen(false)}
             currentSprint={activeSprint}
-            tasks={tasks}
-            questions={questions}
+            meetingSummary={meetingData.meetingSummary}
             onConfirmClose={handleConfirmCloseSprint}
           />
         </Suspense>
@@ -876,14 +1210,18 @@ export const App: React.FC = () => {
               showSuccessToast(`Hébergement « ${newProp.name} » ajouté.`);
             }}
             onPropertyUpdated={(updatedProp) => {
-              setProperties((prev) => sortProperties(prev.map((p) => (p.id === updatedProp.id ? updatedProp : p))));
+              setProperties((prev) =>
+                sortProperties(prev.map((p) => (p.id === updatedProp.id ? updatedProp : p)))
+              );
               if (currentSprintId) {
                 loadSprintDetails(currentSprintId);
               }
               showSuccessToast(`Hébergement « ${updatedProp.name} » mis à jour.`);
             }}
             onPropertyStatusChanged={async (updatedProp) => {
-              setProperties((prev) => sortProperties(prev.map((p) => (p.id === updatedProp.id ? updatedProp : p))));
+              setProperties((prev) =>
+                sortProperties(prev.map((p) => (p.id === updatedProp.id ? updatedProp : p)))
+              );
               if (currentSprintId) {
                 await loadSprintDetails(currentSprintId);
               }

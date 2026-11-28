@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Task, TaskPriority, TaskStatus, User } from '../types';
-import { sortTasks } from '../utils/taskSort';
+import { PaginationMeta, Task, TaskPriority, TaskStatus, User } from '../types';
 import {
   CreatedTaskBatch,
   findVisibleTaskCard,
@@ -9,14 +8,29 @@ import {
   scrollContainersAndHighlightTasks,
 } from '../utils/taskMotion';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { SPRINT_LIST_COLUMNS_CONFIG, useSprintListPrefs } from '../hooks/useSprintListPrefs';
+import {
+  TaskListColumnId,
+  TaskListSortDir,
+  TaskListSortKey,
+} from '../utils/cookies';
+import { SPRINT_LIST_COLUMNS_CONFIG } from '../hooks/useSprintListPrefs';
 import { ColumnsPopoverButton, MobileSortControls } from './sprint-list/SprintListControls';
 import { SprintListTaskItem } from './sprint-list/SprintListTaskItem';
-import { Button } from './ui';
+import { Button, InfiniteScrollSentinel } from './ui';
 import { ArrowDown, ArrowUp, ArrowUpDown, Plus } from 'lucide-react';
 
 interface SprintListBoardProps {
   tasks: Task[];
+  pagination: PaginationMeta;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
+  sortBy: TaskListSortKey;
+  sortDir: TaskListSortDir;
+  visibleColumns: TaskListColumnId[];
+  onSelectSort: (key: TaskListSortKey) => void;
+  onToggleSortDir: () => void;
+  onToggleColumn: (colId: TaskListColumnId) => void;
+  onResetColumns: () => void;
   allUsers?: User[];
   currentUser: User | null;
   isFilteredByAssignee?: boolean;
@@ -38,13 +52,23 @@ interface SprintListBoardProps {
 }
 
 /**
- * Vue globale « Cartes-Lignes Aérées » listant toutes les tâches du sprint :
- * - Tri multi-critères & colonnes configurables sauvegardés localement par utilisateur
- * - Accordéon exclusif animé sur chaque carte (détails montés uniquement à l'ouverture)
- * - Rendu unique responsive (desktop OU mobile via useMediaQuery)
+ * Vue globale « Tableau » (Cartes-Lignes Aérées) alimentée par la pagination keyset SQL :
+ * - Tri serveur multi-colonnes ascendant/descendant
+ * - Scroll infini via IntersectionObserver + réinitialisation sur changement de tri/filtre
+ * - Accordéon exclusif animé sur chaque carte
  */
 export const SprintListBoard: React.FC<SprintListBoardProps> = ({
   tasks,
+  pagination,
+  isLoadingMore,
+  onLoadMore,
+  sortBy,
+  sortDir,
+  visibleColumns,
+  onSelectSort,
+  onToggleSortDir,
+  onToggleColumn,
+  onResetColumns,
   allUsers = [],
   currentUser,
   isFilteredByAssignee = false,
@@ -70,21 +94,16 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
   const isAdmin = currentUser?.role === 'admin';
   const assignableUsers = useMemo(() => allUsers.filter((u) => u.role !== 'read'), [allUsers]);
 
-  const {
-    sortBy,
-    sortDir,
-    visibleColumns,
-    handleSelectSort,
-    handleToggleSortDir,
-    handleToggleColumn,
-    handleResetColumns,
-  } = useSprintListPrefs(currentUser);
-
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [closingTaskId, setClosingTaskId] = useState<number | null>(null);
   const prevExpandedIdRef = useRef<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
+
+  // Remonter en haut lors d'un changement de tri
+  useEffect(() => {
+    boardRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [sortBy, sortDir]);
 
   // Garder l'ancien panneau monté uniquement pendant l'animation de fermeture (280ms)
   useEffect(() => {
@@ -198,16 +217,11 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
     };
   }, [expandedTaskId]);
 
-  const sortedTasks = useMemo(
-    () => sortTasks(tasks, sortBy, sortDir),
-    [tasks, sortBy, sortDir]
-  );
-
   useEffect(() => {
-    if (expandedTaskId !== null && !sortedTasks.some((t) => t.id === expandedTaskId)) {
+    if (expandedTaskId !== null && !tasks.some((t) => t.id === expandedTaskId)) {
       setExpandedTaskId(null);
     }
-  }, [sortedTasks, expandedTaskId]);
+  }, [tasks, expandedTaskId]);
 
   const activeColumns = useMemo(
     () => SPRINT_LIST_COLUMNS_CONFIG.filter((c) => visibleColumns.includes(c.id)),
@@ -229,19 +243,19 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
           <MobileSortControls
             sortBy={sortBy}
             sortDir={sortDir}
-            onSelectSort={handleSelectSort}
-            onToggleSortDir={handleToggleSortDir}
+            onSelectSort={onSelectSort}
+            onToggleSortDir={onToggleSortDir}
           />
           <ColumnsPopoverButton
             visibleColumns={visibleColumns}
-            onToggleColumn={handleToggleColumn}
-            onResetColumns={handleResetColumns}
+            onToggleColumn={onToggleColumn}
+            onResetColumns={onResetColumns}
             isMobile
           />
         </div>
       )}
 
-      {sortedTasks.length === 0 ? (
+      {tasks.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center py-12 px-4 gap-3">
           <p className="text-sm font-semibold text-[var(--cdh-text-primary)]">
             Aucune tâche dans cette vue
@@ -284,7 +298,7 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
                   <button
                     key={col.id}
                     type="button"
-                    onClick={() => handleSelectSort(col.sortKey)}
+                    onClick={() => onSelectSort(col.sortKey)}
                     className={`justify-self-start inline-flex items-center gap-1 px-1.5 py-1 -mx-1.5 -my-1 rounded-cdh-xs text-[11.5px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                       isSorted
                         ? 'bg-[var(--cdh-accent-soft)] text-[var(--cdh-info)]'
@@ -307,14 +321,14 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
               <div className="flex justify-end">
                 <ColumnsPopoverButton
                   visibleColumns={visibleColumns}
-                  onToggleColumn={handleToggleColumn}
-                  onResetColumns={handleResetColumns}
+                  onToggleColumn={onToggleColumn}
+                  onResetColumns={onResetColumns}
                 />
               </div>
             </div>
           )}
 
-          {sortedTasks.map((task) => {
+          {tasks.map((task) => {
             const isExpanded = expandedTaskId === task.id;
             const mountDetails = isExpanded || closingTaskId === task.id;
             return (
@@ -342,6 +356,16 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
               />
             );
           })}
+
+          <InfiniteScrollSentinel
+            rootRef={boardRef}
+            hasMore={pagination.has_more}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={onLoadMore}
+            loadedCount={tasks.length}
+            totalCount={pagination.total}
+            itemLabel="tâches"
+          />
         </div>
       )}
     </div>

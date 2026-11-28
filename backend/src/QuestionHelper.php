@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App;
 
 use PDO;
@@ -7,57 +9,48 @@ use PDO;
 /**
  * Hydratation partagée des questions d'un sprint et de leurs propositions de réponse.
  */
-class QuestionHelper {
+class QuestionHelper
+{
     /**
-     * Charge toutes les questions d'un sprint, leurs réponses collaboratives et calcule les droits.
+     * Hydrate un lot déjà sélectionné/paginé de questions (1 requête batch pour les réponses, 0 N+1).
+     *
+     * @param array<int, array<string, mixed>> $questions
+     * @param array<string, mixed> $currentUser
+     * @return array<int, array<string, mixed>>
      */
-    public static function hydrateQuestionsForSprint(
+    public static function hydrateQuestionRows(
         PDO $db,
-        int $sprintId,
+        array $questions,
         string $sprintStatus,
         array $currentUser
     ): array {
-        $stmtQ = $db->prepare("
-            SELECT q.*,
-                   COALESCE(u.name, 'Ancien associé') as user_name,
-                   COALESCE(u.initials, '?') as user_initials,
-                   COALESCE(u.avatar_color, '#64748B') as user_color,
-                   COALESCE(uc.name, 'Ancien associé') as created_by_name
-            FROM questions q
-            LEFT JOIN users u ON u.id = q.user_id
-            LEFT JOIN users uc ON uc.id = q.created_by
-            WHERE q.sprint_id = ?
-            ORDER BY q.user_id ASC, q.id ASC
-        ");
-        $stmtQ->execute([$sprintId]);
-        $questions = $stmtQ->fetchAll();
-
         if (empty($questions)) {
             return [];
         }
 
-        $qIds = array_column($questions, 'id');
+        $qIds = array_values(array_unique(array_map(static fn(array $row): int => (int)$row['id'], $questions)));
         $answersMap = [];
+
         $inClause = implode(',', array_fill(0, count($qIds), '?'));
         $stmtAnswers = $db->prepare("
-            SELECT a.*,
-                   COALESCE(u.name, 'Ancien associé') as user_name,
-                   COALESCE(u.initials, '?') as user_initials,
-                   COALESCE(u.avatar_color, '#64748B') as user_color
+            SELECT a.id, a.question_id, a.user_id, a.content, a.created_at, a.updated_at,
+                   COALESCE(u.name, 'Ancien associé') AS user_name,
+                   COALESCE(u.initials, '?') AS user_initials,
+                   COALESCE(u.avatar_color, '#64748B') AS user_color
             FROM question_answers a
             LEFT JOIN users u ON u.id = a.user_id
-            WHERE a.question_id IN ($inClause)
+            WHERE a.question_id IN ({$inClause})
             ORDER BY a.created_at ASC, a.id ASC
         ");
         $stmtAnswers->execute($qIds);
-        while ($ans = $stmtAnswers->fetch()) {
+        while ($ans = $stmtAnswers->fetch(PDO::FETCH_ASSOC)) {
             $answersMap[(int)$ans['question_id']][] = $ans;
         }
 
-        $isAdmin = ($currentUser['role'] === 'admin');
-        $isWrite = ($currentUser['role'] === 'write');
+        $isAdmin = (($currentUser['role'] ?? '') === 'admin');
+        $isWrite = (($currentUser['role'] ?? '') === 'write');
         $isSprintClosed = ($sprintStatus === 'closed');
-        $currentUserId = (int)$currentUser['id'];
+        $currentUserId = (int)($currentUser['id'] ?? 0);
 
         foreach ($questions as &$q) {
             $q['id'] = (int)$q['id'];
@@ -79,8 +72,10 @@ class QuestionHelper {
                     && ($isAdmin || ($isWrite && $ans['user_id'] !== null && $ans['user_id'] === $currentUserId));
                 $ans['can_delete'] = $ans['can_edit'];
             }
+            unset($ans);
             $q['answers'] = $rawAnswers;
         }
+        unset($q);
 
         return $questions;
     }

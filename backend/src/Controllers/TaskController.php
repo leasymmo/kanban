@@ -7,9 +7,394 @@ use App\Response;
 use App\Auth;
 use App\Request;
 use App\SubtaskStateHelper;
+use App\Pagination\CursorPaginator;
+use App\Pagination\PageRequest;
+use App\Pagination\PaginatedResult;
+use App\Pagination\PaginationException;
+use App\Pagination\QueryFilter;
+use App\Pagination\Specs\TaskQuerySpec;
 use PDO;
 
 class TaskController {
+    /**
+     * Résout un sprint par ID ou sélectionne le sprint actif / le plus récent.
+     */
+    private static function resolveSprintRow(PDO $db, ?int $sprintId): ?array {
+        if ($sprintId !== null && $sprintId > 0) {
+            $stmt = $db->prepare("SELECT * FROM sprints WHERE id = ? LIMIT 1");
+            $stmt->execute([$sprintId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                Response::error('Sprint introuvable', 404);
+            }
+            return $row;
+        }
+
+        $row = $db->query("SELECT * FROM sprints ORDER BY (status = 'active') DESC, number DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
+     * Moteur partagé de requête paginée de tâches (liste plate ou regroupée par colonne Kanban / logement / associé).
+     *
+     * @param array<string, mixed> $params
+     * @param array<string, mixed> $currentUser
+     * @return array<string, mixed>
+     */
+    public static function executePaginated(
+        PDO $db,
+        ?array $sprint,
+        array $currentUser,
+        array $params,
+        int $defaultLimit = 30
+    ): array {
+        $isAdmin = (($currentUser['role'] ?? '') === 'admin');
+        if (!$sprint) {
+            $sortSpec = TaskQuerySpec::buildSortSpec($db, 'active');
+            $pageRequest = PageRequest::fromArray($params, $sortSpec, $defaultLimit);
+            $empty = (new PaginatedResult([], $pageRequest->getLimit(), false, false, null, null, 0))->toArray();
+            return array_merge([
+                'sprint_id' => 0,
+                'is_read_only' => false,
+                'facets' => [
+                    'status_counts' => ['todo' => 0, 'in_progress' => 0, 'blocked' => 0, 'done' => 0, 'pending' => 0],
+                    'property_counts' => [],
+                    'assignee_counts' => ['all' => 0, 'unassigned' => 0, 'by_user' => []],
+                    'total_matching' => 0,
+                ],
+            ], $empty);
+        }
+
+        $sprintId = (int)$sprint['id'];
+        $sprintNumber = (int)($sprint['number'] ?? 0);
+        $sprintStatus = (string)($sprint['status'] ?? 'active');
+        $isReadOnly = ($sprintStatus === 'closed' && !$isAdmin);
+
+        $groupBy = isset($params['group_by']) && is_string($params['group_by'])
+            ? strtolower(trim($params['group_by']))
+            : '';
+        if ($groupBy === 'none') {
+            $groupBy = '';
+        }
+        if ($groupBy !== '' && !in_array($groupBy, ['status', 'property', 'assignee'], true)) {
+            throw new PaginationException("Paramètre « group_by » invalide : {$groupBy}.");
+        }
+
+        $sortSpec = TaskQuerySpec::buildSortSpec($db, $sprintStatus);
+        $pageRequest = PageRequest::fromArray($params, $sortSpec, $defaultLimit);
+        $paginator = new CursorPaginator();
+        $hasCursor = $pageRequest->getCursor() !== null;
+        $includeFacetsParam = QueryFilter::parseOptionalBool($params, 'include_facets');
+        $shouldIncludeFacets = ($groupBy !== '') || ($includeFacetsParam === 1) || ($includeFacetsParam === null && !$hasCursor);
+
+        if ($groupBy === '') {
+            $filter = TaskQuerySpec::buildFilter($db, $params, $currentUser, $sprintId, $sprintNumber);
+            $query = TaskQuerySpec::buildQuery(
+                $db,
+                $filter,
+                $pageRequest->getSortField()->getKey(),
+                $sprintNumber,
+                $sprintStatus
+            );
+            $result = $paginator->paginate(
+                $db,
+                $query,
+                $pageRequest,
+                static fn(array $rows): array => TaskQuerySpec::hydrateTaskRows(
+                    $db,
+                    $rows,
+                    $sprintId,
+                    $sprintNumber,
+                    $sprintStatus,
+                    $currentUser
+                )
+            );
+
+            $payload = array_merge([
+                'sprint_id' => $sprintId,
+                'is_read_only' => $isReadOnly,
+                'sort' => [
+                    'by' => $pageRequest->getSortField()->getKey(),
+                    'direction' => $pageRequest->getSortDirection(),
+                ],
+            ], $result->toArray());
+
+            if ($shouldIncludeFacets) {
+                $payload['facets'] = TaskQuerySpec::computeFacets($db, $params, $currentUser, $sprintId, $sprintNumber);
+            }
+
+            return $payload;
+        }
+
+        // Mode regroupé : pagination indépendante par colonne + hydratation batch unique des sous-tâches
+        $facets = TaskQuerySpec::computeFacets($db, $params, $currentUser, $sprintId, $sprintNumber);
+        $sortByKey = $pageRequest->getSortField()->getKey();
+        $includeEmpty = QueryFilter::parseOptionalBool($params, 'include_empty') ?? 1;
+
+        $groupDefs = self::resolveGroupDefinitions($db, $params, $groupBy, $sprintStatus, $facets, $includeEmpty === 1);
+        $rawPages = [];
+        $allRawRows = [];
+        $groupRowOffsets = [];
+
+        foreach ($groupDefs as $def) {
+            $gKey = $def['key'];
+            $expectedTotal = $def['total'];
+            if ($expectedTotal <= 0) {
+                $rawPages[$gKey] = [
+                    'key' => $gKey,
+                    'label' => $def['label'],
+                    'extra' => $def['extra'],
+                    'rows' => [],
+                    'pagination' => [
+                        'limit' => $pageRequest->getLimit(),
+                        'has_more' => false,
+                        'has_previous' => false,
+                        'next_cursor' => null,
+                        'previous_cursor' => null,
+                        'total' => 0,
+                    ],
+                ];
+                continue;
+            }
+
+            $groupParams = $params;
+            if ($groupBy === 'status') {
+                $groupParams['status'] = [$gKey];
+                unset($groupParams['statuses'], $groupParams['exclude_status'], $groupParams['exclude_statuses']);
+            } elseif ($groupBy === 'property') {
+                $groupParams['property_id'] = [$gKey];
+                unset($groupParams['property_ids'], $groupParams['exclude_property_id'], $groupParams['exclude_property_ids']);
+            } elseif ($groupBy === 'assignee') {
+                $groupParams['assignee_id'] = [$gKey === '0' ? 'unassigned' : $gKey];
+                unset($groupParams['assignee_ids'], $groupParams['assigned_to'], $groupParams['assignee']);
+            }
+
+            $filter = TaskQuerySpec::buildFilter($db, $groupParams, $currentUser, $sprintId, $sprintNumber);
+            $query = TaskQuerySpec::buildQuery($db, $filter, $sortByKey, $sprintNumber, $sprintStatus);
+            $res = $paginator->paginate($db, $query, $pageRequest);
+
+            $rows = $res->getData();
+            $startOffset = count($allRawRows);
+            $count = count($rows);
+            foreach ($rows as $row) {
+                $allRawRows[] = $row;
+            }
+
+            $meta = $res->getPaginationMeta();
+            $meta['total'] = $expectedTotal;
+
+            $rawPages[$gKey] = [
+                'key' => $gKey,
+                'label' => $def['label'],
+                'extra' => $def['extra'],
+                'rows' => null,
+                'pagination' => $meta,
+            ];
+            $groupRowOffsets[$gKey] = [$startOffset, $count];
+        }
+
+        $hydratedAll = !empty($allRawRows)
+            ? TaskQuerySpec::hydrateTaskRows($db, $allRawRows, $sprintId, $sprintNumber, $sprintStatus, $currentUser)
+            : [];
+
+        $groups = [];
+        foreach ($rawPages as $gKey => $pageData) {
+            if ($pageData['rows'] === null && isset($groupRowOffsets[$gKey])) {
+                [$offset, $len] = $groupRowOffsets[$gKey];
+                $data = array_slice($hydratedAll, $offset, $len);
+            } else {
+                $data = [];
+            }
+
+            $groups[$gKey] = array_merge([
+                'key' => $pageData['key'],
+                'label' => $pageData['label'],
+                'data' => $data,
+                'pagination' => $pageData['pagination'],
+            ], $pageData['extra']);
+        }
+
+        return [
+            'sprint_id' => $sprintId,
+            'is_read_only' => $isReadOnly,
+            'group_by' => $groupBy,
+            'sort' => [
+                'by' => $sortByKey,
+                'direction' => $pageRequest->getSortDirection(),
+            ],
+            'groups' => $groups,
+            'facets' => $facets,
+        ];
+    }
+
+    /**
+     * Détermine la liste des groupes à paginer selon group_by (status, property, assignee).
+     *
+     * @param array<string, mixed> $params
+     * @param array<string, mixed> $facets
+     * @return array<int, array{key: string, label: string, total: int, extra: array<string, mixed>}>
+     */
+    private static function resolveGroupDefinitions(
+        PDO $db,
+        array $params,
+        string $groupBy,
+        string $sprintStatus,
+        array $facets,
+        bool $includeEmpty
+    ): array {
+        $defs = [];
+
+        if ($groupBy === 'status') {
+            $labels = [
+                'todo' => 'À faire',
+                'in_progress' => 'En cours',
+                'blocked' => 'Bloqué',
+                'done' => 'Terminé',
+                'pending' => 'En attente',
+            ];
+            $requested = QueryFilter::parseStringList($params, ['status', 'statuses'], TaskQuerySpec::VALID_STATUSES);
+            $excluded = QueryFilter::parseStringList($params, ['exclude_status', 'exclude_statuses'], TaskQuerySpec::VALID_STATUSES);
+            $candidates = $requested ?? TaskQuerySpec::BOARD_STATUSES;
+            if ($excluded !== null) {
+                $candidates = array_values(array_diff($candidates, $excluded));
+            }
+            foreach ($candidates as $st) {
+                $cnt = (int)($facets['status_counts'][$st] ?? 0);
+                if (!$includeEmpty && $cnt === 0) {
+                    continue;
+                }
+                $defs[] = [
+                    'key' => $st,
+                    'label' => $labels[$st] ?? $st,
+                    'total' => $cnt,
+                    'extra' => [],
+                ];
+            }
+            return $defs;
+        }
+
+        if ($groupBy === 'property') {
+            $requestedProps = TaskQuerySpec::parsePropertyParam($params);
+            $excludedProps = TaskQuerySpec::parsePropertyParam($params, ['exclude_property_id', 'exclude_property_ids']);
+            $propCounts = $facets['property_counts'] ?? [];
+
+            $isAllowedProp = static function (int $pid) use ($requestedProps, $excludedProps): bool {
+                if ($requestedProps !== null) {
+                    if ($pid === 0 && !$requestedProps['include_null']) {
+                        return false;
+                    }
+                    if ($pid > 0 && !in_array($pid, $requestedProps['ids'], true)) {
+                        return false;
+                    }
+                }
+                if ($excludedProps !== null) {
+                    if ($pid === 0 && $excludedProps['include_null']) {
+                        return false;
+                    }
+                    if ($pid > 0 && in_array($pid, $excludedProps['ids'], true)) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            if ($isAllowedProp(0)) {
+                $stats = $propCounts['0'] ?? ['total' => 0, 'done' => 0];
+                if ($includeEmpty || $stats['total'] > 0) {
+                    $defs[] = [
+                        'key' => '0',
+                        'label' => 'Sans logement',
+                        'total' => (int)$stats['total'],
+                        'extra' => ['done_count' => (int)$stats['done'], 'is_active' => 1],
+                    ];
+                }
+            }
+
+            $props = $db->query("
+                SELECT id, name, color, code, position, is_active
+                FROM properties
+                WHERE deleted_at IS NULL
+                ORDER BY is_active DESC, position ASC, name ASC, id ASC
+            ")->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($props as $prop) {
+                $pid = (int)$prop['id'];
+                if (!$isAllowedProp($pid)) {
+                    continue;
+                }
+                $stats = $propCounts[(string)$pid] ?? ['total' => 0, 'done' => 0];
+                $isActive = (int)$prop['is_active'] === 1;
+                // Sur un sprint actif, masquer les logements désactivés sans tâche ; sur sprint clos, garder ceux ayant des tâches
+                if (!$isActive && $stats['total'] === 0) {
+                    continue;
+                }
+                if (!$isActive && $sprintStatus === 'active' && $stats['total'] === 0) {
+                    continue;
+                }
+                if (!$includeEmpty && $stats['total'] === 0) {
+                    continue;
+                }
+                $defs[] = [
+                    'key' => (string)$pid,
+                    'label' => (string)$prop['name'],
+                    'total' => (int)$stats['total'],
+                    'extra' => [
+                        'done_count' => (int)$stats['done'],
+                        'color' => $prop['color'],
+                        'code' => $prop['code'],
+                        'is_active' => (int)$prop['is_active'],
+                    ],
+                ];
+            }
+
+            return $defs;
+        }
+
+        // groupBy === 'assignee'
+        $byUser = $facets['assignee_counts']['by_user'] ?? [];
+        $users = $db->query("SELECT id, name FROM users ORDER BY name ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($users as $u) {
+            $uid = (string)((int)$u['id']);
+            $cnt = (int)($byUser[$uid] ?? 0);
+            if (!$includeEmpty && $cnt === 0) {
+                continue;
+            }
+            $defs[] = [
+                'key' => $uid,
+                'label' => (string)$u['name'],
+                'total' => $cnt,
+                'extra' => [],
+            ];
+        }
+
+        return $defs;
+    }
+
+    /**
+     * GET /api/tasks
+     * Endpoint unifié paginé par curseur (liste plate ou regroupée par colonne) avec filtres SQL et tri asc/desc.
+     */
+    public function list(): void {
+        $currentUser = Auth::requireAuth();
+        $db = Database::getConnection();
+
+        try {
+            $sprintIdParam = null;
+            if (isset($_GET['sprint_id']) && $_GET['sprint_id'] !== '') {
+                if (!ctype_digit((string)$_GET['sprint_id']) || (int)$_GET['sprint_id'] <= 0) {
+                    Response::error('Identifiant de sprint invalide.', 400);
+                }
+                $sprintIdParam = (int)$_GET['sprint_id'];
+            }
+
+            $sprint = self::resolveSprintRow($db, $sprintIdParam);
+            $defaultLimit = isset($_GET['group_by']) && $_GET['group_by'] !== '' ? 20 : 30;
+            $payload = self::executePaginated($db, $sprint, $currentUser, $_GET, $defaultLimit);
+            Response::json(array_merge(['success' => true], $payload));
+        } catch (PaginationException $e) {
+            Response::error($e->getMessage(), $e->getStatusCode());
+        }
+    }
     /**
      * Récupère une tâche avec ses informations contextuelles pour un sprint donné
      * (ou le sprint actif / le plus récent associé à cette tâche).
@@ -263,7 +648,7 @@ class TaskController {
         }
 
         // Vérification du sprint
-        $stmtSprint = $db->prepare("SELECT status FROM sprints WHERE id = ?");
+        $stmtSprint = $db->prepare("SELECT id, number, status FROM sprints WHERE id = ? LIMIT 1");
         $stmtSprint->execute([$sprintId]);
         $sprint = $stmtSprint->fetch();
         if (!$sprint) {
@@ -398,11 +783,21 @@ class TaskController {
 
             $db->commit();
 
+            $createdTasks = TaskQuerySpec::hydrateTasksByIds(
+                $db,
+                $createdIds,
+                $sprintId,
+                (int)($sprint['number'] ?? 0),
+                (string)$sprint['status'],
+                $currentUser
+            );
+
             $count = count($createdIds);
             Response::json([
                 'success' => true,
                 'task_id' => $createdIds[0],
                 'task_ids' => $createdIds,
+                'tasks' => $createdTasks,
                 'created_count' => $count,
                 'status' => $status,
                 'message' => $isMeetingPending
@@ -661,7 +1056,22 @@ class TaskController {
             }
 
             $db->commit();
-            Response::success(null, 'Tâche mise à jour');
+
+            $hydrated = TaskQuerySpec::hydrateTasksByIds(
+                $db,
+                [$id],
+                (int)$task['sprint_id'],
+                (int)($task['sprint_number'] ?? 0),
+                (string)$task['sprint_status'],
+                $currentUser
+            );
+
+            Response::json([
+                'success' => true,
+                'message' => 'Tâche mise à jour',
+                'data' => $hydrated[0] ?? null,
+                'task' => $hydrated[0] ?? null
+            ]);
         } catch (\Throwable $e) {
             if ($db->inTransaction()) {
                 $db->rollBack();
@@ -735,7 +1145,7 @@ class TaskController {
                 $stmtProp->execute([$newPropertyId, $taskId]);
             }
 
-            // Mise à jour de l'ordre des tâches en ne modifiant que les positions qui changent
+            // Mise à jour de l'ordre des tâches compatible avec les colonnes paginées (évite de déplacer les tâches non chargées)
             if (!empty($body['ordered_task_ids']) && is_array($body['ordered_task_ids'])) {
                 $stmtAll = $db->prepare("
                     SELECT task_id, position
@@ -763,17 +1173,52 @@ class TaskController {
                 }
 
                 if (!empty($orderedSubset)) {
-                    $subsetSet = array_flip($orderedSubset);
-                    $slots = [];
-                    foreach ($allSprintTaskIds as $idx => $tid) {
-                        if (isset($subsetSet[$tid])) {
-                            $slots[] = $idx;
-                        }
-                    }
+                    $statusChanged = ($hasStatusChange && $targetStatus !== null && $targetStatus !== $task['status']);
+                    $propertyChanged = ($hasPropertyChange && $newPropertyId !== ($task['property_id'] !== null ? (int)$task['property_id'] : null));
+                    $movedAcrossContainer = $statusChanged || $propertyChanged;
+                    $dropIdx = array_search($taskId, $orderedSubset, true);
 
-                    foreach ($slots as $slotPos => $arrayIdx) {
-                        if (isset($orderedSubset[$slotPos])) {
-                            $allSprintTaskIds[$arrayIdx] = $orderedSubset[$slotPos];
+                    if ($movedAcrossContainer && $dropIdx !== false) {
+                        // Retirer l'ancien slot de la colonne source pour le réinsérer près des voisins visibles de la colonne cible
+                        $withoutMoved = array_values(array_filter(
+                            $allSprintTaskIds,
+                            static fn(int $tid): bool => $tid !== $taskId
+                        ));
+                        $nextSibling = $orderedSubset[$dropIdx + 1] ?? null;
+                        $prevSibling = $dropIdx > 0 ? ($orderedSubset[$dropIdx - 1] ?? null) : null;
+
+                        $insertAt = null;
+                        if ($nextSibling !== null) {
+                            $posNext = array_search($nextSibling, $withoutMoved, true);
+                            if ($posNext !== false) {
+                                $insertAt = $posNext;
+                            }
+                        }
+                        if ($insertAt === null && $prevSibling !== null) {
+                            $posPrev = array_search($prevSibling, $withoutMoved, true);
+                            if ($posPrev !== false) {
+                                $insertAt = $posPrev + 1;
+                            }
+                        }
+                        if ($insertAt === null) {
+                            $withoutMoved[] = $taskId;
+                        } else {
+                            array_splice($withoutMoved, $insertAt, 0, [$taskId]);
+                        }
+                        $allSprintTaskIds = $withoutMoved;
+                    } else {
+                        $subsetSet = array_flip($orderedSubset);
+                        $slots = [];
+                        foreach ($allSprintTaskIds as $idx => $tid) {
+                            if (isset($subsetSet[$tid])) {
+                                $slots[] = $idx;
+                            }
+                        }
+
+                        foreach ($slots as $slotPos => $arrayIdx) {
+                            if (isset($orderedSubset[$slotPos])) {
+                                $allSprintTaskIds[$arrayIdx] = $orderedSubset[$slotPos];
+                            }
                         }
                     }
 
@@ -970,6 +1415,14 @@ class TaskController {
         $stmtInsert->execute([$id, $parentId, $title, $maxPos + 1, $subCreatedSprintId]);
         $newSubtaskId = (int)$db->lastInsertId();
 
+        $resolvedSubtasksMap = SubtaskStateHelper::fetchResolvedSubtasksForTasks(
+            $db,
+            [$id],
+            $subCreatedSprintId,
+            isset($task['sprint_number']) ? (int)$task['sprint_number'] : null,
+            $task['sprint_status'] ?? null
+        );
+
         Response::json([
             'success' => true,
             'subtask_id' => $newSubtaskId,
@@ -983,6 +1436,7 @@ class TaskController {
                 'created_sprint_id' => $subCreatedSprintId,
                 'children' => []
             ],
+            'subtasks' => $resolvedSubtasksMap[$id] ?? [],
             'message' => 'Sous-tâche ajoutée'
         ]);
     }

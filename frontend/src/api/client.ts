@@ -1,4 +1,15 @@
-import { Sprint, Task, Question, QuestionAnswer, User, Property } from '../types';
+import {
+  Sprint,
+  Task,
+  Question,
+  QuestionAnswer,
+  User,
+  Property,
+  TasksApiResponse,
+  PaginatedQuestionsResponse,
+  SprintDetailsPayload,
+  SprintMeetingSummary,
+} from '../types';
 
 function getStoredToken(): string | null {
   return localStorage.getItem('kanban_token');
@@ -21,6 +32,34 @@ function getApiBase(): string {
 
 export function isNetworkError(err: unknown): boolean {
   return err instanceof TypeError;
+}
+
+export function isAbortError(err: unknown): boolean {
+  return (err instanceof DOMException || err instanceof Error) && err.name === 'AbortError';
+}
+
+export type QueryParamPrimitive = string | number | boolean | null | undefined;
+export type QueryParamsInput = Record<string, QueryParamPrimitive | QueryParamPrimitive[]>;
+
+export function buildQueryString(params?: QueryParamsInput): string {
+  if (!params) return '';
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue;
+    if (Array.isArray(value)) {
+      const arrayKey = key.endsWith('[]') ? key : `${key}[]`;
+      for (const item of value) {
+        if (item === undefined || item === null || item === '') continue;
+        searchParams.append(arrayKey, String(item));
+      }
+    } else if (typeof value === 'boolean') {
+      searchParams.append(key, value ? '1' : '0');
+    } else {
+      searchParams.append(key, String(value));
+    }
+  }
+  const serialized = searchParams.toString();
+  return serialized ? `?${serialized}` : '';
 }
 
 let unauthorizedHandler: (() => void) | null = null;
@@ -71,8 +110,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
 
-  // Bootstrap (1 requête au chargement initial)
-  async bootstrap() {
+  // Bootstrap (1 requête au chargement initial, paginée)
+  async bootstrap(params?: QueryParamsInput, signal?: AbortSignal) {
+    const query = buildQueryString(params);
     return request<{
       success: boolean;
       authenticated: boolean;
@@ -80,13 +120,8 @@ export const api = {
       users: User[];
       properties?: Property[];
       sprints?: Sprint[];
-      sprint_details?: {
-        sprint: Sprint;
-        tasks: Task[];
-        questions: Question[];
-        is_read_only: boolean;
-      } | null;
-    }>('/bootstrap');
+      sprint_details?: SprintDetailsPayload | null;
+    }>(`/bootstrap${query}`, { signal });
   },
 
   // Auth
@@ -205,14 +240,32 @@ export const api = {
     return request<{ success: boolean; sprints: Sprint[] }>('/sprints');
   },
 
-  async getSprintDetails(id: number) {
+  async getSprintDetails(id: number, params?: QueryParamsInput, signal?: AbortSignal) {
+    const query = buildQueryString(params);
+    return request<{ success: boolean } & SprintDetailsPayload>(`/sprints/${id}${query}`, { signal });
+  },
+
+  async getSprintSummary(id: number, signal?: AbortSignal) {
     return request<{
       success: boolean;
-      sprint: Sprint;
-      tasks: Task[];
-      questions: Question[];
+      sprint_id: number;
       is_read_only: boolean;
-    }>(`/sprints/${id}`);
+      meeting_summary: SprintMeetingSummary;
+    }>(`/sprints/${id}/summary`, { signal });
+  },
+
+  // Paginated list endpoints
+  async getTasks<T extends TasksApiResponse = TasksApiResponse>(
+    params: QueryParamsInput,
+    signal?: AbortSignal
+  ): Promise<T> {
+    const query = buildQueryString(params);
+    return request<T>(`/tasks${query}`, { signal });
+  },
+
+  async getQuestions(params: QueryParamsInput, signal?: AbortSignal) {
+    const query = buildQueryString(params);
+    return request<PaginatedQuestionsResponse>(`/questions${query}`, { signal });
   },
 
   async closeSprint(id: number, nextName?: string, notes?: string) {
@@ -268,8 +321,10 @@ export const api = {
       success: boolean;
       task_id: number;
       task_ids?: number[];
+      tasks?: Task[];
       created_count?: number;
       pending_for_next_sprint?: boolean;
+      status?: string;
       message: string;
     }>('/tasks', {
       method: 'POST',
@@ -278,7 +333,7 @@ export const api = {
   },
 
   async updateTask(id: number, data: Partial<Task> & { subtasks?: any[] }) {
-    return request<{ success: boolean; message: string }>(`/tasks/${id}`, {
+    return request<{ success: boolean; message: string; task?: Task; data?: Task }>(`/tasks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data)
     });
@@ -320,7 +375,7 @@ export const api = {
 
   // Subtasks
   async addSubtask(taskId: number, title: string, parentId?: number | null, sprintId?: number) {
-    return request<{ success: boolean; subtask_id: number; subtask?: any }>(`/tasks/${taskId}/subtasks`, {
+    return request<{ success: boolean; subtask_id: number; subtask?: any; subtasks?: any[] }>(`/tasks/${taskId}/subtasks`, {
       method: 'POST',
       body: JSON.stringify({ title, parent_id: parentId || null, sprint_id: sprintId })
     });
@@ -335,14 +390,14 @@ export const api = {
 
   // Questions
   async createQuestion(data: { sprint_id: number; title: string; details?: string; user_id?: number }) {
-    return request<{ success: boolean; question_id: number; message?: string }>(`/questions`, {
+    return request<{ success: boolean; question_id: number; question?: Question; message?: string }>(`/questions`, {
       method: 'POST',
       body: JSON.stringify(data)
     });
   },
 
   async updateQuestion(id: number, data: Partial<Pick<Question, 'title' | 'details' | 'user_id'>>) {
-    return request<{ success: boolean }>(`/questions/${id}`, {
+    return request<{ success: boolean; question?: Question }>(`/questions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data)
     });

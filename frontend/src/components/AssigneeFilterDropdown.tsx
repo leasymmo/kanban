@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Task } from '../types';
+import { User, TaskFacets } from '../types';
 import { AssigneeFilter } from '../hooks/useTaskFilters';
 import { useAnchoredPopover } from '../hooks/useAnchoredPopover';
 import { Avatar } from './ui';
@@ -12,16 +12,15 @@ interface AssigneeFilterDropdownProps {
   onChange: (filter: AssigneeFilter) => void;
   currentUser: User | null;
   allUsers: User[];
-  facetFilteredTasks: Task[];
+  assigneeCounts: TaskFacets['assignee_counts'];
 }
 
 /**
  * Sélecteur compact Liquid Glass pour le filtre des responsables :
- * par défaut sur « Mes tâches », avec menu ordonné :
- * Mes tâches -> Toutes les tâches -> Autres associés.
+ * utilise les compteurs réels calculés côté serveur, indépendamment des pages chargées.
  */
 export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = React.memo(
-  ({ value, onChange, currentUser, allUsers, facetFilteredTasks }) => {
+  ({ value, onChange, currentUser, allUsers, assigneeCounts }) => {
     const [isOpen, setIsOpen] = useState(false);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
@@ -39,23 +38,18 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = Rea
     const effectiveValue: AssigneeFilter =
       currentUser && value === currentUser.id ? 'me' : value;
 
-    const countsByUserId = useMemo(() => {
-      const map = new Map<number, number>();
-      for (const t of facetFilteredTasks) {
-        if (t.assigned_to !== null && t.assigned_to !== undefined) {
-          map.set(t.assigned_to, (map.get(t.assigned_to) ?? 0) + 1);
-        }
-      }
-      return map;
-    }, [facetFilteredTasks]);
+    const getUserCount = useCallback(
+      (uid: number) => Number(assigneeCounts.by_user?.[String(uid)] ?? 0),
+      [assigneeCounts.by_user]
+    );
 
     const otherUsers = useMemo(
       () => allUsers.filter((u) => u.id !== currentUser?.id),
       [allUsers, currentUser?.id]
     );
 
-    const myTasksCount = currentUser ? countsByUserId.get(currentUser.id) ?? 0 : 0;
-    const totalTasksCount = facetFilteredTasks.length;
+    const myTasksCount = currentUser ? getUserCount(currentUser.id) : 0;
+    const totalTasksCount = assigneeCounts.all ?? 0;
 
     const selectedOther =
       typeof effectiveValue === 'number'
@@ -68,7 +62,7 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = Rea
         : effectiveValue === 'me'
         ? myTasksCount
         : selectedOther
-        ? countsByUserId.get(selectedOther.id) ?? 0
+        ? getUserCount(selectedOther.id)
         : totalTasksCount;
 
     const isNonDefault = effectiveValue !== 'me';
@@ -233,7 +227,7 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = Rea
                   </div>
                   <div className="max-h-56 overflow-y-auto space-y-0.5">
                     {otherUsers.map((u) => {
-                      const count = countsByUserId.get(u.id) ?? 0;
+                      const count = getUserCount(u.id);
                       const isSelected = effectiveValue === u.id;
                       const avatarBg = ensureWhiteTextContrast(u.avatar_color);
 

@@ -1,4 +1,4 @@
-import { TaskPriority, TaskStatus } from '../types';
+import { TaskDueStateFilter, TaskPriority, TaskStatus } from '../types';
 
 export type AssigneeFilter = 'all' | 'me' | number;
 export type TaskViewMode = 'kanban' | 'property' | 'list';
@@ -11,6 +11,7 @@ export type TaskListSortKey =
   | 'property'
   | 'assignee'
   | 'subtasks';
+export type TaskBoardSortKey = TaskListSortKey | 'position' | 'updated_at';
 export type TaskListSortDir = 'asc' | 'desc';
 export type TaskListColumnId =
   | 'status'
@@ -40,22 +41,41 @@ export interface UserUiPreferences {
   hiddenPropertyIds: number[];
   hiddenStatuses: TaskStatus[];
   hiddenPriorities: TaskPriority[];
+  taskDueState: TaskDueStateFilter;
+  taskStarredOnly: boolean;
+  taskUnplannedOnly: boolean;
   hideEmptyProperties: boolean;
   taskListSortBy: TaskListSortKey;
   taskListSortDir: TaskListSortDir;
+  taskBoardSortBy: TaskBoardSortKey;
+  taskBoardSortDir: TaskListSortDir;
   taskListVisibleColumns: TaskListColumnId[];
 }
 
+const LAST_USER_ID_KEY = 'kanban_last_user_id';
 const VALID_TABS = new Set(['tasks', 'questions', 'meeting']);
 const VALID_VIEW_MODES = new Set<TaskViewMode>(['kanban', 'property', 'list']);
 const VALID_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'blocked', 'done']);
 const VALID_PRIORITIES = new Set<TaskPriority>(['low', 'medium', 'high']);
+const VALID_DUE_STATES = new Set<TaskDueStateFilter>(['all', 'overdue', 'with_date', 'without_date']);
 const VALID_LIST_SORTS = new Set<TaskListSortKey>([
   'alpha',
   'status',
   'priority',
   'due_date',
   'created_at',
+  'property',
+  'assignee',
+  'subtasks',
+]);
+const VALID_BOARD_SORTS = new Set<TaskBoardSortKey>([
+  'position',
+  'alpha',
+  'status',
+  'priority',
+  'due_date',
+  'created_at',
+  'updated_at',
   'property',
   'assignee',
   'subtasks',
@@ -158,6 +178,18 @@ function parsePreferencesRaw(raw: string | null): Partial<UserUiPreferences> {
       prefs.hideEmptyProperties = parsed.hideEmptyProperties;
     }
 
+    if (typeof parsed.taskDueState === 'string' && VALID_DUE_STATES.has(parsed.taskDueState as TaskDueStateFilter)) {
+      prefs.taskDueState = parsed.taskDueState as TaskDueStateFilter;
+    }
+
+    if (typeof parsed.taskStarredOnly === 'boolean') {
+      prefs.taskStarredOnly = parsed.taskStarredOnly;
+    }
+
+    if (typeof parsed.taskUnplannedOnly === 'boolean') {
+      prefs.taskUnplannedOnly = parsed.taskUnplannedOnly;
+    }
+
     if (
       typeof parsed.taskListSortBy === 'string' &&
       VALID_LIST_SORTS.has(parsed.taskListSortBy as TaskListSortKey)
@@ -170,6 +202,20 @@ function parsePreferencesRaw(raw: string | null): Partial<UserUiPreferences> {
       VALID_LIST_SORT_DIRS.has(parsed.taskListSortDir as TaskListSortDir)
     ) {
       prefs.taskListSortDir = parsed.taskListSortDir as TaskListSortDir;
+    }
+
+    if (
+      typeof parsed.taskBoardSortBy === 'string' &&
+      VALID_BOARD_SORTS.has(parsed.taskBoardSortBy as TaskBoardSortKey)
+    ) {
+      prefs.taskBoardSortBy = parsed.taskBoardSortBy as TaskBoardSortKey;
+    }
+
+    if (
+      typeof parsed.taskBoardSortDir === 'string' &&
+      VALID_LIST_SORT_DIRS.has(parsed.taskBoardSortDir as TaskListSortDir)
+    ) {
+      prefs.taskBoardSortDir = parsed.taskBoardSortDir as TaskListSortDir;
     }
 
     if (Array.isArray(parsed.taskListVisibleColumns)) {
@@ -216,5 +262,30 @@ export function saveUserPreferences(userId: number, patch: Partial<UserUiPrefere
     } catch {
       // Ignore quota / private mode errors
     }
+  }
+}
+
+export function getLastUserId(): number | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(LAST_USER_ID_KEY);
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastUserId(userId: number | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (userId && userId > 0) {
+      window.localStorage.setItem(LAST_USER_ID_KEY, String(userId));
+    } else {
+      window.localStorage.removeItem(LAST_USER_ID_KEY);
+    }
+  } catch {
+    // Ignore storage errors
   }
 }

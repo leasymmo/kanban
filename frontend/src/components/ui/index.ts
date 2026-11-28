@@ -49,3 +49,5 @@ export type { TaskSubtaskTreeProps } from './TaskSubtaskTree';
 
 export { PropertySelectField } from './PropertySelectField';
 export type { PropertySelectFieldProps } from './PropertySelectField';
+
+export { InfiniteScrollSentinel } from './InfiniteScrollSentinel';

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Question, Sprint, User } from '../../types';
+import { PaginationMeta, Question, Sprint, User } from '../../types';
 import { hasFinalDecision } from '../../utils/questions';
 import { ensureWhiteTextContrast } from '../../utils/color';
 import { getScrollBehavior } from '../../utils/taskMotion';
-import { Avatar, Badge, useConfirm } from '../ui';
+import { Avatar, Badge, InfiniteScrollSentinel, useConfirm } from '../ui';
 import { MeetingSectionShell } from './MeetingSectionShell';
 import {
   Check,
@@ -18,6 +18,9 @@ interface MeetingQuestionsStepProps {
   sprint: Sprint;
   users: User[];
   questions: Question[];
+  questionsPagination?: PaginationMeta;
+  isLoadingMoreQuestions?: boolean;
+  onLoadMoreQuestions?: () => void;
   currentUser: User | null;
   isAdmin: boolean;
   isReadOnly: boolean;
@@ -285,6 +288,9 @@ export const MeetingQuestionsStep: React.FC<MeetingQuestionsStepProps> = ({
   sprint,
   users,
   questions,
+  questionsPagination,
+  isLoadingMoreQuestions = false,
+  onLoadMoreQuestions,
   currentUser,
   isAdmin,
   isReadOnly,
@@ -520,6 +526,15 @@ export const MeetingQuestionsStep: React.FC<MeetingQuestionsStepProps> = ({
         >
           <div className="space-y-2.5">{orphanQuestions.map(renderCard)}</div>
         </MeetingSectionShell>
+      )}
+
+      {onLoadMoreQuestions && (
+        <InfiniteScrollSentinel
+          hasMore={!!questionsPagination?.has_more}
+          isLoadingMore={isLoadingMoreQuestions}
+          onLoadMore={onLoadMoreQuestions}
+          itemLabel="questions"
+        />
       )}
     </div>
   );

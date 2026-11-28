@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { Sprint, Task, User } from '../../types';
+import { PaginationMeta, Sprint, Task, User } from '../../types';
 import { ensureWhiteTextContrast } from '../../utils/color';
 import { parseLocalDate } from '../../utils/subtasks';
-import { Avatar, Badge, PropertyPill, TaskPriorityIcon } from '../ui';
+import { Avatar, Badge, InfiniteScrollSentinel, PropertyPill, TaskPriorityIcon } from '../ui';
 import { MeetingSectionShell } from './MeetingSectionShell';
 import {
   Clock,
@@ -17,6 +17,9 @@ interface MeetingActionPlanStepProps {
   users: User[];
   pendingUnassigned: Task[];
   pendingAssigned: Task[];
+  pendingPagination?: PaginationMeta;
+  isLoadingMorePending?: boolean;
+  onLoadMorePending?: () => void;
   isAdmin: boolean;
   isReadOnly: boolean;
   onAssignTask: (taskId: number, userId: number | null) => void;
@@ -236,6 +239,9 @@ export const MeetingActionPlanStep: React.FC<MeetingActionPlanStepProps> = ({
   users,
   pendingUnassigned,
   pendingAssigned,
+  pendingPagination,
+  isLoadingMorePending = false,
+  onLoadMorePending,
   isAdmin,
   isReadOnly,
   onAssignTask,
@@ -343,6 +349,15 @@ export const MeetingActionPlanStep: React.FC<MeetingActionPlanStepProps> = ({
           </MeetingSectionShell>
         );
       })}
+
+      {onLoadMorePending && (
+        <InfiniteScrollSentinel
+          hasMore={!!pendingPagination?.has_more}
+          isLoadingMore={isLoadingMorePending}
+          onLoadMore={onLoadMorePending}
+          itemLabel="tâches planifiées"
+        />
+      )}
     </div>
   );
 };

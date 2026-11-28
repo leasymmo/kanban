@@ -78,7 +78,7 @@ class Database {
                 ");
             }
 
-            if (isset($appliedVersions['v3_sprint_tasks'], $appliedVersions['v4_property_soft_delete'], $appliedVersions['v5_property_position'], $appliedVersions['v6_subtask_sprint_states'], $appliedVersions['v7_sprint_tasks_assigned_to'], $appliedVersions['v8_meeting_pending_tasks'], $appliedVersions['v9_sprint_pending_status'], $appliedVersions['v10_unassigned_tasks_pending'], $appliedVersions['v11_questions_simplify_unique_answers'], $appliedVersions['v12_perf_indexes'])) {
+            if (isset($appliedVersions['v3_sprint_tasks'], $appliedVersions['v4_property_soft_delete'], $appliedVersions['v5_property_position'], $appliedVersions['v6_subtask_sprint_states'], $appliedVersions['v7_sprint_tasks_assigned_to'], $appliedVersions['v8_meeting_pending_tasks'], $appliedVersions['v9_sprint_pending_status'], $appliedVersions['v10_unassigned_tasks_pending'], $appliedVersions['v11_questions_simplify_unique_answers'], $appliedVersions['v12_perf_indexes'], $appliedVersions['v13_pagination_indexes'])) {
                 return;
             }
 
@@ -465,6 +465,38 @@ class Database {
                     }
                 }
                 $db->prepare("INSERT IGNORE INTO schema_migrations (version) VALUES (?)")->execute(['v12_perf_indexes']);
+            }
+
+            if (!isset($appliedVersions['v13_pagination_indexes'])) {
+                $driver = (string)$db->getAttribute(PDO::ATTR_DRIVER_NAME);
+                $paginationIndexes = [
+                    ['tasks', 'idx_tasks_prop_id', 'property_id, id', 'property_id, id'],
+                    ['tasks', 'idx_tasks_created_id', 'created_at, id', 'created_at, id'],
+                    ['tasks', 'idx_tasks_updated_id', 'updated_at, id', 'updated_at, id'],
+                    ['tasks', 'idx_tasks_due_id', 'due_date, id', 'due_date, id'],
+                    ['tasks', 'idx_tasks_prio_id', 'priority, id', 'priority, id'],
+                    ['tasks', 'idx_tasks_title_id', 'title(100), id', 'title, id'],
+                    ['sprint_tasks', 'idx_st_sprint_status_pos_task', 'sprint_id, status, position, task_id', 'sprint_id, status, position, task_id'],
+                    ['sprint_tasks', 'idx_st_sprint_assigned_status_pos', 'sprint_id, assigned_to, status, position, task_id', 'sprint_id, assigned_to, status, position, task_id'],
+                    ['sprint_tasks', 'idx_st_sprint_pos_task', 'sprint_id, position, task_id', 'sprint_id, position, task_id'],
+                    ['questions', 'idx_questions_sprint_created_id', 'sprint_id, created_at, id', 'sprint_id, created_at, id'],
+                    ['questions', 'idx_questions_sprint_user_created_id', 'sprint_id, user_id, created_at, id', 'sprint_id, user_id, created_at, id'],
+                ];
+                foreach ($paginationIndexes as [$table, $idxName, $mysqlCols, $sqliteCols]) {
+                    try {
+                        if ($driver === 'sqlite') {
+                            $db->exec("CREATE INDEX IF NOT EXISTS `{$idxName}` ON `{$table}` ({$sqliteCols})");
+                        } else {
+                            $exists = $db->query("SHOW INDEX FROM `{$table}` WHERE Key_name = '{$idxName}'")->fetchAll();
+                            if (empty($exists)) {
+                                $db->exec("ALTER TABLE `{$table}` ADD INDEX `{$idxName}` ({$mysqlCols})");
+                            }
+                        }
+                    } catch (\Throwable $t) {
+                        error_log("Migration v13 index {$table}.{$idxName}: " . $t->getMessage());
+                    }
+                }
+                $db->prepare("INSERT IGNORE INTO schema_migrations (version) VALUES (?)")->execute(['v13_pagination_indexes']);
             }
         } catch (\Throwable $e) {
             error_log('Database::migrateSchema error: ' . $e->getMessage());

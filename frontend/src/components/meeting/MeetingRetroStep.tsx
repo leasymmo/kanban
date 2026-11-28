@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { Task, TaskStatus, User } from '../../types';
+import { SprintMeetingSummary, Task, TaskGroupPage, TaskStatus, User } from '../../types';
 import { buildSubtaskTree, HierarchicalSubtask, isTaskOverdue, parseLocalDate } from '../../utils/subtasks';
 import { BlurredIconSwap } from '../BlurredIconSwap';
-import { Badge, PropertyPill, StatusIconPicker, TaskPriorityIcon, TaskStatusIcon } from '../ui';
+import { Badge, Button, PropertyPill, StatusIconPicker, TaskPriorityIcon, TaskStatusIcon } from '../ui';
 import { MeetingSectionShell } from './MeetingSectionShell';
 import {
   CheckCircle2,
@@ -16,6 +16,10 @@ import {
 interface MeetingRetroStepProps {
   users: User[];
   activeSprintTasks: Task[];
+  retroGroups?: Record<string, TaskGroupPage>;
+  loadingRetroUsers?: Record<string, boolean>;
+  meetingSummary?: SprintMeetingSummary;
+  onLoadMoreForUser?: (userId: number) => void;
   currentUser: User | null;
   isAdmin: boolean;
   isReadOnly: boolean;
@@ -268,6 +272,10 @@ const RetroTaskCard: React.FC<RetroTaskCardProps> = React.memo(({
 export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
   users,
   activeSprintTasks,
+  retroGroups,
+  loadingRetroUsers,
+  meetingSummary,
+  onLoadMoreForUser,
   currentUser,
   isAdmin,
   isReadOnly,
@@ -318,11 +326,20 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
           starred: [],
           unstarred: [],
         };
+        const uKey = String(user.id);
+        const userGroup = retroGroups?.[uKey];
+        const serverStats = meetingSummary?.per_user_tasks?.[uKey];
+        const displayTotal = serverStats?.active ?? userGroup?.pagination?.total ?? bucket.total;
+        const displayDone = serverStats?.done ?? bucket.doneCount;
+        const displayPending = Math.max(0, displayTotal - displayDone);
+        const hasMoreUserTasks = !!userGroup?.pagination?.has_more;
+        const isLoadingUserMore = !!loadingRetroUsers?.[uKey];
+
         const canEditThis =
           !isReadOnly && (isAdmin || (currentUser?.role === 'write' && currentUser?.id === user.id));
         const isAccordionOpen = !!expandedAccordions[user.id];
         const progressPercent =
-          bucket.total > 0 ? Math.round((bucket.doneCount / bucket.total) * 100) : 0;
+          displayTotal > 0 ? Math.round((displayDone / displayTotal) * 100) : 0;
 
         return (
           <MeetingSectionShell
@@ -331,7 +348,7 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
             dataAnchor={String(user.id)}
             avatar={{ name: user.name, initials: user.initials, color: user.avatar_color }}
             title={user.name}
-            subtitle={`${bucket.doneCount}/${bucket.total} terminée${bucket.doneCount > 1 ? 's' : ''}`}
+            subtitle={`${displayDone}/${displayTotal} terminée${displayDone > 1 ? 's' : ''}`}
             progressPercent={progressPercent}
             badges={
               <>
@@ -342,7 +359,7 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
                   </Badge>
                 )}
                 <Badge variant="neutral" pill>
-                  {bucket.pendingCount} restante{bucket.pendingCount > 1 ? 's' : ''}
+                  {displayPending} restante{displayPending > 1 ? 's' : ''}
                 </Badge>
               </>
             }
@@ -416,6 +433,21 @@ export const MeetingRetroStep: React.FC<MeetingRetroStepProps> = ({
                           onEditTask={onEditTask}
                         />
                       ))}
+
+                      {hasMoreUserTasks && onLoadMoreForUser && (
+                        <div className="pt-1 flex justify-center">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            isLoading={isLoadingUserMore}
+                            disabled={isLoadingUserMore}
+                            onClick={() => onLoadMoreForUser(user.id)}
+                          >
+                            Charger plus de tâches ({Math.max(0, displayTotal - bucket.total)} restantes)
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

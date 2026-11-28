@@ -6,46 +6,122 @@ use App\Database;
 use App\Response;
 use App\Auth;
 use App\Request;
-use App\QuestionHelper;
+use App\Pagination\CursorPaginator;
+use App\Pagination\PageRequest;
+use App\Pagination\PaginatedResult;
+use App\Pagination\PaginationException;
+use App\Pagination\QueryFilter;
+use App\Pagination\Specs\QuestionQuerySpec;
+use PDO;
 
 class QuestionController {
     /**
-     * GET /api/questions?sprint_id=X
+     * Résout le sprint ciblé (explicitement ou sprint actif / le plus récent).
+     */
+    private static function resolveSprintRow(PDO $db, ?int $sprintId): ?array {
+        if ($sprintId !== null && $sprintId > 0) {
+            $stmt = $db->prepare("SELECT id, number, status FROM sprints WHERE id = ? LIMIT 1");
+            $stmt->execute([$sprintId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                Response::error('Sprint introuvable', 404);
+            }
+            return $row;
+        }
+
+        $row = $db->query("SELECT id, number, status FROM sprints ORDER BY (status = 'active') DESC, number DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
+     * Moteur partagé de pagination par curseur, filtres SQL et tri pour les questions.
+     *
+     * @param array<string, mixed> $params
+     * @param array<string, mixed> $currentUser
+     * @return array<string, mixed>
+     */
+    public static function executePaginated(
+        PDO $db,
+        ?array $sprint,
+        array $currentUser,
+        array $params,
+        int $defaultLimit = 20
+    ): array {
+        $isAdmin = (($currentUser['role'] ?? '') === 'admin');
+        if (!$sprint) {
+            $sortSpec = QuestionQuerySpec::buildSortSpec($db);
+            $pageRequest = PageRequest::fromArray($params, $sortSpec, $defaultLimit);
+            $empty = (new PaginatedResult([], $pageRequest->getLimit(), false, false, null, null, 0))->toArray();
+            return array_merge([
+                'sprint_id' => 0,
+                'is_read_only' => false,
+                'facets' => [
+                    'counts_by_user_id' => [],
+                    'summary' => ['total' => 0, 'decided' => 0, 'undecided' => 0],
+                ],
+            ], $empty);
+        }
+
+        $sprintId = (int)$sprint['id'];
+        $sprintStatus = (string)($sprint['status'] ?? 'active');
+        $isReadOnly = ($sprintStatus === 'closed' && !$isAdmin);
+
+        $sortSpec = QuestionQuerySpec::buildSortSpec($db);
+        $pageRequest = PageRequest::fromArray($params, $sortSpec, $defaultLimit);
+        $sortByKey = $pageRequest->getSortField()->getKey();
+
+        $filter = QuestionQuerySpec::buildFilter($params, $currentUser, $sprintId);
+        $query = QuestionQuerySpec::buildQuery($filter, $sortByKey);
+        $paginator = new CursorPaginator();
+        $result = $paginator->paginate(
+            $db,
+            $query,
+            $pageRequest,
+            static fn(array $rows): array => QuestionQuerySpec::hydrateRows($db, $rows, $sprintStatus, $currentUser)
+        );
+
+        $hasCursor = $pageRequest->getCursor() !== null;
+        $includeFacetsParam = QueryFilter::parseOptionalBool($params, 'include_facets');
+        $shouldIncludeFacets = ($includeFacetsParam === 1) || ($includeFacetsParam === null && !$hasCursor);
+
+        $payload = array_merge([
+            'sprint_id' => $sprintId,
+            'is_read_only' => $isReadOnly,
+            'sort' => [
+                'by' => $sortByKey,
+                'direction' => $pageRequest->getSortDirection(),
+            ],
+        ], $result->toArray());
+
+        if ($shouldIncludeFacets) {
+            $payload['facets'] = QuestionQuerySpec::computeFacets($db, $params, $currentUser, $sprintId);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * GET /api/questions?sprint_id=X&limit=20&sort_by=created_at&sort_direction=asc&...
      */
     public function list(): void {
         $currentUser = Auth::requireAuth();
         $db = Database::getConnection();
 
-        $sprintId = isset($_GET['sprint_id']) ? (int)$_GET['sprint_id'] : 0;
-        if ($sprintId <= 0) {
-            // Prioriser le sprint actif, sinon le plus récent
-            $stmtSprint = $db->query("SELECT id, status FROM sprints ORDER BY (status = 'active') DESC, number DESC LIMIT 1");
-            $sprintRow = $stmtSprint->fetch();
-            $sprintId = (int)($sprintRow['id'] ?? 0);
-            $sprintStatus = $sprintRow['status'] ?? 'active';
-        } else {
-            $stmtSprint = $db->prepare("SELECT id, status FROM sprints WHERE id = ? LIMIT 1");
-            $stmtSprint->execute([$sprintId]);
-            $sprintRow = $stmtSprint->fetch();
-            if (!$sprintRow) {
-                Response::error('Sprint introuvable', 404);
+        try {
+            $sprintIdParam = null;
+            if (isset($_GET['sprint_id']) && $_GET['sprint_id'] !== '') {
+                if (!ctype_digit((string)$_GET['sprint_id']) || (int)$_GET['sprint_id'] <= 0) {
+                    Response::error('Identifiant de sprint invalide.', 400);
+                }
+                $sprintIdParam = (int)$_GET['sprint_id'];
             }
-            $sprintStatus = $sprintRow['status'] ?? 'active';
+
+            $sprint = self::resolveSprintRow($db, $sprintIdParam);
+            $payload = self::executePaginated($db, $sprint, $currentUser, $_GET, 20);
+            Response::json(array_merge(['success' => true], $payload));
+        } catch (PaginationException $e) {
+            Response::error($e->getMessage(), $e->getStatusCode());
         }
-
-        $questions = $sprintId > 0
-            ? QuestionHelper::hydrateQuestionsForSprint($db, $sprintId, $sprintStatus, $currentUser)
-            : [];
-
-        $isAdmin = ($currentUser['role'] === 'admin');
-        $isSprintClosed = ($sprintStatus === 'closed');
-
-        Response::json([
-            'success' => true,
-            'sprint_id' => $sprintId,
-            'is_read_only' => ($isSprintClosed && !$isAdmin),
-            'questions' => $questions
-        ]);
     }
 
     /**
@@ -92,10 +168,13 @@ class QuestionController {
             VALUES (?, ?, ?, ?, ?)
         ");
         $stmt->execute([$sprintId, $targetUserId, $currentUser['id'], $title, $details !== '' ? $details : null]);
+        $newQuestionId = (int)$db->lastInsertId();
+        $hydrated = QuestionQuerySpec::hydrateById($db, $newQuestionId, (string)$sprint['status'], $currentUser);
 
         Response::json([
             'success' => true,
-            'question_id' => (int)$db->lastInsertId(),
+            'question_id' => $newQuestionId,
+            'question' => $hydrated,
             'message' => 'Question ajoutée avec succès'
         ], 201);
     }
@@ -168,7 +247,13 @@ class QuestionController {
         ");
         $stmtUpdate->execute([$title, $details, $userId, $id]);
 
-        Response::success(null, 'Question mise à jour');
+        $hydrated = QuestionQuerySpec::hydrateById($db, $id, (string)$question['sprint_status'], $currentUser);
+
+        Response::json([
+            'success' => true,
+            'message' => 'Question mise à jour',
+            'question' => $hydrated
+        ]);
     }
 
     /**
@@ -327,6 +412,7 @@ class QuestionController {
 
         Response::json([
             'success' => true,
+            'question_id' => (int)$answer['question_id'],
             'message' => 'Réponse mise à jour',
             'content' => $content
         ]);
@@ -365,7 +451,11 @@ class QuestionController {
         $stmtDel = $db->prepare("DELETE FROM question_answers WHERE id = ?");
         $stmtDel->execute([$answerId]);
 
-        Response::success(null, 'Réponse supprimée');
+        Response::json([
+            'success' => true,
+            'question_id' => (int)$answer['question_id'],
+            'message' => 'Réponse supprimée'
+        ]);
     }
 
     /**

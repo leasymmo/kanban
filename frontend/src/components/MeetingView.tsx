@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Sprint, Task, TaskStatus, Question, User } from '../types';
-import { hasFinalDecision } from '../utils/questions';
+import {
+  PaginationMeta,
+  Question,
+  Sprint,
+  SprintMeetingSummary,
+  Task,
+  TaskGroupPage,
+  TaskStatus,
+  User,
+} from '../types';
 import { MeetingControlDock } from './MeetingControlDock';
 import { MeetingHeader, MeetingStepId } from './meeting/MeetingHeader';
 import { MeetingRetroStep } from './meeting/MeetingRetroStep';
@@ -12,6 +20,16 @@ interface MeetingViewProps {
   sprint?: Sprint | null;
   tasks: Task[];
   questions: Question[];
+  meetingSummary: SprintMeetingSummary;
+  retroGroups?: Record<string, TaskGroupPage>;
+  loadingRetroUsers?: Record<string, boolean>;
+  onLoadMoreRetroForUser?: (userId: number) => void;
+  pendingPagination?: PaginationMeta;
+  isLoadingMorePending?: boolean;
+  onLoadMorePending?: () => void;
+  questionsPagination?: PaginationMeta;
+  isLoadingMoreQuestions?: boolean;
+  onLoadMoreMeetingQuestions?: () => void;
   users: User[];
   currentUser: User | null;
   onOpenCloseSprintModal: () => void;
@@ -49,6 +67,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   sprint,
   tasks,
   questions,
+  meetingSummary,
+  retroGroups,
+  loadingRetroUsers,
+  onLoadMoreRetroForUser,
+  pendingPagination,
+  isLoadingMorePending = false,
+  onLoadMorePending,
+  questionsPagination,
+  isLoadingMoreQuestions = false,
+  onLoadMoreMeetingQuestions,
   users,
   currentUser,
   onOpenCloseSprintModal,
@@ -186,14 +214,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
     pendingUnassigned,
     pendingAssigned,
     activeSprintTasks,
-    doneCount,
-    unfinishedCount,
   } = useMemo(() => {
     const pendingUn: Task[] = [];
     const pendingAs: Task[] = [];
     const active: Task[] = [];
-    let done = 0;
-    let unfinished = 0;
 
     for (const t of tasks) {
       if (t.status === 'pending') {
@@ -201,8 +225,6 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         else pendingUn.push(t);
       } else {
         active.push(t);
-        if (t.status === 'done') done += 1;
-        else unfinished += 1;
       }
     }
 
@@ -210,15 +232,12 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
       pendingUnassigned: pendingUn,
       pendingAssigned: pendingAs,
       activeSprintTasks: active,
-      doneCount: done,
-      unfinishedCount: unfinished,
     };
   }, [tasks]);
 
-  const undecidedQuestionsCount = useMemo(
-    () => questions.reduce((acc, q) => (hasFinalDecision(q) ? acc : acc + 1), 0),
-    [questions]
-  );
+  const undecidedQuestionsCount = meetingSummary.undecided_questions_count;
+  const doneCount = meetingSummary.done_count;
+  const unfinishedCount = meetingSummary.carry_over_count;
 
   const showFab =
     !isReadOnly && currentUser?.role !== 'read' && !!onAddNewTask && sprint?.status !== 'closed';
@@ -398,13 +417,13 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         scribeId={scribeId}
         onChangeScribe={handleChangeScribe}
         stats={{
-          total: activeSprintTasks.length,
+          total: meetingSummary.active_total,
           done: doneCount,
           toCarryOver: unfinishedCount,
-          unassigned: pendingUnassigned.length,
+          unassigned: meetingSummary.pending_unassigned_count,
         }}
         undecidedQuestionsCount={undecidedQuestionsCount}
-        pendingTotalCount={pendingUnassigned.length + pendingAssigned.length}
+        pendingTotalCount={meetingSummary.pending_unassigned_count + meetingSummary.pending_assigned_count}
         showAddPendingTask={showFab}
         onAddPendingTask={handleAddPendingTask}
         canCreateQuestion={canCreateQuestion}
@@ -417,6 +436,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         <MeetingRetroStep
           users={users}
           activeSprintTasks={activeSprintTasks}
+          retroGroups={retroGroups}
+          loadingRetroUsers={loadingRetroUsers}
+          meetingSummary={meetingSummary}
+          onLoadMoreForUser={onLoadMoreRetroForUser}
           currentUser={currentUser}
           isAdmin={isAdmin}
           isReadOnly={isReadOnly}
@@ -434,6 +457,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           sprint={sprint}
           users={users}
           questions={questions}
+          questionsPagination={questionsPagination}
+          isLoadingMoreQuestions={isLoadingMoreQuestions}
+          onLoadMoreQuestions={onLoadMoreMeetingQuestions}
           currentUser={currentUser}
           isAdmin={isAdmin}
           isReadOnly={isReadOnly}
@@ -448,6 +474,9 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           users={users}
           pendingUnassigned={pendingUnassigned}
           pendingAssigned={pendingAssigned}
+          pendingPagination={pendingPagination}
+          isLoadingMorePending={isLoadingMorePending}
+          onLoadMorePending={onLoadMorePending}
           isAdmin={isAdmin}
           isReadOnly={isReadOnly}
           onAssignTask={onAssignTask}
@@ -460,9 +489,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
         users={users}
         tasks={tasks}
         questions={questions}
+        meetingSummary={meetingSummary}
         meetingStep={meetingStep}
         activeAnchor={activeAnchor}
-        pendingUnassignedCount={pendingUnassigned.length}
+        pendingUnassignedCount={meetingSummary.pending_unassigned_count}
         showAddPendingTask={showFab}
         onSelectParticipant={scrollToSection}
         onAddPendingTask={handleAddPendingTask}

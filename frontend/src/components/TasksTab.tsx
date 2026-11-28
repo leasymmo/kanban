@@ -1,8 +1,24 @@
-import React, { Suspense, lazy, useState, useEffect, useCallback, useRef } from 'react';
-import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
+import React, { Suspense, lazy, useCallback } from 'react';
+import {
+  Task,
+  Property,
+  User,
+  TaskPriority,
+  TaskStatus,
+  TaskGroupPage,
+  PaginationMeta,
+  TaskFacets,
+  TaskDueStateFilter,
+} from '../types';
 import { CreatedTaskBatch } from '../utils/taskMotion';
-import { useTaskFilters } from '../hooks/useTaskFilters';
-import { getUserPreferences, saveUserPreferences, TaskViewMode } from '../utils/cookies';
+import { AssigneeFilter } from '../hooks/useTaskFilters';
+import {
+  TaskBoardSortKey,
+  TaskListColumnId,
+  TaskListSortDir,
+  TaskListSortKey,
+  TaskViewMode,
+} from '../utils/cookies';
 import { TasksToolbar } from './TasksToolbar';
 import { KanbanBoard } from './KanbanBoard';
 
@@ -14,11 +30,61 @@ const SprintListBoard = lazy(() =>
 );
 
 interface TasksTabProps {
-  tasks: Task[];
   properties: Property[];
   allUsers: User[];
   currentUser: User | null;
   isReadOnly: boolean;
+  taskViewMode: TaskViewMode;
+  onChangeViewMode: (mode: TaskViewMode) => void;
+  hideEmptyProperties: boolean;
+  onToggleHideEmptyProperties: () => void;
+  // Filtres pilotés par le backend
+  taskFilter: AssigneeFilter;
+  onChangeTaskFilter: (filter: AssigneeFilter) => void;
+  taskSearchQuery: string;
+  onChangeSearchQuery: (q: string) => void;
+  hiddenPropertyIds: number[];
+  allPropertyFilterIds: number[];
+  onToggleProperty: (id: number) => void;
+  onSetHiddenProperties: (ids: number[]) => void;
+  hiddenStatuses: TaskStatus[];
+  onToggleStatus: (status: TaskStatus) => void;
+  onSetHiddenStatuses: (statuses: TaskStatus[]) => void;
+  hiddenPriorities: TaskPriority[];
+  onTogglePriority: (priority: TaskPriority) => void;
+  onSetHiddenPriorities: (priorities: TaskPriority[]) => void;
+  taskDueState: TaskDueStateFilter;
+  onChangeDueState: (state: TaskDueStateFilter) => void;
+  taskStarredOnly: boolean;
+  onToggleStarredOnly: () => void;
+  taskUnplannedOnly: boolean;
+  onToggleUnplannedOnly: () => void;
+  hasActiveFilters: boolean;
+  onResetFilters: () => void;
+  // Préférences Tableau & Tri
+  listSortBy: TaskListSortKey;
+  listSortDir: TaskListSortDir;
+  visibleColumns: TaskListColumnId[];
+  onSelectListSort: (key: TaskListSortKey) => void;
+  onToggleListSortDir: () => void;
+  onToggleColumn: (colId: TaskListColumnId) => void;
+  onResetColumns: () => void;
+  boardSortBy: TaskBoardSortKey;
+  boardSortDir: TaskListSortDir;
+  onSelectBoardSort: (key: TaskBoardSortKey, forcedDir?: TaskListSortDir) => void;
+  onToggleBoardSortDir: () => void;
+  // État paginé backend
+  groups: Record<string, TaskGroupPage>;
+  listItems: Task[];
+  listPagination: PaginationMeta;
+  loadedTasks: Task[];
+  facets: TaskFacets;
+  isRefreshing: boolean;
+  isLoadingMoreList: boolean;
+  loadingMoreColumns: Record<string, boolean>;
+  onLoadMoreColumn: (columnKey: string) => void;
+  onLoadMoreList: () => void;
+  // Mutations & modales
   lastCreatedBatch?: CreatedTaskBatch | null;
   isTaskModalOpen?: boolean;
   onConsumeCreatedBatch?: () => void;
@@ -41,11 +107,57 @@ interface TasksTabProps {
 }
 
 export const TasksTab: React.FC<TasksTabProps> = React.memo(({
-  tasks,
   properties,
   allUsers,
   currentUser,
   isReadOnly,
+  taskViewMode,
+  onChangeViewMode,
+  hideEmptyProperties,
+  onToggleHideEmptyProperties,
+  taskFilter,
+  onChangeTaskFilter,
+  taskSearchQuery,
+  onChangeSearchQuery,
+  hiddenPropertyIds,
+  allPropertyFilterIds,
+  onToggleProperty,
+  onSetHiddenProperties,
+  hiddenStatuses,
+  onToggleStatus,
+  onSetHiddenStatuses,
+  hiddenPriorities,
+  onTogglePriority,
+  onSetHiddenPriorities,
+  taskDueState,
+  onChangeDueState,
+  taskStarredOnly,
+  onToggleStarredOnly,
+  taskUnplannedOnly,
+  onToggleUnplannedOnly,
+  hasActiveFilters,
+  onResetFilters,
+  listSortBy,
+  listSortDir,
+  visibleColumns,
+  onSelectListSort,
+  onToggleListSortDir,
+  onToggleColumn,
+  onResetColumns,
+  boardSortBy,
+  boardSortDir,
+  onSelectBoardSort,
+  onToggleBoardSortDir,
+  groups,
+  listItems,
+  listPagination,
+  loadedTasks,
+  facets,
+  isRefreshing,
+  isLoadingMoreList,
+  loadingMoreColumns,
+  onLoadMoreColumn,
+  onLoadMoreList,
   lastCreatedBatch,
   isTaskModalOpen = false,
   onConsumeCreatedBatch,
@@ -61,52 +173,6 @@ export const TasksTab: React.FC<TasksTabProps> = React.memo(({
   onToggleStar,
   onOpenCreateTask
 }) => {
-  const userId = currentUser?.id ?? null;
-  const loadedUserIdRef = useRef<number | null>(userId);
-
-  const [taskViewMode, setTaskViewModeState] = useState<TaskViewMode>(() => {
-    if (!userId) return 'kanban';
-    return getUserPreferences(userId).taskViewMode ?? 'kanban';
-  });
-
-  useEffect(() => {
-    if (!userId || loadedUserIdRef.current === userId) return;
-    loadedUserIdRef.current = userId;
-    const prefs = getUserPreferences(userId);
-    setTaskViewModeState(prefs.taskViewMode ?? 'kanban');
-  }, [userId]);
-
-  const handleChangeViewMode = useCallback(
-    (mode: TaskViewMode) => {
-      setTaskViewModeState(mode);
-      if (userId) {
-        saveUserPreferences(userId, { taskViewMode: mode });
-      }
-    },
-    [userId]
-  );
-
-  const {
-    taskFilter,
-    setTaskFilter,
-    taskSearchQuery,
-    setTaskSearchQuery,
-    hiddenPropertyIds,
-    setHiddenPropertyIds,
-    hiddenStatuses,
-    setHiddenStatuses,
-    hiddenPriorities,
-    setHiddenPriorities,
-    allPropertyFilterIds,
-    togglePropertyVisibility,
-    toggleStatusVisibility,
-    togglePriorityVisibility,
-    resetFilters,
-    hasActiveFilters,
-    facetFilteredTasks,
-    filteredTasks
-  } = useTaskFilters(tasks, properties, currentUser);
-
   const isViewingOwnTasks =
     !!currentUser && (taskFilter === 'me' || taskFilter === currentUser.id);
 
@@ -117,7 +183,7 @@ export const TasksTab: React.FC<TasksTabProps> = React.memo(({
   const contextualAssignedTo: number | null =
     taskFilter === 'me'
       ? (currentUser?.id ?? null)
-      : typeof taskFilter === 'number' && allUsers.some(u => u.id === taskFilter)
+      : typeof taskFilter === 'number' && allUsers.some((u) => u.id === taskFilter)
       ? taskFilter
       : currentUser?.role === 'write'
       ? currentUser.id
@@ -156,7 +222,7 @@ export const TasksTab: React.FC<TasksTabProps> = React.memo(({
     [onOpenCreateTask, contextualAssignedTo]
   );
 
-  const handleShowAllSprint = useCallback(() => setTaskFilter('all'), [setTaskFilter]);
+  const handleShowAllSprint = useCallback(() => onChangeTaskFilter('all'), [onChangeTaskFilter]);
 
   return (
     <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-2.5 sm:gap-3">
@@ -165,32 +231,47 @@ export const TasksTab: React.FC<TasksTabProps> = React.memo(({
         currentUser={currentUser}
         allUsers={allUsers}
         properties={properties}
-        facetFilteredTasks={facetFilteredTasks}
+        assigneeCounts={facets.assignee_counts}
         taskFilter={taskFilter}
-        onChangeTaskFilter={setTaskFilter}
+        onChangeTaskFilter={onChangeTaskFilter}
         taskSearchQuery={taskSearchQuery}
-        onChangeSearchQuery={setTaskSearchQuery}
+        onChangeSearchQuery={onChangeSearchQuery}
         hiddenPropertyIds={hiddenPropertyIds}
         allPropertyFilterIds={allPropertyFilterIds}
-        onToggleProperty={togglePropertyVisibility}
-        onSetHiddenProperties={setHiddenPropertyIds}
+        onToggleProperty={onToggleProperty}
+        onSetHiddenProperties={onSetHiddenProperties}
         hiddenStatuses={hiddenStatuses}
-        onToggleStatus={toggleStatusVisibility}
-        onSetHiddenStatuses={setHiddenStatuses}
+        onToggleStatus={onToggleStatus}
+        onSetHiddenStatuses={onSetHiddenStatuses}
         hiddenPriorities={hiddenPriorities}
-        onTogglePriority={togglePriorityVisibility}
-        onSetHiddenPriorities={setHiddenPriorities}
+        onTogglePriority={onTogglePriority}
+        onSetHiddenPriorities={onSetHiddenPriorities}
+        taskDueState={taskDueState}
+        onChangeDueState={onChangeDueState}
+        taskStarredOnly={taskStarredOnly}
+        onToggleStarredOnly={onToggleStarredOnly}
+        taskUnplannedOnly={taskUnplannedOnly}
+        onToggleUnplannedOnly={onToggleUnplannedOnly}
         hasActiveFilters={hasActiveFilters}
-        onResetFilters={resetFilters}
+        onResetFilters={onResetFilters}
         taskViewMode={taskViewMode}
-        onChangeViewMode={handleChangeViewMode}
+        onChangeViewMode={onChangeViewMode}
+        boardSortBy={boardSortBy}
+        boardSortDir={boardSortDir}
+        onSelectBoardSort={onSelectBoardSort}
+        onToggleBoardSortDir={onToggleBoardSortDir}
+        isRefreshing={isRefreshing}
         isReadOnly={isReadOnly}
         onAddNewTask={handleCreateDefault}
       />
 
       {taskViewMode === 'kanban' ? (
         <KanbanBoard
-          tasks={filteredTasks}
+          groups={groups}
+          statusCounts={facets.status_counts}
+          allTasks={loadedTasks}
+          loadingMoreColumns={loadingMoreColumns}
+          onLoadMoreColumn={onLoadMoreColumn}
           allUsers={allUsers}
           currentUser={currentUser}
           hiddenStatuses={hiddenStatuses}
@@ -213,50 +294,66 @@ export const TasksTab: React.FC<TasksTabProps> = React.memo(({
       ) : taskViewMode === 'property' ? (
         <Suspense fallback={<div className="flex-1 cdh-glass-column rounded-cdh-2xl animate-pulse" />}>
           <PropertyBoard
-          tasks={filteredTasks}
-          properties={properties}
-          allUsers={allUsers}
-          hiddenPropertyIds={hiddenPropertyIds}
-          currentUser={currentUser}
-          onEditTask={onEditTask}
-          onDeleteTask={onDeleteTask}
-          onToggleSubtask={onToggleSubtask}
-          onAddSubtask={onAddSubtask}
-          onUpdateStatus={onUpdateStatus}
-          onAssignTask={onAssignTask}
-          onQuickUpdateTask={onQuickUpdateTask}
-          onMoveTaskProperty={onMoveTaskProperty}
-          onToggleStar={onToggleStar}
-          onAddNewTask={handleCreateForProperty}
-          canAddTasks={canUseBoardQuickAdd}
-          isReadOnly={isReadOnly}
-          lastCreatedBatch={lastCreatedBatch}
-          isModalOpen={isTaskModalOpen}
-          onConsumeCreatedBatch={onConsumeCreatedBatch}
+            groups={groups}
+            propertyCounts={facets.property_counts}
+            allTasks={loadedTasks}
+            loadingMoreColumns={loadingMoreColumns}
+            onLoadMoreColumn={onLoadMoreColumn}
+            hideEmptyProperties={hideEmptyProperties}
+            onToggleHideEmpty={onToggleHideEmptyProperties}
+            properties={properties}
+            allUsers={allUsers}
+            hiddenPropertyIds={hiddenPropertyIds}
+            currentUser={currentUser}
+            onEditTask={onEditTask}
+            onDeleteTask={onDeleteTask}
+            onToggleSubtask={onToggleSubtask}
+            onAddSubtask={onAddSubtask}
+            onUpdateStatus={onUpdateStatus}
+            onAssignTask={onAssignTask}
+            onQuickUpdateTask={onQuickUpdateTask}
+            onMoveTaskProperty={onMoveTaskProperty}
+            onToggleStar={onToggleStar}
+            onAddNewTask={handleCreateForProperty}
+            canAddTasks={canUseBoardQuickAdd}
+            isReadOnly={isReadOnly}
+            lastCreatedBatch={lastCreatedBatch}
+            isModalOpen={isTaskModalOpen}
+            onConsumeCreatedBatch={onConsumeCreatedBatch}
           />
         </Suspense>
       ) : (
         <Suspense fallback={<div className="flex-1 cdh-glass-column rounded-cdh-2xl animate-pulse" />}>
           <SprintListBoard
-          tasks={filteredTasks}
-          allUsers={allUsers}
-          currentUser={currentUser}
-          isFilteredByAssignee={taskFilter !== 'all'}
-          onShowAllSprint={handleShowAllSprint}
-          onEditTask={onEditTask}
-          onDeleteTask={onDeleteTask}
-          onToggleSubtask={onToggleSubtask}
-          onAddSubtask={onAddSubtask}
-          onUpdateStatus={onUpdateStatus}
-          onAssignTask={onAssignTask}
-          onQuickUpdateTask={onQuickUpdateTask}
-          onToggleStar={onToggleStar}
-          onAddNewTask={handleCreateDefault}
-          canAddTasks={canUseBoardQuickAdd}
-          isReadOnly={isReadOnly}
-          lastCreatedBatch={lastCreatedBatch}
-          isModalOpen={isTaskModalOpen}
-          onConsumeCreatedBatch={onConsumeCreatedBatch}
+            tasks={listItems}
+            pagination={listPagination}
+            isLoadingMore={isLoadingMoreList}
+            onLoadMore={onLoadMoreList}
+            sortBy={listSortBy}
+            sortDir={listSortDir}
+            visibleColumns={visibleColumns}
+            onSelectSort={onSelectListSort}
+            onToggleSortDir={onToggleListSortDir}
+            onToggleColumn={onToggleColumn}
+            onResetColumns={onResetColumns}
+            allUsers={allUsers}
+            currentUser={currentUser}
+            isFilteredByAssignee={taskFilter !== 'all'}
+            onShowAllSprint={handleShowAllSprint}
+            onEditTask={onEditTask}
+            onDeleteTask={onDeleteTask}
+            onToggleSubtask={onToggleSubtask}
+            onAddSubtask={onAddSubtask}
+            onUpdateStatus={onUpdateStatus}
+            onAssignTask={onAssignTask}
+            onQuickUpdateTask={onQuickUpdateTask}
+            onToggleStar={onToggleStar}
+            onAddNewTask={handleCreateDefault}
+            canAddTasks={canUseBoardQuickAdd}
+            isReadOnly={isReadOnly}
+            lastCreatedBatch={lastCreatedBatch}
+            isModalOpen={isTaskModalOpen}
+            onConsumeCreatedBatch={onConsumeCreatedBatch}
           />
         </Suspense>
       )}

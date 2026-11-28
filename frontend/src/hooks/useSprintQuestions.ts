@@ -1,13 +1,23 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { Question, User } from '../types';
 import { api, isNetworkError } from '../api/client';
 import { useConfirm } from '../components/ui';
+
+export interface QuestionStoreAdapter {
+  findQuestion: (questionId: number) => Question | undefined;
+  patchQuestion: (questionId: number, updater: (q: Question) => Question) => void;
+  insertCreatedQuestion: (created: Question) => void;
+  removeQuestion: (questionId: number) => void;
+  refreshFacets?: () => Promise<void>;
+  refreshSummary?: () => Promise<void>;
+  fallbackReload?: () => Promise<void>;
+}
 
 interface UseSprintQuestionsOptions {
   currentSprintId: number | null;
   currentUser: User | null;
   allUsers: User[];
-  reloadSprintDetails: (sprintId: number) => Promise<void>;
+  store: QuestionStoreAdapter;
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
 }
@@ -16,20 +26,22 @@ export function useSprintQuestions({
   currentSprintId,
   currentUser,
   allUsers,
-  reloadSprintDetails,
+  store,
   onSuccess,
   onError,
 }: UseSprintQuestionsOptions) {
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const questionsRef = useRef<Question[]>(questions);
-  questionsRef.current = questions;
   const confirm = useConfirm();
 
   const handleAddQuestion = useCallback(
     async (data: any) => {
       try {
-        await api.createQuestion(data);
-        if (currentSprintId) await reloadSprintDetails(currentSprintId);
+        const res = await api.createQuestion(data);
+        if (res.question) {
+          store.insertCreatedQuestion(res.question);
+        } else {
+          await store.fallbackReload?.();
+        }
+        store.refreshSummary?.();
         onSuccess('Question ajoutée avec succès.');
       } catch (err: any) {
         if (!isNetworkError(err)) {
@@ -53,47 +65,45 @@ export function useSprintQuestions({
           can_delete: true,
           can_decide: true,
         };
-        setQuestions((prev) => [...prev, newQ]);
+        store.insertCreatedQuestion(newQ);
         onSuccess('Question ajoutée localement.');
       }
     },
-    [currentSprintId, allUsers, currentUser, reloadSprintDetails, onSuccess, onError]
+    [currentSprintId, allUsers, currentUser, store, onSuccess, onError]
   );
 
   const handleUpdateQuestion = useCallback(
     async (id: number, data: Partial<Question>) => {
-      const previous = questionsRef.current.find((q) => q.id === id);
+      const previous = store.findQuestion(id);
       const reassignedUser =
         data.user_id !== undefined ? allUsers.find((u) => u.id === data.user_id) : undefined;
 
-      setQuestions((prev) =>
-        prev.map((q) =>
-          q.id === id
-            ? {
-                ...q,
-                ...data,
-                ...(reassignedUser
-                  ? {
-                      user_name: reassignedUser.name,
-                      user_initials: reassignedUser.initials,
-                      user_color: reassignedUser.avatar_color,
-                    }
-                  : {}),
-              }
-            : q
-        )
-      );
+      store.patchQuestion(id, (q) => ({
+        ...q,
+        ...data,
+        ...(reassignedUser
+          ? {
+              user_name: reassignedUser.name,
+              user_initials: reassignedUser.initials,
+              user_color: reassignedUser.avatar_color,
+            }
+          : {}),
+      }));
 
       try {
-        await api.updateQuestion(id, data);
-        if (data.user_id !== undefined && currentSprintId) {
-          await reloadSprintDetails(currentSprintId);
+        const res = await api.updateQuestion(id, data);
+        if (res.question) {
+          store.patchQuestion(id, () => res.question!);
+        }
+        if (data.user_id !== undefined) {
+          store.refreshFacets?.();
+          store.refreshSummary?.();
         }
         onSuccess('Question mise à jour.');
       } catch (err: any) {
         if (!isNetworkError(err)) {
           if (previous) {
-            setQuestions((prev) => prev.map((q) => (q.id === id ? previous : q)));
+            store.patchQuestion(id, () => previous);
           }
           onError(err?.message || 'Impossible de modifier cette question.');
           throw err;
@@ -101,7 +111,7 @@ export function useSprintQuestions({
         onSuccess('Question mise à jour localement.');
       }
     },
-    [allUsers, currentSprintId, reloadSprintDetails, onSuccess, onError]
+    [allUsers, store, onSuccess, onError]
   );
 
   const handleDeleteQuestion = useCallback(
@@ -114,50 +124,67 @@ export function useSprintQuestions({
       });
       if (!confirmed) return;
 
-      const snapshot = questionsRef.current;
-      setQuestions((prev) => prev.filter((q) => q.id !== id));
+      store.removeQuestion(id);
       try {
         await api.deleteQuestion(id);
+        store.refreshSummary?.();
         onSuccess('Question supprimée.');
       } catch (err: any) {
         if (!isNetworkError(err)) {
-          setQuestions(snapshot);
+          await store.fallbackReload?.();
           onError(err?.message || 'Impossible de supprimer cette question.');
         }
       }
     },
-    [confirm, onSuccess, onError]
+    [confirm, store, onSuccess, onError]
   );
 
   const handleAddAnswer = useCallback(
     async (questionId: number, content: string) => {
       try {
-        await api.addQuestionAnswer(questionId, content);
-        if (currentSprintId) await reloadSprintDetails(currentSprintId);
+        const res = await api.addQuestionAnswer(questionId, content);
+        if (res.answer) {
+          store.patchQuestion(questionId, (q) => ({
+            ...q,
+            answers: [...(q.answers || []), res.answer],
+          }));
+        } else {
+          await store.fallbackReload?.();
+        }
         onSuccess('Proposition de réponse ajoutée.');
       } catch (e: any) {
-        if (e?.status === 409 && currentSprintId) {
-          await reloadSprintDetails(currentSprintId);
+        if (e?.status === 409) {
+          await store.fallbackReload?.();
         }
         onError(e?.message || "Erreur lors de l'envoi de la proposition.");
         throw e;
       }
     },
-    [currentSprintId, reloadSprintDetails, onSuccess, onError]
+    [store, onSuccess, onError]
   );
 
   const handleUpdateAnswer = useCallback(
     async (answerId: number, content: string) => {
       try {
-        await api.updateQuestionAnswer(answerId, content);
-        if (currentSprintId) await reloadSprintDetails(currentSprintId);
+        const res: any = await api.updateQuestionAnswer(answerId, content);
+        const qId = res?.question_id;
+        if (qId) {
+          store.patchQuestion(qId, (q) => ({
+            ...q,
+            answers: (q.answers || []).map((a) =>
+              a.id === answerId ? { ...a, content: res.content ?? content } : a
+            ),
+          }));
+        } else {
+          await store.fallbackReload?.();
+        }
         onSuccess('Proposition mise à jour.');
       } catch (e: any) {
         onError(e?.message || 'Erreur lors de la modification de la réponse.');
         throw e;
       }
     },
-    [currentSprintId, reloadSprintDetails, onSuccess, onError]
+    [store, onSuccess, onError]
   );
 
   const handleDeleteAnswer = useCallback(
@@ -170,21 +197,34 @@ export function useSprintQuestions({
       });
       if (!confirmed) return;
       try {
-        await api.deleteQuestionAnswer(answerId);
-        if (currentSprintId) await reloadSprintDetails(currentSprintId);
+        const res: any = await api.deleteQuestionAnswer(answerId);
+        const qId = res?.question_id;
+        if (qId) {
+          store.patchQuestion(qId, (q) => ({
+            ...q,
+            answers: (q.answers || []).filter((a) => a.id !== answerId),
+          }));
+        } else {
+          await store.fallbackReload?.();
+        }
         onSuccess('Proposition supprimée.');
       } catch (e: any) {
         onError(e?.message || 'Erreur lors de la suppression.');
       }
     },
-    [confirm, currentSprintId, reloadSprintDetails, onSuccess, onError]
+    [confirm, store, onSuccess, onError]
   );
 
   const handleSetQuestionDecision = useCallback(
     async (questionId: number, finalAnswer: string) => {
       try {
-        await api.setQuestionDecision(questionId, finalAnswer);
-        if (currentSprintId) await reloadSprintDetails(currentSprintId);
+        const res = await api.setQuestionDecision(questionId, finalAnswer);
+        store.patchQuestion(questionId, (q) => ({
+          ...q,
+          final_answer: res.final_answer ?? null,
+        }));
+        store.refreshFacets?.();
+        store.refreshSummary?.();
         onSuccess(
           finalAnswer.trim()
             ? 'Réponse définitive enregistrée.'
@@ -195,12 +235,10 @@ export function useSprintQuestions({
         throw e;
       }
     },
-    [currentSprintId, reloadSprintDetails, onSuccess, onError]
+    [store, onSuccess, onError]
   );
 
   return {
-    questions,
-    setQuestions,
     handleAddQuestion,
     handleUpdateQuestion,
     handleDeleteQuestion,

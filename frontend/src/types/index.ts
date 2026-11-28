@@ -100,6 +100,7 @@ export interface Question {
   user_color?: string;
   created_by: number;
   created_by_name?: string;
+  created_at?: string;
   title: string;
   details?: string;
   final_answer?: string | null;
@@ -108,3 +109,107 @@ export interface Question {
   can_delete?: boolean;
   can_decide?: boolean;
 }
+
+export interface PaginationMeta {
+  limit: number;
+  has_more: boolean;
+  has_previous: boolean;
+  next_cursor: string | null;
+  previous_cursor: string | null;
+  total: number | null;
+}
+
+export interface TaskFacets {
+  status_counts: Record<TaskStatus | 'pending', number>;
+  property_counts: Record<string, { total: number; done: number }>;
+  assignee_counts: {
+    all: number;
+    unassigned: number;
+    by_user: Record<string, number>;
+  };
+  total_matching: number;
+}
+
+export interface TaskGroupPage {
+  key: string;
+  label?: string;
+  color?: string;
+  code?: string;
+  is_active?: number;
+  done_count?: number;
+  data: Task[];
+  pagination: PaginationMeta;
+}
+
+export interface PaginatedTasksResponse {
+  success: boolean;
+  sprint_id: number;
+  is_read_only: boolean;
+  sort?: { by: string; direction: 'asc' | 'desc' };
+  data: Task[];
+  pagination: PaginationMeta;
+  facets?: TaskFacets;
+}
+
+export interface GroupedTasksResponse {
+  success: boolean;
+  sprint_id: number;
+  is_read_only: boolean;
+  group_by: 'status' | 'property' | 'assignee';
+  sort?: { by: string; direction: 'asc' | 'desc' };
+  groups: Record<string, TaskGroupPage>;
+  facets: TaskFacets;
+}
+
+export type TasksApiResponse = PaginatedTasksResponse | GroupedTasksResponse;
+
+export interface QuestionFacets {
+  counts_by_user_id: Record<string, number>;
+  summary: {
+    total: number;
+    decided: number;
+    undecided: number;
+  };
+}
+
+export interface PaginatedQuestionsResponse {
+  success: boolean;
+  sprint_id: number;
+  is_read_only: boolean;
+  sort?: { by: string; direction: 'asc' | 'desc' };
+  data: Question[];
+  pagination: PaginationMeta;
+  facets?: QuestionFacets;
+}
+
+export interface SprintMeetingSummary {
+  active_total: number;
+  done_count: number;
+  carry_over_count: number;
+  pending_assigned_count: number;
+  pending_unassigned_count: number;
+  questions_total: number;
+  decided_questions_count: number;
+  undecided_questions_count: number;
+  per_user_tasks: Record<string, { active: number; done: number; pending: number }>;
+  per_user_questions: Record<string, { total: number; decided: number; undecided: number }>;
+}
+
+export interface SprintDetailsPayload {
+  sprint: Sprint;
+  tasks_page: TasksApiResponse;
+  questions_page: PaginatedQuestionsResponse;
+  meeting_summary: SprintMeetingSummary;
+  is_read_only: boolean;
+}
+
+export type TaskDueStateFilter = 'all' | 'overdue' | 'with_date' | 'without_date';
+export type QuestionDecisionFilter = 'all' | 'decided' | 'undecided';
+export type QuestionAnswersFilter = 'all' | 'with_answers' | 'without_answers';
+export type QuestionSortKey =
+  | 'created_at'
+  | 'alpha'
+  | 'decision_status'
+  | 'answers_count'
+  | 'user'
+  | 'id';

@@ -5,6 +5,7 @@ import {
   getUserPreferences,
   sanitizeTaskListColumns,
   saveUserPreferences,
+  TaskBoardSortKey,
   TaskListColumnId,
   TaskListSortDir,
   TaskListSortKey,
@@ -40,6 +41,12 @@ export function useSprintListPrefs(currentUser: User | null) {
   const [sortDir, setSortDir] = useState<TaskListSortDir>(
     initialPrefs.taskListSortDir ?? 'asc'
   );
+  const [boardSortBy, setBoardSortBy] = useState<TaskBoardSortKey>(
+    initialPrefs.taskBoardSortBy ?? 'position'
+  );
+  const [boardSortDir, setBoardSortDir] = useState<TaskListSortDir>(
+    initialPrefs.taskBoardSortDir ?? 'asc'
+  );
   const [visibleColumns, setVisibleColumns] = useState<TaskListColumnId[]>(() =>
     userId
       ? sanitizeTaskListColumns(initialPrefs.taskListVisibleColumns)
@@ -52,8 +59,40 @@ export function useSprintListPrefs(currentUser: User | null) {
     const prefs = getUserPreferences(userId);
     setSortBy(prefs.taskListSortBy ?? 'priority');
     setSortDir(prefs.taskListSortDir ?? 'asc');
+    setBoardSortBy(prefs.taskBoardSortBy ?? 'position');
+    setBoardSortDir(prefs.taskBoardSortDir ?? 'asc');
     setVisibleColumns(sanitizeTaskListColumns(prefs.taskListVisibleColumns));
   }, [userId]);
+
+  const handleSelectBoardSort = useCallback(
+    (nextKey: TaskBoardSortKey, forcedDir?: TaskListSortDir) => {
+      let nextDir: TaskListSortDir = forcedDir ?? 'asc';
+      if (!forcedDir) {
+        if (boardSortBy === nextKey) {
+          nextDir = boardSortDir === 'asc' ? 'desc' : 'asc';
+        } else if (nextKey === 'created_at' || nextKey === 'updated_at') {
+          nextDir = 'desc';
+        }
+      }
+      setBoardSortBy(nextKey);
+      setBoardSortDir(nextDir);
+      if (userId) {
+        saveUserPreferences(userId, {
+          taskBoardSortBy: nextKey,
+          taskBoardSortDir: nextDir,
+        });
+      }
+    },
+    [boardSortBy, boardSortDir, userId]
+  );
+
+  const handleToggleBoardSortDir = useCallback(() => {
+    const nextDir: TaskListSortDir = boardSortDir === 'asc' ? 'desc' : 'asc';
+    setBoardSortDir(nextDir);
+    if (userId) {
+      saveUserPreferences(userId, { taskBoardSortDir: nextDir });
+    }
+  }, [boardSortDir, userId]);
 
   const handleSelectSort = useCallback(
     (nextKey: TaskListSortKey) => {
@@ -111,9 +150,13 @@ export function useSprintListPrefs(currentUser: User | null) {
   return {
     sortBy,
     sortDir,
+    boardSortBy,
+    boardSortDir,
     visibleColumns,
     handleSelectSort,
     handleToggleSortDir,
+    handleSelectBoardSort,
+    handleToggleBoardSortDir,
     handleToggleColumn,
     handleResetColumns,
   };

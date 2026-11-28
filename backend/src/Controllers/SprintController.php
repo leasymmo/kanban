@@ -6,7 +6,7 @@ use App\Database;
 use App\Response;
 use App\Auth;
 use App\Request;
-use App\QuestionHelper;
+use App\Pagination\PaginationException;
 use PDO;
 
 class SprintController {
@@ -42,68 +42,160 @@ class SprintController {
     }
 
     /**
-     * Détail complet (tâches, sous-tâches, questions) pour un sprint donné
+     * Agrégats ultra-rapides pour la vue Réunion et la modale de clôture de sprint
+     * sans nécessiter de charger toutes les tâches ni les questions en mémoire.
+     *
+     * @return array<string, mixed>
      */
-    public static function fetchSprintDetailsPayload(PDO $db, array $sprint, array $currentUser): array {
-        $id = (int)$sprint['id'];
+    public static function computeMeetingSummary(PDO $db, int $sprintId): array {
+        $activeTotal = 0;
+        $doneCount = 0;
+        $carryOverCount = 0;
+        $pendingAssignedCount = 0;
+        $pendingUnassignedCount = 0;
+        $perUserTasks = [];
 
-        $stmtTasks = $db->prepare("
-            SELECT t.id, t.title, t.description, t.created_by,
-                   t.property_id, t.priority, t.due_date,
-                   t.created_at, t.updated_at,
-                   st.sprint_id, st.status, st.assigned_to, st.position, st.is_unplanned, st.is_starred, st.is_new,
-                   p.name as property_name, p.color as property_color, p.code as property_code,
-                   ua.name as assigned_to_name, ua.initials as assigned_to_initials, ua.avatar_color as assigned_to_color,
-                   COALESCE(uc.name, 'Ancien associé') as created_by_name,
-                   COALESCE(uc.initials, '?') as created_by_initials
+        $stmtTasksAgg = $db->prepare("
+            SELECT st.assigned_to,
+                   st.status,
+                   COUNT(*) AS cnt
             FROM sprint_tasks st
-            JOIN tasks t ON t.id = st.task_id
-            LEFT JOIN properties p ON p.id = t.property_id
-            LEFT JOIN users ua ON ua.id = st.assigned_to
-            LEFT JOIN users uc ON uc.id = t.created_by
             WHERE st.sprint_id = ?
-            ORDER BY st.position ASC, t.id ASC
+            GROUP BY st.assigned_to, st.status
         ");
-        $stmtTasks->execute([$id]);
-        $tasks = $stmtTasks->fetchAll();
+        $stmtTasksAgg->execute([$sprintId]);
 
-        $taskIds = array_column($tasks, 'id');
-        $subtasksMap = \App\SubtaskStateHelper::fetchResolvedSubtasksForTasks(
-            $db,
-            $taskIds,
-            $id,
-            isset($sprint['number']) ? (int)$sprint['number'] : null,
-            $sprint['status'] ?? null
-        );
+        while ($row = $stmtTasksAgg->fetch(PDO::FETCH_ASSOC)) {
+            $cnt = (int)$row['cnt'];
+            $status = (string)$row['status'];
+            $uid = $row['assigned_to'] !== null ? (int)$row['assigned_to'] : null;
 
-        $isSprintClosed = ($sprint['status'] === 'closed');
-        $isAdmin = ($currentUser['role'] === 'admin');
-        $isWrite = ($currentUser['role'] === 'write');
+            if ($status === 'pending') {
+                if ($uid !== null) {
+                    $pendingAssignedCount += $cnt;
+                } else {
+                    $pendingUnassignedCount += $cnt;
+                }
+            } elseif ($uid !== null) {
+                $activeTotal += $cnt;
+                if ($status === 'done') {
+                    $doneCount += $cnt;
+                } else {
+                    $carryOverCount += $cnt;
+                }
+            }
 
-        foreach ($tasks as &$task) {
-            $task['subtasks'] = $subtasksMap[$task['id']] ?? [];
-            $isOwner = ($task['assigned_to'] == $currentUser['id'])
-                || ($task['assigned_to'] === null && $task['created_by'] == $currentUser['id']);
-            $canModify = $isAdmin || (!$isSprintClosed && $isWrite && $isOwner);
-
-            $task['can_edit'] = $canModify;
-            $task['can_delete'] = $canModify;
-            $task['can_assign'] = $isAdmin;
-            $task['can_star'] = $canModify && ($task['status'] !== 'pending');
+            if ($uid !== null) {
+                $ukey = (string)$uid;
+                if (!isset($perUserTasks[$ukey])) {
+                    $perUserTasks[$ukey] = ['active' => 0, 'done' => 0, 'pending' => 0];
+                }
+                if ($status === 'pending') {
+                    $perUserTasks[$ukey]['pending'] += $cnt;
+                } else {
+                    $perUserTasks[$ukey]['active'] += $cnt;
+                    if ($status === 'done') {
+                        $perUserTasks[$ukey]['done'] += $cnt;
+                    }
+                }
+            }
         }
-        unset($task);
 
-        $questions = QuestionHelper::hydrateQuestionsForSprint(
-            $db,
-            $id,
-            (string)($sprint['status'] ?? 'active'),
-            $currentUser
-        );
+        $questionsTotal = 0;
+        $decidedQuestionsCount = 0;
+        $undecidedQuestionsCount = 0;
+        $perUserQuestions = [];
+
+        $stmtQAgg = $db->prepare("
+            SELECT q.user_id,
+                   COUNT(*) AS cnt,
+                   SUM(CASE WHEN q.final_answer IS NOT NULL AND TRIM(q.final_answer) != '' THEN 1 ELSE 0 END) AS decided_cnt
+            FROM questions q
+            WHERE q.sprint_id = ?
+            GROUP BY q.user_id
+        ");
+        $stmtQAgg->execute([$sprintId]);
+
+        while ($row = $stmtQAgg->fetch(PDO::FETCH_ASSOC)) {
+            $cnt = (int)$row['cnt'];
+            $dec = (int)$row['decided_cnt'];
+            $undec = $cnt - $dec;
+            $questionsTotal += $cnt;
+            $decidedQuestionsCount += $dec;
+            $undecidedQuestionsCount += $undec;
+
+            if ($row['user_id'] !== null) {
+                $ukey = (string)((int)$row['user_id']);
+                $perUserQuestions[$ukey] = [
+                    'total' => $cnt,
+                    'decided' => $dec,
+                    'undecided' => $undec,
+                ];
+            }
+        }
+
+        return [
+            'active_total' => $activeTotal,
+            'done_count' => $doneCount,
+            'carry_over_count' => $carryOverCount,
+            'pending_assigned_count' => $pendingAssignedCount,
+            'pending_unassigned_count' => $pendingUnassignedCount,
+            'questions_total' => $questionsTotal,
+            'decided_questions_count' => $decidedQuestionsCount,
+            'undecided_questions_count' => $undecidedQuestionsCount,
+            'per_user_tasks' => $perUserTasks,
+            'per_user_questions' => $perUserQuestions,
+        ];
+    }
+
+    /**
+     * Détail paginé d'un sprint : première page des tâches & questions via App\Pagination + compteurs serveur.
+     *
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>
+     */
+    public static function fetchSprintDetailsPayload(
+        PDO $db,
+        array $sprint,
+        array $currentUser,
+        array $params = []
+    ): array {
+        $sprintId = (int)$sprint['id'];
+        $taskParams = $params;
+        if (!isset($taskParams['scope'])) {
+            $taskParams['scope'] = 'board';
+        }
+        if (!isset($taskParams['group_by']) && !array_key_exists('flat', $taskParams)) {
+            $taskParams['group_by'] = 'status';
+        }
+        $taskDefaultLimit = isset($taskParams['group_by']) && $taskParams['group_by'] !== '' && $taskParams['group_by'] !== 'none'
+            ? 20
+            : 30;
+        if (isset($taskParams['tasks_limit']) && !isset($taskParams['limit'])) {
+            $taskParams['limit'] = $taskParams['tasks_limit'];
+        }
+        $taskParams['include_facets'] = '1';
+
+        $qParams = [];
+        foreach ($params as $key => $val) {
+            if (strpos((string)$key, 'q_') === 0) {
+                $qParams[substr((string)$key, 2)] = $val;
+            }
+        }
+        if (!isset($qParams['user_id']) && !isset($qParams['user_ids'])) {
+            $qParams['user_id'] = 'me';
+        }
+        $qParams['include_facets'] = '1';
+
+        $tasksPage = TaskController::executePaginated($db, $sprint, $currentUser, $taskParams, $taskDefaultLimit);
+        $questionsPage = QuestionController::executePaginated($db, $sprint, $currentUser, $qParams, 20);
+        $meetingSummary = self::computeMeetingSummary($db, $sprintId);
 
         return [
             'sprint' => $sprint,
-            'tasks' => $tasks,
-            'questions' => $questions,
+            'tasks_page' => $tasksPage,
+            'questions_page' => $questionsPage,
+            'meeting_summary' => $meetingSummary,
             'is_read_only' => ($sprint['status'] === 'closed' && $currentUser['role'] !== 'admin')
         ];
     }
@@ -156,7 +248,7 @@ class SprintController {
 
     /**
      * GET /api/sprints/{id}
-     * Détail d'un sprint complet (avec tâches, sous-tâches, questions)
+     * Détail paginé d'un sprint (tâches, questions, facettes et résumé réunion)
      */
     public function get(int $id): void {
         $currentUser = Auth::requireAuth();
@@ -170,8 +262,36 @@ class SprintController {
             Response::error('Sprint introuvable', 404);
         }
 
-        $payload = self::fetchSprintDetailsPayload($db, $sprint, $currentUser);
-        Response::json(array_merge(['success' => true], $payload));
+        try {
+            $payload = self::fetchSprintDetailsPayload($db, $sprint, $currentUser, $_GET);
+            Response::json(array_merge(['success' => true], $payload));
+        } catch (PaginationException $e) {
+            Response::error($e->getMessage(), $e->getStatusCode());
+        }
+    }
+
+    /**
+     * GET /api/sprints/{id}/summary
+     * Retourne uniquement les compteurs agrégés du sprint (Réunion & Clôture).
+     */
+    public function summary(int $id): void {
+        $currentUser = Auth::requireAuth();
+        $db = Database::getConnection();
+
+        $stmt = $db->prepare("SELECT id, status FROM sprints WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        $sprint = $stmt->fetch();
+
+        if (!$sprint) {
+            Response::error('Sprint introuvable', 404);
+        }
+
+        Response::json([
+            'success' => true,
+            'sprint_id' => $id,
+            'is_read_only' => ($sprint['status'] === 'closed' && $currentUser['role'] !== 'admin'),
+            'meeting_summary' => self::computeMeetingSummary($db, $id),
+        ]);
     }
 
     /**

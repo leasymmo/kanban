@@ -88,6 +88,9 @@ fi
 if [ -f "$PROJECT_ROOT/backend/database/migration_v11.sql" ]; then
     cp "$PROJECT_ROOT/backend/database/migration_v11.sql" "$BUILD_DIR/database/"
 fi
+if [ -f "$PROJECT_ROOT/backend/database/migration_v13.sql" ]; then
+    cp "$PROJECT_ROOT/backend/database/migration_v13.sql" "$BUILD_DIR/database/"
+fi
 
 # Si la seed de production existe localement dans .agents/notes/, on la copie aussi pour phpMyAdmin
 if [ -f "$PROJECT_ROOT/.agents/notes/seed-carredhotes.sql" ]; then

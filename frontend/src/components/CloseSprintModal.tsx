@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useId } from 'react';
-import { Question, Sprint, Task } from '../types';
+import { Sprint, SprintMeetingSummary } from '../types';
 import { Badge, Button, Modal } from './ui';
 import {
   AlertCircle,
@@ -14,21 +14,19 @@ interface CloseSprintModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentSprint: Sprint | null;
-  tasks: Task[];
-  questions?: Question[];
+  meetingSummary: SprintMeetingSummary;
   onConfirmClose: (nextName: string, notes: string) => Promise<void>;
 }
 
 /**
  * Modale épurée Apple Liquid Glass de validation & clôture de réunion hebdomadaire :
- * résumé visuel synthétique de la bascule + nom du prochain sprint + notes.
+ * résumé visuel synthétique basé sur les compteurs exacts du serveur.
  */
 export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
   isOpen,
   onClose,
   currentSprint,
-  tasks,
-  questions = [],
+  meetingSummary,
   onConfirmClose,
 }) => {
   const nextNumber = (currentSprint?.number ?? 0) + 1;
@@ -56,11 +54,12 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
 
   if (!currentSprint) return null;
 
-  const doneCount = tasks.filter((t) => t.status === 'done').length;
-  const carryOverCount = tasks.filter((t) => t.status !== 'done' && t.status !== 'pending').length;
-  const assignedPendingCount = tasks.filter((t) => t.status === 'pending' && !!t.assigned_to).length;
-  const unassignedPendingCount = tasks.filter((t) => t.status === 'pending' && !t.assigned_to).length;
-  const decidedQuestionsCount = questions.filter((q) => Boolean(q.final_answer?.trim())).length;
+  const doneCount = meetingSummary.done_count;
+  const carryOverCount = meetingSummary.carry_over_count;
+  const assignedPendingCount = meetingSummary.pending_assigned_count;
+  const unassignedPendingCount = meetingSummary.pending_unassigned_count;
+  const decidedQuestionsCount = meetingSummary.decided_questions_count;
+  const totalQuestionsCount = meetingSummary.questions_total;
 
   const summaryItems = [
     {
@@ -186,11 +185,11 @@ export const CloseSprintModal: React.FC<CloseSprintModalProps> = ({
           ))}
         </div>
 
-        {questions.length > 0 && (
+        {totalQuestionsCount > 0 && (
           <p className="text-[11.5px] text-[var(--cdh-text-secondary)] px-0.5 tabular-nums">
             Questions archivées :{' '}
             <strong className="text-[var(--cdh-text-primary)]">
-              {decidedQuestionsCount}/{questions.length}
+              {decidedQuestionsCount}/{totalQuestionsCount}
             </strong>{' '}
             décidée{decidedQuestionsCount > 1 ? 's' : ''}.
           </p>

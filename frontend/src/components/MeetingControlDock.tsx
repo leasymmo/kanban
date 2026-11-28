@@ -1,5 +1,5 @@
 import React from 'react';
-import { Question, Task, User } from '../types';
+import { Question, SprintMeetingSummary, Task, User } from '../types';
 import { hasFinalDecision } from '../utils/questions';
 import { ensureWhiteTextContrast } from '../utils/color';
 import { Plus, UserPlus } from 'lucide-react';
@@ -8,6 +8,7 @@ export interface MeetingControlDockProps {
   users: User[];
   tasks: Task[];
   questions: Question[];
+  meetingSummary?: SprintMeetingSummary;
   meetingStep: 'retro' | 'questions' | 'unassigned';
   activeAnchor: number | 'pool' | null;
   pendingUnassignedCount: number;
@@ -141,6 +142,7 @@ export const MeetingControlDock: React.FC<MeetingControlDockProps> = ({
   users,
   tasks,
   questions,
+  meetingSummary,
   meetingStep,
   activeAnchor,
   pendingUnassignedCount,
@@ -171,12 +173,15 @@ export const MeetingControlDock: React.FC<MeetingControlDockProps> = ({
 
       {users.map((user) => {
         const targetId = `meeting-section-${meetingStep}-${user.id}`;
+        const uKey = String(user.id);
+        const summaryTasks = meetingSummary?.per_user_tasks?.[uKey];
+        const summaryQuestions = meetingSummary?.per_user_questions?.[uKey];
         const badgeCount =
           meetingStep === 'retro'
-            ? activeSprintTasks.filter((t) => t.assigned_to === user.id).length
+            ? summaryTasks?.active ?? activeSprintTasks.filter((t) => t.assigned_to === user.id).length
             : meetingStep === 'questions'
-            ? questions.filter((q) => q.user_id === user.id && !hasFinalDecision(q)).length
-            : pendingAssigned.filter((t) => t.assigned_to === user.id).length;
+            ? summaryQuestions?.undecided ?? questions.filter((q) => q.user_id === user.id && !hasFinalDecision(q)).length
+            : summaryTasks?.pending ?? pendingAssigned.filter((t) => t.assigned_to === user.id).length;
 
         const badgeLabel =
           meetingStep === 'retro'

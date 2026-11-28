@@ -14,11 +14,15 @@ export interface FilterAccordionSection<T extends string | number = string | num
   id: string;
   title: string;
   icon?: React.ReactNode;
+  mode?: 'multi' | 'single';
   options: MultiFilterOption<T>[];
-  hiddenIds: T[];
-  onToggle: (id: T) => void;
-  onSelectAll: () => void;
-  onSelectNone: () => void;
+  hiddenIds?: T[];
+  onToggle?: (id: T) => void;
+  onSelectAll?: () => void;
+  onSelectNone?: () => void;
+  selectedValue?: T;
+  defaultValue?: T;
+  onSelectSingle?: (id: T) => void;
 }
 
 interface UnifiedFilterDropdownProps {
@@ -54,7 +58,11 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = React
   });
 
   const activeSectionsCount = sections.filter((section) => {
-    const visibleCount = section.options.filter((opt) => !section.hiddenIds.includes(opt.id)).length;
+    if (section.mode === 'single') {
+      return section.selectedValue !== undefined && section.selectedValue !== section.defaultValue;
+    }
+    const hidden = section.hiddenIds ?? [];
+    const visibleCount = section.options.filter((opt) => !hidden.includes(opt.id)).length;
     return visibleCount < section.options.length;
   }).length;
   const isFiltered = activeSectionsCount > 0;
@@ -114,9 +122,16 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = React
           >
           {sections.map((section, idx) => {
             const isSectionOpen = openSectionId === section.id;
+            const isSingle = section.mode === 'single';
             const totalCount = section.options.length;
-            const visibleCount = section.options.filter((opt) => !section.hiddenIds.includes(opt.id)).length;
-            const isSectionFiltered = visibleCount < totalCount;
+            const hiddenIds = section.hiddenIds ?? [];
+            const visibleCount = section.options.filter((opt) => !hiddenIds.includes(opt.id)).length;
+            const isSectionFiltered = isSingle
+              ? section.selectedValue !== undefined && section.selectedValue !== section.defaultValue
+              : visibleCount < totalCount;
+            const singleSelectedLabel = isSingle
+              ? section.options.find((o) => o.id === section.selectedValue)?.label
+              : undefined;
 
             return (
               <div
@@ -145,7 +160,7 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = React
                           : 'text-[var(--cdh-text-tertiary)]'
                       }`}
                     >
-                      {visibleCount}/{totalCount}
+                      {isSingle ? (isSectionFiltered ? singleSelectedLabel : 'Tous') : `${visibleCount}/${totalCount}`}
                     </span>
                     <ChevronDown
                       className={`w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] transition-transform duration-150 ${
@@ -158,28 +173,30 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = React
 
                 {isSectionOpen && (
                   <div className="pt-1 pb-1 space-y-1 animate-fade-in">
-                    <div className="px-2.5 pb-1 flex items-center justify-between">
-                      <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--cdh-text-tertiary)]">
-                        Sélection
-                      </span>
-                      <div className="flex items-center gap-2 text-[11px] font-semibold">
-                        <button
-                          type="button"
-                          onClick={section.onSelectAll}
-                          className="text-[var(--cdh-accent)] hover:underline cursor-pointer"
-                        >
-                          Tous
-                        </button>
-                        <span className="text-[var(--cdh-border-subtle)]">|</span>
-                        <button
-                          type="button"
-                          onClick={section.onSelectNone}
-                          className="text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] cursor-pointer"
-                        >
-                          Aucun
-                        </button>
+                    {!isSingle && (
+                      <div className="px-2.5 pb-1 flex items-center justify-between">
+                        <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--cdh-text-tertiary)]">
+                          Sélection
+                        </span>
+                        <div className="flex items-center gap-2 text-[11px] font-semibold">
+                          <button
+                            type="button"
+                            onClick={section.onSelectAll}
+                            className="text-[var(--cdh-accent)] hover:underline cursor-pointer"
+                          >
+                            Tous
+                          </button>
+                          <span className="text-[var(--cdh-border-subtle)]">|</span>
+                          <button
+                            type="button"
+                            onClick={section.onSelectNone}
+                            className="text-[var(--cdh-text-secondary)] hover:text-[var(--cdh-text-primary)] cursor-pointer"
+                          >
+                            Aucun
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <div
                       role="listbox"
@@ -187,14 +204,18 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = React
                       className="max-h-56 overflow-y-auto px-1 space-y-0.5"
                     >
                       {section.options.map((opt) => {
-                        const isVisible = !section.hiddenIds.includes(opt.id);
+                        const isVisible = isSingle
+                          ? section.selectedValue === opt.id
+                          : !hiddenIds.includes(opt.id);
                         return (
                           <button
                             key={String(opt.id)}
                             type="button"
                             role="option"
                             aria-selected={isVisible}
-                            onClick={() => section.onToggle(opt.id)}
+                            onClick={() =>
+                              isSingle ? section.onSelectSingle?.(opt.id) : section.onToggle?.(opt.id)
+                            }
                             className={`w-full flex items-center justify-between px-2.5 py-2 sm:py-1.5 rounded-cdh-sm text-xs transition-colors cursor-pointer ${
                               isVisible
                                 ? 'bg-[var(--cdh-surface-control)] text-[var(--cdh-text-primary)] font-semibold'
@@ -202,14 +223,16 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = React
                             }`}
                           >
                             <span className="flex items-center gap-2 truncate">
-                              <span
-                                className={`w-2.5 h-2.5 rounded-full shrink-0 ${opt.dotClass || ''}`}
-                                style={opt.dotColor ? { backgroundColor: opt.dotColor } : undefined}
-                              />
+                              {(opt.dotClass || opt.dotColor) && (
+                                <span
+                                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${opt.dotClass || ''}`}
+                                  style={opt.dotColor ? { backgroundColor: opt.dotColor } : undefined}
+                                />
+                              )}
                               <span className="truncate">{opt.label}</span>
                             </span>
                             <span
-                              className={`w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors ${
+                              className={`w-4 h-4 ${isSingle ? 'rounded-full' : 'rounded'} flex items-center justify-center border shrink-0 transition-colors ${
                                 isVisible
                                   ? 'bg-[var(--cdh-accent)] border-[var(--cdh-accent)] text-white'
                                   : 'border-[var(--cdh-border-subtle)] bg-[var(--cdh-surface-input)]'
