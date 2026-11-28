@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { User, Task } from '../types';
 import { AssigneeFilter } from '../hooks/useTaskFilters';
+import { useAnchoredPopover } from '../hooks/useAnchoredPopover';
 import { Avatar } from './ui';
 import { ensureWhiteTextContrast } from '../utils/color';
 import { ChevronDown, Check, UserCheck, Users } from 'lucide-react';
@@ -26,26 +28,18 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = ({
   facetFilteredTasks,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const handleClose = useCallback(() => setIsOpen(false), []);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+  const popoverStyle = useAnchoredPopover({
+    isOpen,
+    onClose: handleClose,
+    triggerRef,
+    popoverRef,
+    width: 256,
+    align: 'lg-right',
+  });
 
   const otherUsers = allUsers.filter((u) => u.id !== currentUser?.id);
   const myTasksCount = currentUser
@@ -109,8 +103,9 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = ({
     : 'Mes tâches';
 
   return (
-    <div className="relative min-w-0 flex-1 sm:flex-initial" ref={containerRef}>
+    <div className="relative min-w-0 flex-1 sm:flex-initial">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
@@ -136,12 +131,16 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = ({
         />
       </button>
 
-      {isOpen && (
-        <div
-          role="dialog"
-          aria-label="Filtrer par responsable"
-          className="absolute left-0 lg:left-auto lg:right-0 mt-1.5 w-64 max-w-[calc(100vw-2rem)] cdh-glass-overlay rounded-cdh-xl p-1.5 z-40 animate-fade-in space-y-0.5"
-        >
+      {isOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label="Filtrer par responsable"
+            style={popoverStyle}
+            className="fixed z-40 cdh-glass-overlay cdh-glass-popover rounded-cdh-xl p-1.5 overflow-y-auto animate-fade-in space-y-0.5"
+          >
           <div className="px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--cdh-text-tertiary)]">
             Responsable
           </div>
@@ -262,8 +261,9 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = ({
               </div>
             </>
           )}
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 };

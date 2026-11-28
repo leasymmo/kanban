@@ -1,5 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Check, SlidersHorizontal } from 'lucide-react';
+import { useAnchoredPopover } from '../hooks/useAnchoredPopover';
 
 export interface MultiFilterOption<T extends string | number = string | number> {
   id: T;
@@ -38,26 +40,18 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [openSectionId, setOpenSectionId] = useState<string | null>(() => sections[0]?.id ?? null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const handleClose = useCallback(() => setIsOpen(false), []);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+  const popoverStyle = useAnchoredPopover({
+    isOpen,
+    onClose: handleClose,
+    triggerRef,
+    popoverRef,
+    width: 288,
+    align: align === 'right' ? 'right' : 'lg-right',
+  });
 
   const activeSectionsCount = sections.filter((section) => {
     const visibleCount = section.options.filter((opt) => !section.hiddenIds.includes(opt.id)).length;
@@ -76,8 +70,9 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = ({
   };
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={handleTogglePopover}
         aria-expanded={isOpen}
@@ -107,14 +102,16 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = ({
         />
       </button>
 
-      {isOpen && (
-        <div
-          role="dialog"
-          aria-label={label}
-          className={`absolute ${
-            align === 'right' ? 'right-0' : 'left-0 sm:left-auto sm:right-0'
-          } mt-1.5 w-72 max-w-[calc(100vw-2rem)] cdh-glass-overlay rounded-cdh-xl p-1.5 z-40 animate-fade-in space-y-1`}
-        >
+      {isOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label={label}
+            style={popoverStyle}
+            className="fixed z-40 cdh-glass-overlay cdh-glass-popover rounded-cdh-xl p-1.5 overflow-y-auto animate-fade-in space-y-1"
+          >
           {sections.map((section, idx) => {
             const isSectionOpen = openSectionId === section.id;
             const totalCount = section.options.length;
@@ -234,8 +231,9 @@ export const UnifiedFilterDropdown: React.FC<UnifiedFilterDropdownProps> = ({
               </div>
             );
           })}
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 };

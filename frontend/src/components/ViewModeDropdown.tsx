@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { LayoutGrid, Home, TableProperties, ChevronDown, Check } from 'lucide-react';
 import { TaskViewMode } from '../utils/cookies';
+import { useAnchoredPopover } from '../hooks/useAnchoredPopover';
 
 interface ViewOption {
   id: TaskViewMode;
@@ -46,32 +48,25 @@ export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = ({
   align = 'right'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const handleClose = useCallback(() => setIsOpen(false), []);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+  const popoverStyle = useAnchoredPopover({
+    isOpen,
+    onClose: handleClose,
+    triggerRef,
+    popoverRef,
+    width: 256,
+    align: align === 'right' ? 'right' : 'lg-right',
+  });
 
   const activeOption = VIEW_OPTIONS.find(opt => opt.id === value) ?? VIEW_OPTIONS[0];
 
   return (
-    <div className="relative shrink-0" ref={containerRef}>
+    <div className="relative shrink-0">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
         aria-expanded={isOpen}
@@ -96,14 +91,16 @@ export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = ({
         />
       </button>
 
-      {isOpen && (
-        <div
-          role="dialog"
-          aria-label="Choisir une vue des tâches"
-          className={`absolute ${
-            align === 'right' ? 'right-0' : 'left-0 sm:left-auto sm:right-0'
-          } mt-1.5 w-64 max-w-[calc(100vw-2rem)] cdh-glass-overlay rounded-cdh-xl p-1.5 z-40 animate-fade-in space-y-0.5`}
-        >
+      {isOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label="Choisir une vue des tâches"
+            style={popoverStyle}
+            className="fixed z-40 cdh-glass-overlay cdh-glass-popover rounded-cdh-xl p-1.5 overflow-y-auto animate-fade-in space-y-0.5"
+          >
           <div className="px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--cdh-text-tertiary)]">
             Affichage des tâches
           </div>
@@ -157,8 +154,9 @@ export const ViewModeDropdown: React.FC<ViewModeDropdownProps> = ({
               </button>
             );
           })}
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 };
