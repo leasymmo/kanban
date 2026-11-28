@@ -85,34 +85,35 @@ export function useCardDragAndDrop<ContainerId>({
   }, []);
 
   const handleDragOverCard = useCallback(
-    (e: React.DragEvent, targetTask: Task, containerId: ContainerId) => {
+    (e: React.DragEvent, targetTask: Task, containerId?: ContainerId) => {
       const currentDraggedId = draggedTaskIdRef.current;
       if (isReadOnly || !currentDraggedId || currentDraggedId === targetTask.id) return;
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
 
+      const resolvedContainerId = containerId !== undefined ? containerId : getContainerId(targetTask);
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const position: 'before' | 'after' =
         e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
 
-      if (activeContainerRef.current !== containerId) {
-        setActiveDropContainer(containerId);
+      if (activeContainerRef.current !== resolvedContainerId) {
+        setActiveDropContainer(resolvedContainerId);
       }
       const curTarget = dropTargetRef.current;
       if (
-        curTarget?.containerId !== containerId ||
+        curTarget?.containerId !== resolvedContainerId ||
         curTarget?.taskId !== targetTask.id ||
         curTarget?.position !== position
       ) {
-        setDropTarget({ containerId, taskId: targetTask.id, position });
+        setDropTarget({ containerId: resolvedContainerId, taskId: targetTask.id, position });
       }
     },
-    [isReadOnly]
+    [isReadOnly, getContainerId]
   );
 
   const handleDropOnCard = useCallback(
-    (e: React.DragEvent, targetTask: Task, containerId: ContainerId) => {
+    (e: React.DragEvent, targetTask: Task, containerId?: ContainerId) => {
       e.preventDefault();
       e.stopPropagation();
 
@@ -125,12 +126,13 @@ export function useCardDragAndDrop<ContainerId>({
         return;
       }
 
+      const resolvedContainerId = containerId !== undefined ? containerId : getContainerId(targetTask);
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const position: 'before' | 'after' =
         e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
 
       const containerTaskIds = tasks
-        .filter((t) => getContainerId(t) === containerId && t.id !== draggedTask.id)
+        .filter((t) => getContainerId(t) === resolvedContainerId && t.id !== draggedTask.id)
         .map((t) => t.id);
 
       const targetIndex = containerTaskIds.indexOf(targetTask.id);
@@ -141,7 +143,7 @@ export function useCardDragAndDrop<ContainerId>({
         draggedTask.id
       );
 
-      onDropReorder(draggedTask, containerId, containerTaskIds);
+      onDropReorder(draggedTask, resolvedContainerId, containerTaskIds);
       resetDragState();
     },
     [tasks, getContainerId, isReadOnly, onDropReorder, resetDragState]

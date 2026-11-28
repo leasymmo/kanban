@@ -1,12 +1,17 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useCallback, useRef } from 'react';
 import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
 import { CreatedTaskBatch } from '../utils/taskMotion';
 import { useTaskFilters } from '../hooks/useTaskFilters';
 import { getUserPreferences, saveUserPreferences, TaskViewMode } from '../utils/cookies';
 import { TasksToolbar } from './TasksToolbar';
 import { KanbanBoard } from './KanbanBoard';
-import { PropertyBoard } from './PropertyBoard';
-import { SprintListBoard } from './SprintListBoard';
+
+const PropertyBoard = lazy(() =>
+  import('./PropertyBoard').then((m) => ({ default: m.PropertyBoard }))
+);
+const SprintListBoard = lazy(() =>
+  import('./SprintListBoard').then((m) => ({ default: m.SprintListBoard }))
+);
 
 interface TasksTabProps {
   tasks: Task[];
@@ -206,7 +211,8 @@ export const TasksTab: React.FC<TasksTabProps> = React.memo(({
           onConsumeCreatedBatch={onConsumeCreatedBatch}
         />
       ) : taskViewMode === 'property' ? (
-        <PropertyBoard
+        <Suspense fallback={<div className="flex-1 cdh-glass-column rounded-cdh-2xl animate-pulse" />}>
+          <PropertyBoard
           tasks={filteredTasks}
           properties={properties}
           allUsers={allUsers}
@@ -227,9 +233,11 @@ export const TasksTab: React.FC<TasksTabProps> = React.memo(({
           lastCreatedBatch={lastCreatedBatch}
           isModalOpen={isTaskModalOpen}
           onConsumeCreatedBatch={onConsumeCreatedBatch}
-        />
+          />
+        </Suspense>
       ) : (
-        <SprintListBoard
+        <Suspense fallback={<div className="flex-1 cdh-glass-column rounded-cdh-2xl animate-pulse" />}>
+          <SprintListBoard
           tasks={filteredTasks}
           allUsers={allUsers}
           currentUser={currentUser}
@@ -249,7 +257,8 @@ export const TasksTab: React.FC<TasksTabProps> = React.memo(({
           lastCreatedBatch={lastCreatedBatch}
           isModalOpen={isTaskModalOpen}
           onConsumeCreatedBatch={onConsumeCreatedBatch}
-        />
+          />
+        </Suspense>
       )}
     </div>
   );

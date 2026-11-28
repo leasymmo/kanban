@@ -130,6 +130,14 @@ cat << 'EOF' > "$BUILD_DIR/.htaccess"
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    <FilesMatch "\.(js|css|png|jpg|jpeg|svg|webp|woff2)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    <Files "sw.js">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </Files>
 </IfModule>
 EOF
 

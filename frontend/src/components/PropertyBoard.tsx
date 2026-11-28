@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Task, Property, User, TaskPriority, TaskStatus } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
-import { useProgressiveRenderLimit } from '../hooks/useProgressiveRenderLimit';
 import {
   CreatedTaskBatch,
   getScrollBehavior,
@@ -276,28 +275,6 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
     onDropReorder: handleDropReorder,
   });
 
-  const totalVisibleTasks = useMemo(
-    () => sections.reduce((sum, s) => sum + s.tasks.length, 0),
-    [sections]
-  );
-  const renderLimit = useProgressiveRenderLimit(
-    totalVisibleTasks,
-    12,
-    14,
-    !!lastCreatedBatch || draggedTaskId !== null
-  );
-  const sectionsWithVisibleTasks = useMemo(() => {
-    let remaining = renderLimit;
-    return sections.map((section) => {
-      if (!Number.isFinite(remaining)) {
-        return { section, visibleTasks: section.tasks };
-      }
-      const visibleTasks = section.tasks.slice(0, Math.max(0, remaining));
-      remaining = Math.max(0, remaining - visibleTasks.length);
-      return { section, visibleTasks };
-    });
-  }, [sections, renderLimit]);
-
   const scrollToProperty = useCallback(
     (propertyId: number) => {
       const idx = sections.findIndex((s) => s.id === propertyId);
@@ -442,7 +419,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
           onScroll={handleRailScroll}
           className="flex-1 min-h-0 min-w-0 flex gap-3.5 sm:gap-4 items-stretch overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory sm:snap-none pb-2 -mx-3 px-3 sm:mx-0 sm:px-0"
         >
-          {sectionsWithVisibleTasks.map(({ section, visibleTasks }) => {
+          {sections.map((section) => {
             const total = section.tasks.length;
             const percent = total > 0 ? Math.round((section.doneCount / total) * 100) : 0;
             const isHovered = activeDropContainer === section.id;
@@ -502,7 +479,7 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                   className="cdh-prop-scroll space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 -mx-2.5 pt-2.5 pb-4"
                 >
                   {section.tasks.length > 0 ? (
-                    visibleTasks.map((task) => {
+                    section.tasks.map((task) => {
                       const indicator =
                         dropTarget?.containerId === section.id && dropTarget?.taskId === task.id
                           ? dropTarget.position
@@ -524,8 +501,8 @@ export const PropertyBoard: React.FC<PropertyBoardProps> = ({
                           onToggleStar={onToggleStar}
                           onDragStart={handleDragStart}
                           onDragEnd={resetDragState}
-                          onDragOverCard={(e, t) => handleDragOverCard(e, t, section.id)}
-                          onDropOnCard={(e, t) => handleDropOnCard(e, t, section.id)}
+                          onDragOverCard={handleDragOverCard}
+                          onDropOnCard={handleDropOnCard}
                           dropIndicator={indicator}
                           isDragging={draggedTaskId === task.id}
                         />

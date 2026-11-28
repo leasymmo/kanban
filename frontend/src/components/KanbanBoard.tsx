@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Task, TaskPriority, TaskStatus, User } from '../types';
 import { TaskCard } from './TaskCard';
 import { useCardDragAndDrop } from '../hooks/useCardDragAndDrop';
-import { useProgressiveRenderLimit } from '../hooks/useProgressiveRenderLimit';
 import {
   CreatedTaskBatch,
   getScrollBehavior,
@@ -124,19 +123,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     onDropReorder: handleDropReorder,
   });
 
-  const maxColumnTasks = Math.max(
-    tasksByStatus.todo.length,
-    tasksByStatus.in_progress.length,
-    tasksByStatus.blocked.length,
-    tasksByStatus.done.length
-  );
-  const renderLimit = useProgressiveRenderLimit(
-    maxColumnTasks,
-    8,
-    10,
-    !!lastCreatedBatch || draggedTaskId !== null
-  );
-
   const getGridClass = (count: number) => {
     if (count <= 1) return 'md:grid-cols-1';
     if (count === 2) return 'md:grid-cols-2';
@@ -203,9 +189,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       >
         {visibleColumns.map((col) => {
           const colTasks = tasksByStatus[col.id];
-          const visibleColTasks = Number.isFinite(renderLimit)
-            ? colTasks.slice(0, renderLimit)
-            : colTasks;
           const isHovered = activeDropContainer === col.id;
 
           return (
@@ -250,7 +233,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 className="space-y-2.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2.5 -mx-2.5 pt-2.5 pb-4"
               >
                 {colTasks.length > 0 ? (
-                  visibleColTasks.map((task) => {
+                  colTasks.map((task) => {
                     const indicator =
                       dropTarget?.containerId === col.id && dropTarget?.taskId === task.id
                         ? dropTarget.position
@@ -272,8 +255,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                         onToggleStar={onToggleStar}
                         onDragStart={handleDragStart}
                         onDragEnd={resetDragState}
-                        onDragOverCard={(e, t) => handleDragOverCard(e, t, col.id)}
-                        onDropOnCard={(e, t) => handleDropOnCard(e, t, col.id)}
+                        onDragOverCard={handleDragOverCard}
+                        onDropOnCard={handleDropOnCard}
                         dropIndicator={indicator}
                         isDragging={draggedTaskId === task.id}
                       />

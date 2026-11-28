@@ -46,7 +46,7 @@ export interface TaskMetaBarProps {
  * (Responsable, Statut, Priorité, Échéance et mise en avant étoile optionnelle)
  * utilisée dans les footers de modale et de carte de tâche.
  */
-export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
+export const TaskMetaBar = React.memo<TaskMetaBarProps>(({
   users,
   assignedTo,
   onChangeAssignee,
@@ -335,4 +335,4 @@ export const TaskMetaBar: React.FC<TaskMetaBarProps> = ({
         )}
     </div>
   );
-};
+});

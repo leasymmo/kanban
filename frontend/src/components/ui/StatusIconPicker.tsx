@@ -18,7 +18,7 @@ export interface StatusIconPickerProps {
  * Bouton cercle Liquid Glass affichant l'icône du statut actuel et ouvrant un popover
  * pour changer de statut en un clic (partagé entre TaskMetaBar et MeetingRetroStep).
  */
-export const StatusIconPicker: React.FC<StatusIconPickerProps> = ({
+export const StatusIconPicker = React.memo<StatusIconPickerProps>(({
   status,
   onChange,
   size = 'md',
@@ -126,4 +126,4 @@ export const StatusIconPicker: React.FC<StatusIconPickerProps> = ({
         )}
     </>
   );
-};
+});

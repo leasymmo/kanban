@@ -30,6 +30,11 @@ const MONTHS_FR = [
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
 ];
 
+const MONTHS_SHORT_FR = [
+  'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+  'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'
+];
+
 function parseIsoDate(iso: string): Date | null {
   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
   const [y, m, d] = iso.split('-').map(Number);
@@ -43,10 +48,16 @@ function toIsoDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+function formatDateLabelFast(date: Date, includeYear: boolean): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = MONTHS_SHORT_FR[date.getMonth()] || '';
+  return includeYear ? `${day} ${month} ${date.getFullYear()}` : `${day} ${month}`;
+}
+
 /**
  * Sélecteur de date avec calendrier interactif Apple Liquid Glass (sans fenêtre native navigateur).
  */
-export const DatePicker: React.FC<DatePickerProps> = ({
+export const DatePicker: React.FC<DatePickerProps> = React.memo(({
   value,
   onChange,
   placeholder = 'Choisir une date…',
@@ -89,6 +100,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   };
 
   const daysGrid = useMemo(() => {
+    if (!isOpen) return [];
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
     const firstDay = new Date(year, month, 1);
@@ -98,24 +110,19 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     for (let i = 0; i < startOffset; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
     return cells;
-  }, [viewDate]);
+  }, [isOpen, viewDate]);
 
-  const todayIso = toIsoDate(new Date());
+  const todayIso = useMemo(() => toIsoDate(new Date()), []);
 
-  const formattedLabel = selectedDate
-    ? selectedDate.toLocaleDateString('fr-FR', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
-      })
-    : placeholder;
+  const formattedLabel = useMemo(
+    () => (variant !== 'icon-pill' && selectedDate ? formatDateLabelFast(selectedDate, true) : placeholder),
+    [variant, selectedDate, placeholder]
+  );
 
-  const shortFormattedLabel = selectedDate
-    ? selectedDate.toLocaleDateString('fr-FR', {
-        day: '2-digit',
-        month: 'short'
-      })
-    : '';
+  const shortFormattedLabel = useMemo(
+    () => (selectedDate ? formatDateLabelFast(selectedDate, false) : ''),
+    [selectedDate]
+  );
 
   const isOverdue = markOverdue && !!selectedDate && value < todayIso;
 
@@ -300,4 +307,4 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       )}
     </div>
   );
-};
+});

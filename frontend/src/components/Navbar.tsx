@@ -4,6 +4,7 @@ import { User, Sprint } from '../types';
 import { SprintSelector } from './SprintSelector';
 import { Avatar, Badge } from './ui';
 import { useModalDialog } from '../hooks/useModalDialog';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import {
   CheckSquare, HelpCircle, Users, Shield, UserCheck, Eye,
   LogOut, ChevronDown, Sun, Moon, Menu, X, Lock
@@ -136,13 +137,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMobileCenterOpen, setIsMobileCenterOpen] = useState(false);
+  const isDesktop = useMediaQuery('(min-width: 768px)');
   const menuRef = useRef<HTMLDivElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
 
   const mobileCenterRef = useModalDialog<HTMLDivElement>({
-    isOpen: isMobileCenterOpen,
+    isOpen: !isDesktop && isMobileCenterOpen,
     onClose: () => setIsMobileCenterOpen(false),
   });
+
+  useEffect(() => {
+    if (isDesktop && isMobileCenterOpen) {
+      setIsMobileCenterOpen(false);
+    }
+  }, [isDesktop, isMobileCenterOpen]);
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -192,8 +200,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="cdh-pwa-header sticky top-0 z-30 px-2 sm:px-5 lg:px-8 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]">
       <div className="max-w-7xl mx-auto cdh-glass-chrome rounded-cdh-xl px-2.5 sm:px-4 transition-colors">
-        {/* Barre mobile ultra-compacte (<md) — 1 seule ligne pour maximiser l'espace des tâches */}
-        <div className="md:hidden flex items-center h-11">
+        {!isDesktop ? (
+          /* Barre mobile ultra-compacte (<md) — 1 seule ligne pour maximiser l'espace des tâches */
+          <div className="flex items-center h-11">
           <button
             type="button"
             onClick={() => setIsMobileCenterOpen(true)}
@@ -233,9 +242,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </button>
         </div>
-
-        {/* Barre principale Tablette (md+) & Desktop (inchangée) */}
-        <div className="hidden md:flex items-center justify-between h-14 gap-2 lg:gap-4">
+        ) : (
+        /* Barre principale Tablette (md+) & Desktop (inchangée) */
+        <div className="flex items-center justify-between h-14 gap-2 lg:gap-4">
           {/* Logo & Sélecteur de Sprint */}
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="flex items-center gap-2.5 shrink-0">
@@ -381,10 +390,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Control Center Liquid Glass sur Mobile (<md) */}
-      {isMobileCenterOpen &&
+      {!isDesktop &&
+        isMobileCenterOpen &&
         typeof document !== 'undefined' &&
         createPortal(
           <div

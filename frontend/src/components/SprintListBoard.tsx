@@ -9,7 +9,6 @@ import {
   scrollContainersAndHighlightTasks,
 } from '../utils/taskMotion';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { useProgressiveRenderLimit } from '../hooks/useProgressiveRenderLimit';
 import { SPRINT_LIST_COLUMNS_CONFIG, useSprintListPrefs } from '../hooks/useSprintListPrefs';
 import { ColumnsPopoverButton, MobileSortControls } from './sprint-list/SprintListControls';
 import { SprintListTaskItem } from './sprint-list/SprintListTaskItem';
@@ -204,18 +203,6 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
     [tasks, sortBy, sortDir]
   );
 
-  const renderLimit = useProgressiveRenderLimit(
-    sortedTasks.length,
-    16,
-    20,
-    !!lastCreatedBatch || expandedTaskId !== null
-  );
-
-  const visibleSortedTasks = useMemo(
-    () => (Number.isFinite(renderLimit) ? sortedTasks.slice(0, renderLimit) : sortedTasks),
-    [sortedTasks, renderLimit]
-  );
-
   useEffect(() => {
     if (expandedTaskId !== null && !sortedTasks.some((t) => t.id === expandedTaskId)) {
       setExpandedTaskId(null);
@@ -327,7 +314,7 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
             </div>
           )}
 
-          {visibleSortedTasks.map((task) => {
+          {sortedTasks.map((task) => {
             const isExpanded = expandedTaskId === task.id;
             const mountDetails = isExpanded || closingTaskId === task.id;
             return (

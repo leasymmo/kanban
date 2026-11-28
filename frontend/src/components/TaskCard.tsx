@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Task, TaskPriority, TaskStatus, User } from '../types';
-import { BlurredIconSwap } from './BlurredIconSwap';
 import {
   Badge,
   ProgressBar,
@@ -10,7 +9,7 @@ import {
   TaskSubtaskTree,
 } from './ui';
 import { buildSubtaskTree, calculateSubtaskStats } from '../utils/subtasks';
-import { CheckSquare, ChevronDown, ChevronUp, Edit3, Trash2 } from 'lucide-react';
+import { CheckSquare, ChevronDown, Edit3, Trash2 } from 'lucide-react';
 
 interface TaskCardProps {
   task: Task;
@@ -103,10 +102,7 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({
   const handleToggleStar = useCallback(() => onToggleStar?.(task.id), [onToggleStar, task.id]);
 
   return (
-    <div
-      className="relative cdh-card-slot"
-      data-dragging-slot={isDragging ? 'true' : undefined}
-    >
+    <div className="relative">
       {dropIndicator === 'before' && (
         <div className="pointer-events-none h-0.5 bg-[var(--cdh-accent)] rounded-full mb-1.5 shadow-sm animate-pulse motion-reduce:animate-none" />
       )}
@@ -186,7 +182,7 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({
             <button
               type="button"
               onClick={() => onEdit(task)}
-              className={`w-full text-left font-semibold text-[13.5px] leading-snug [text-wrap:balance] transition-colors break-words hover:text-[var(--cdh-accent)] cursor-pointer ${
+              className={`w-full text-left font-semibold text-[13.5px] leading-snug transition-colors break-words hover:text-[var(--cdh-accent)] cursor-pointer ${
                 task.status === 'done'
                   ? 'line-through text-[var(--cdh-text-secondary)]'
                   : 'text-[var(--cdh-text-primary)]'
@@ -197,7 +193,7 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({
           </h4>
         ) : (
           <h4
-            className={`font-semibold text-[13.5px] leading-snug [text-wrap:balance] break-words ${
+            className={`font-semibold text-[13.5px] leading-snug break-words ${
               task.status === 'done'
                 ? 'line-through text-[var(--cdh-text-secondary)]'
                 : 'text-[var(--cdh-text-primary)]'
@@ -230,10 +226,9 @@ const TaskCardComponent: React.FC<TaskCardProps> = ({
               </span>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold tabular-nums">{progressPercent}%</span>
-                <BlurredIconSwap
-                  active={showSubtasks}
-                  activeIcon={<ChevronUp className="w-3.5 h-3.5" strokeWidth={1.75} />}
-                  inactiveIcon={<ChevronDown className="w-3.5 h-3.5" strokeWidth={1.75} />}
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-150 ${showSubtasks ? 'rotate-180' : ''}`}
+                  strokeWidth={1.75}
                 />
               </div>
             </button>
