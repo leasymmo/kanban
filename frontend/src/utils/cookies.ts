@@ -1,4 +1,4 @@
-import { TaskStatus } from '../types';
+import { TaskPriority, TaskStatus } from '../types';
 
 export type AssigneeFilterPref = 'all' | 'me' | number;
 
@@ -9,12 +9,14 @@ export interface UserUiPreferences {
   taskSearchQuery: string;
   hiddenPropertyIds: number[];
   hiddenStatuses: TaskStatus[];
+  hiddenPriorities: TaskPriority[];
   hideEmptyProperties: boolean;
 }
 
 const VALID_TABS = new Set(['tasks', 'questions', 'meeting']);
 const VALID_VIEW_MODES = new Set(['kanban', 'property']);
 const VALID_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'blocked', 'done']);
+const VALID_PRIORITIES = new Set<TaskPriority>(['low', 'medium', 'high']);
 
 function getCookieKey(userId: number): string {
   return `kanban_prefs_u_${userId}`;
@@ -83,6 +85,12 @@ export function getUserPreferences(userId: number): Partial<UserUiPreferences> {
     if (Array.isArray(parsed.hiddenStatuses)) {
       prefs.hiddenStatuses = parsed.hiddenStatuses.filter(
         (st: unknown): st is TaskStatus => typeof st === 'string' && VALID_STATUSES.has(st as TaskStatus)
+      );
+    }
+
+    if (Array.isArray(parsed.hiddenPriorities)) {
+      prefs.hiddenPriorities = parsed.hiddenPriorities.filter(
+        (p: unknown): p is TaskPriority => typeof p === 'string' && VALID_PRIORITIES.has(p as TaskPriority)
       );
     }
 

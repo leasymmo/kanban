@@ -1,12 +1,12 @@
 import React from 'react';
-import { User, Property, Task, TaskStatus } from '../types';
-import { AssigneeFilter, TASK_STATUS_OPTIONS } from '../hooks/useTaskFilters';
+import { User, Property, Task, TaskPriority, TaskStatus } from '../types';
+import { AssigneeFilter, TASK_PRIORITY_OPTIONS, TASK_STATUS_OPTIONS } from '../hooks/useTaskFilters';
 import { MultiFilterOption, UnifiedFilterDropdown } from './UnifiedFilterDropdown';
 import { Avatar, Button, SearchInput } from './ui';
 import { ensureWhiteTextContrast } from '../utils/color';
 import {
   Plus, LayoutGrid, Home, UserCheck,
-  SlidersHorizontal, RotateCcw
+  SlidersHorizontal, RotateCcw, Flag
 } from 'lucide-react';
 
 interface TasksToolbarProps {
@@ -25,6 +25,9 @@ interface TasksToolbarProps {
   hiddenStatuses: TaskStatus[];
   onToggleStatus: (status: TaskStatus) => void;
   onSetHiddenStatuses: (statuses: TaskStatus[]) => void;
+  hiddenPriorities: TaskPriority[];
+  onTogglePriority: (priority: TaskPriority) => void;
+  onSetHiddenPriorities: (priorities: TaskPriority[]) => void;
   hasActiveFilters: boolean;
   onResetFilters: () => void;
   taskViewMode: 'kanban' | 'property';
@@ -49,6 +52,9 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
   hiddenStatuses,
   onToggleStatus,
   onSetHiddenStatuses,
+  hiddenPriorities,
+  onTogglePriority,
+  onSetHiddenPriorities,
   hasActiveFilters,
   onResetFilters,
   taskViewMode,
@@ -73,6 +79,12 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
     id: s.id,
     label: s.label,
     dotClass: s.dotClass
+  }));
+
+  const priorityOptions: MultiFilterOption<TaskPriority>[] = TASK_PRIORITY_OPTIONS.map(p => ({
+    id: p.id,
+    label: p.label,
+    dotClass: p.dotClass
   }));
 
   return (
@@ -158,7 +170,7 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
           <UnifiedFilterDropdown
             label="Filtres"
             align="right"
-            title="Filtrer par logement ou par statut"
+            title="Filtrer par statut, priorité ou logement"
             sections={[
               {
                 id: 'statuses',
@@ -169,6 +181,16 @@ export const TasksToolbar: React.FC<TasksToolbarProps> = ({
                 onToggle: onToggleStatus,
                 onSelectAll: () => onSetHiddenStatuses([]),
                 onSelectNone: () => onSetHiddenStatuses(TASK_STATUS_OPTIONS.map(s => s.id))
+              },
+              {
+                id: 'priorities',
+                title: 'Priorités',
+                icon: <Flag className="w-3.5 h-3.5 text-[var(--cdh-text-tertiary)] shrink-0" strokeWidth={2} />,
+                options: priorityOptions,
+                hiddenIds: hiddenPriorities,
+                onToggle: onTogglePriority,
+                onSelectAll: () => onSetHiddenPriorities([]),
+                onSelectNone: () => onSetHiddenPriorities(TASK_PRIORITY_OPTIONS.map(p => p.id))
               },
               {
                 id: 'properties',

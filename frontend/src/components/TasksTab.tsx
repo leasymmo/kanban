@@ -85,9 +85,12 @@ export const TasksTab: React.FC<TasksTabProps> = ({
     setHiddenPropertyIds,
     hiddenStatuses,
     setHiddenStatuses,
+    hiddenPriorities,
+    setHiddenPriorities,
     allPropertyFilterIds,
     togglePropertyVisibility,
     toggleStatusVisibility,
+    togglePriorityVisibility,
     resetFilters,
     hasActiveFilters,
     facetFilteredTasks,
@@ -127,6 +130,9 @@ export const TasksTab: React.FC<TasksTabProps> = ({
         hiddenStatuses={hiddenStatuses}
         onToggleStatus={toggleStatusVisibility}
         onSetHiddenStatuses={setHiddenStatuses}
+        hiddenPriorities={hiddenPriorities}
+        onTogglePriority={togglePriorityVisibility}
+        onSetHiddenPriorities={setHiddenPriorities}
         hasActiveFilters={hasActiveFilters}
         onResetFilters={resetFilters}
         taskViewMode={taskViewMode}
