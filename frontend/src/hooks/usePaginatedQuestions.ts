@@ -118,6 +118,8 @@ export function usePaginatedQuestions({
   criteriaRef.current = criteria;
   const paginationRef = useRef(pagination);
   paginationRef.current = pagination;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   activeSignatureRef.current = signature;
 
   const hydrateFromServerPayload = useCallback(
@@ -173,7 +175,7 @@ export function usePaginatedQuestions({
       } catch (err: any) {
         if (isAbortError(err)) return;
         if (!isNetworkError(err)) {
-          onError?.(err?.message || 'Impossible de charger les questions.');
+          onErrorRef.current?.(err?.message || 'Impossible de charger les questions.');
         }
       } finally {
         if (mainAbortRef.current === controller) {
@@ -182,19 +184,20 @@ export function usePaginatedQuestions({
         }
       }
     },
-    [onError]
+    []
   );
 
   useEffect(() => {
-    if (!enabled || !criteria || !signature) return;
+    const crit = criteriaRef.current;
+    if (!enabled || !crit || !signature) return;
     if (lastCompletedSignatureRef.current === signature) {
       return;
     }
-    fetchFirstPage(criteria, signature);
+    fetchFirstPage(crit, signature);
     return () => {
       mainAbortRef.current?.abort();
     };
-  }, [enabled, criteria, signature, fetchFirstPage]);
+  }, [enabled, signature, fetchFirstPage]);
 
   const reloadCurrent = useCallback(async () => {
     const crit = criteriaRef.current;
@@ -234,7 +237,7 @@ export function usePaginatedQuestions({
     } catch (err: any) {
       if (isAbortError(err)) return;
       if (!isNetworkError(err)) {
-        onError?.(err?.message || 'Erreur lors du chargement des questions suivantes.');
+        onErrorRef.current?.(err?.message || 'Erreur lors du chargement des questions suivantes.');
       }
     } finally {
       if (moreAbortRef.current === controller) {
@@ -243,7 +246,7 @@ export function usePaginatedQuestions({
       inFlightMoreRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [onError]);
+  }, []);
 
   const refreshFacetsSilently = useCallback(async () => {
     const crit = criteriaRef.current;
@@ -331,36 +334,64 @@ export function usePaginatedQuestions({
     hasAnswers !== 'all' ||
     answeredByMe !== null;
 
-  return {
-    questions,
-    setQuestions,
-    pagination,
-    facets,
-    isLoading,
-    isLoadingMore,
-    userFilter,
-    setUserFilter,
-    searchQuery,
-    setSearchQuery,
-    decisionStatus,
-    setDecisionStatus,
-    hasAnswers,
-    setHasAnswers,
-    answeredByMe,
-    setAnsweredByMe,
-    sortBy,
-    sortDir,
-    handleSelectSort,
-    handleToggleSortDir,
-    resetFilters,
-    hasActiveFilters,
-    hydrateFromServerPayload,
-    resetStore,
-    reloadCurrent,
-    loadMore,
-    refreshFacetsSilently,
-    insertCreatedQuestion,
-    patchQuestionInStore,
-    removeQuestionFromStore,
-  };
+  return useMemo(
+    () => ({
+      questions,
+      setQuestions,
+      pagination,
+      facets,
+      isLoading,
+      isLoadingMore,
+      userFilter,
+      setUserFilter,
+      searchQuery,
+      setSearchQuery,
+      decisionStatus,
+      setDecisionStatus,
+      hasAnswers,
+      setHasAnswers,
+      answeredByMe,
+      setAnsweredByMe,
+      sortBy,
+      sortDir,
+      handleSelectSort,
+      handleToggleSortDir,
+      resetFilters,
+      hasActiveFilters,
+      hydrateFromServerPayload,
+      resetStore,
+      reloadCurrent,
+      loadMore,
+      refreshFacetsSilently,
+      insertCreatedQuestion,
+      patchQuestionInStore,
+      removeQuestionFromStore,
+    }),
+    [
+      questions,
+      pagination,
+      facets,
+      isLoading,
+      isLoadingMore,
+      userFilter,
+      searchQuery,
+      decisionStatus,
+      hasAnswers,
+      answeredByMe,
+      sortBy,
+      sortDir,
+      handleSelectSort,
+      handleToggleSortDir,
+      resetFilters,
+      hasActiveFilters,
+      hydrateFromServerPayload,
+      resetStore,
+      reloadCurrent,
+      loadMore,
+      refreshFacetsSilently,
+      insertCreatedQuestion,
+      patchQuestionInStore,
+      removeQuestionFromStore,
+    ]
+  );
 }

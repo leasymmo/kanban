@@ -78,6 +78,10 @@ export function useMeetingData({ sprintId, enabled, onError }: UseMeetingDataOpt
   const loadedSprintRef = useRef<number | null>(null);
   const sprintIdRef = useRef(sprintId);
   sprintIdRef.current = sprintId;
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   const retroGroupsRef = useRef(retroGroups);
   retroGroupsRef.current = retroGroups;
@@ -147,7 +151,7 @@ export function useMeetingData({ sprintId, enabled, onError }: UseMeetingDataOpt
       } catch (err: any) {
         if (isAbortError(err)) return;
         if (!isNetworkError(err)) {
-          onError?.(err?.message || 'Impossible de charger les données de la réunion.');
+          onErrorRef.current?.(err?.message || 'Impossible de charger les données de la réunion.');
         }
       } finally {
         if (abortRef.current === controller) {
@@ -156,7 +160,7 @@ export function useMeetingData({ sprintId, enabled, onError }: UseMeetingDataOpt
         }
       }
     },
-    [onError]
+    []
   );
 
   useEffect(() => {
@@ -216,7 +220,7 @@ export function useMeetingData({ sprintId, enabled, onError }: UseMeetingDataOpt
         });
       } catch (err: any) {
         if (!isNetworkError(err)) {
-          onError?.(err?.message || 'Erreur lors du chargement des tâches suivantes.');
+          onErrorRef.current?.(err?.message || 'Erreur lors du chargement des tâches suivantes.');
         }
       } finally {
         inFlightRetroRef.current.delete(key);
@@ -228,7 +232,7 @@ export function useMeetingData({ sprintId, enabled, onError }: UseMeetingDataOpt
         });
       }
     },
-    [onError]
+    []
   );
 
   const loadMorePending = useCallback(async () => {
@@ -254,13 +258,13 @@ export function useMeetingData({ sprintId, enabled, onError }: UseMeetingDataOpt
       setPendingPagination(res.pagination || EMPTY_PAGINATION);
     } catch (err: any) {
       if (!isNetworkError(err)) {
-        onError?.(err?.message || 'Erreur lors du chargement des tâches en attente.');
+        onErrorRef.current?.(err?.message || 'Erreur lors du chargement des tâches en attente.');
       }
     } finally {
       inFlightPendingRef.current = false;
       setIsLoadingMorePending(false);
     }
-  }, [onError]);
+  }, []);
 
   const loadMoreMeetingQuestions = useCallback(async () => {
     const sid = sprintIdRef.current;
@@ -284,13 +288,13 @@ export function useMeetingData({ sprintId, enabled, onError }: UseMeetingDataOpt
       setQuestionsPagination(res.pagination || EMPTY_PAGINATION);
     } catch (err: any) {
       if (!isNetworkError(err)) {
-        onError?.(err?.message || 'Erreur lors du chargement des questions suivantes.');
+        onErrorRef.current?.(err?.message || 'Erreur lors du chargement des questions suivantes.');
       }
     } finally {
       inFlightQuestionsRef.current = false;
       setIsLoadingMoreQuestions(false);
     }
-  }, [onError]);
+  }, []);
 
   const activeSprintTasks = useMemo(() => {
     const out: Task[] = [];
@@ -376,10 +380,10 @@ export function useMeetingData({ sprintId, enabled, onError }: UseMeetingDataOpt
   }, []);
 
   const reloadIfActive = useCallback(() => {
-    if (enabled && sprintIdRef.current) {
+    if (enabledRef.current && sprintIdRef.current) {
       fetchMeetingSnapshot(sprintIdRef.current);
     }
-  }, [enabled, fetchMeetingSnapshot]);
+  }, [fetchMeetingSnapshot]);
 
   const resetStore = useCallback(() => {
     abortRef.current?.abort();
@@ -392,30 +396,57 @@ export function useMeetingData({ sprintId, enabled, onError }: UseMeetingDataOpt
     setQuestionsPagination(EMPTY_PAGINATION);
   }, []);
 
-  return {
-    meetingSummary,
-    setMeetingSummary,
-    retroGroups,
-    pendingTasks,
-    pendingPagination,
-    meetingQuestions,
-    questionsPagination,
-    allMeetingTasks,
-    isLoading,
-    loadingRetroUsers,
-    isLoadingMorePending,
-    isLoadingMoreQuestions,
-    refreshSummary,
-    loadMoreRetroForUser,
-    loadMorePending,
-    loadMoreMeetingQuestions,
-    patchMeetingTask,
-    removeMeetingTask,
-    insertMeetingTasks,
-    patchMeetingQuestion,
-    insertMeetingQuestion,
-    removeMeetingQuestion,
-    reloadIfActive,
-    resetStore,
-  };
+  return useMemo(
+    () => ({
+      meetingSummary,
+      setMeetingSummary,
+      retroGroups,
+      pendingTasks,
+      pendingPagination,
+      meetingQuestions,
+      questionsPagination,
+      allMeetingTasks,
+      isLoading,
+      loadingRetroUsers,
+      isLoadingMorePending,
+      isLoadingMoreQuestions,
+      refreshSummary,
+      loadMoreRetroForUser,
+      loadMorePending,
+      loadMoreMeetingQuestions,
+      patchMeetingTask,
+      removeMeetingTask,
+      insertMeetingTasks,
+      patchMeetingQuestion,
+      insertMeetingQuestion,
+      removeMeetingQuestion,
+      reloadIfActive,
+      resetStore,
+    }),
+    [
+      meetingSummary,
+      retroGroups,
+      pendingTasks,
+      pendingPagination,
+      meetingQuestions,
+      questionsPagination,
+      allMeetingTasks,
+      isLoading,
+      loadingRetroUsers,
+      isLoadingMorePending,
+      isLoadingMoreQuestions,
+      refreshSummary,
+      loadMoreRetroForUser,
+      loadMorePending,
+      loadMoreMeetingQuestions,
+      patchMeetingTask,
+      removeMeetingTask,
+      insertMeetingTasks,
+      patchMeetingQuestion,
+      insertMeetingQuestion,
+      removeMeetingQuestion,
+      reloadIfActive,
+      resetStore,
+    ]
+  );
 }

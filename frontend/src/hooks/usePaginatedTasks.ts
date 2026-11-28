@@ -123,6 +123,12 @@ export function usePaginatedTasks({
 
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
+  const listItemsRef = useRef(listItems);
+  listItemsRef.current = listItems;
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   const listPaginationRef = useRef(listPagination);
   listPaginationRef.current = listPagination;
   const effectiveCriteriaRef = useRef(effectiveCriteria);
@@ -214,7 +220,7 @@ export function usePaginatedTasks({
       } catch (err: any) {
         if (isAbortError(err)) return;
         if (!isNetworkError(err)) {
-          onError?.(err?.message || 'Impossible de charger les tâches.');
+          onErrorRef.current?.(err?.message || 'Impossible de charger les tâches.');
         }
       } finally {
         if (mainAbortRef.current === controller) {
@@ -224,23 +230,24 @@ export function usePaginatedTasks({
         }
       }
     },
-    [applyResponsePayload, cancelPendingMoreRequests, onError]
+    [applyResponsePayload, cancelPendingMoreRequests]
   );
 
   useEffect(() => {
-    if (!enabled || !effectiveCriteria || !querySignature) return;
+    const crit = effectiveCriteriaRef.current;
+    if (!enabled || !crit || !querySignature) return;
 
     if (lastCompletedSignatureRef.current === querySignature) {
       return;
     }
 
-    const sprintChanged = lastLoadedSprintRef.current !== effectiveCriteria.sprintId;
-    fetchFirstPage(effectiveCriteria, querySignature, sprintChanged);
+    const sprintChanged = lastLoadedSprintRef.current !== crit.sprintId;
+    fetchFirstPage(crit, querySignature, sprintChanged);
 
     return () => {
       mainAbortRef.current?.abort();
     };
-  }, [enabled, effectiveCriteria, querySignature, fetchFirstPage]);
+  }, [enabled, querySignature, fetchFirstPage]);
 
   const reloadCurrentView = useCallback(async () => {
     const crit = effectiveCriteriaRef.current;
@@ -324,7 +331,7 @@ export function usePaginatedTasks({
       } catch (err: any) {
         if (isAbortError(err)) return;
         if (!isNetworkError(err)) {
-          onError?.(err?.message || 'Erreur lors du chargement de la suite de la colonne.');
+          onErrorRef.current?.(err?.message || 'Erreur lors du chargement de la suite de la colonne.');
         }
       } finally {
         columnAbortRefs.current.delete(columnKey);
@@ -337,7 +344,7 @@ export function usePaginatedTasks({
         });
       }
     },
-    [onError]
+    []
   );
 
   /**
@@ -378,7 +385,7 @@ export function usePaginatedTasks({
     } catch (err: any) {
       if (isAbortError(err)) return;
       if (!isNetworkError(err)) {
-        onError?.(err?.message || 'Erreur lors du chargement de la page suivante.');
+        onErrorRef.current?.(err?.message || 'Erreur lors du chargement de la page suivante.');
       }
     } finally {
       if (listAbortRef.current === controller) {
@@ -387,7 +394,7 @@ export function usePaginatedTasks({
       inFlightListRef.current = false;
       setIsLoadingMoreList(false);
     }
-  }, [onError]);
+  }, []);
 
   /**
    * Recherche rapide d'une tâche chargée (toutes colonnes ou liste confondues).
@@ -407,19 +414,16 @@ export function usePaginatedTasks({
     return merged;
   }, [viewMode, listItems, groups]);
 
-  const findLoadedTask = useCallback(
-    (taskId: number): Task | undefined => {
-      if (viewMode === 'list') {
-        return listItems.find((t) => t.id === taskId);
-      }
-      for (const grp of Object.values(groupsRef.current)) {
-        const hit = grp.data.find((t) => t.id === taskId);
-        if (hit) return hit;
-      }
-      return undefined;
-    },
-    [viewMode, listItems]
-  );
+  const findLoadedTask = useCallback((taskId: number): Task | undefined => {
+    if (viewModeRef.current === 'list') {
+      return listItemsRef.current.find((t) => t.id === taskId);
+    }
+    for (const grp of Object.values(groupsRef.current)) {
+      const hit = grp.data.find((t) => t.id === taskId);
+      if (hit) return hit;
+    }
+    return undefined;
+  }, []);
 
   /**
    * Met à jour une tâche en place dans la vue courante sans réinitialiser la pagination ni le scroll.
@@ -473,10 +477,10 @@ export function usePaginatedTasks({
 
       setListItems((prev) => prev.map((t) => (t.id === taskId ? patchTask(t) : t)));
 
-      const currentView = effectiveCriteriaRef.current?.viewMode ?? viewMode;
+      const currentView = effectiveCriteriaRef.current?.viewMode ?? viewModeRef.current;
       if (currentView === 'list') {
         if (targetStatus !== undefined) {
-          const prevTask = listItems.find((t) => t.id === taskId);
+          const prevTask = listItemsRef.current.find((t) => t.id === taskId);
           if (prevTask && prevTask.status !== targetStatus) {
             setFacets((f) => ({
               ...f,
@@ -641,7 +645,7 @@ export function usePaginatedTasks({
         };
       });
     },
-    [viewMode, listItems]
+    []
   );
 
   const removeTaskFromStore = useCallback(
@@ -780,27 +784,52 @@ export function usePaginatedTasks({
     [findLoadedTask, moveTaskOptimistic, patchTaskInStore, refreshFacetsSilently]
   );
 
-  return {
-    groups,
-    listItems,
-    listPagination,
-    loadedTasks,
-    facets,
-    isLoadingInitial,
-    isRefreshing,
-    isLoadingMoreList,
-    loadingMoreColumns,
-    hydrateFromServerPayload,
-    resetStore,
-    reloadCurrentView,
-    refreshFacetsSilently,
-    loadMoreColumn,
-    loadMoreList,
-    findLoadedTask,
-    patchTaskInStore,
-    moveTaskOptimistic,
-    removeTaskFromStore,
-    insertCreatedTasks,
-    upsertUpdatedTask,
-  };
+  return useMemo(
+    () => ({
+      groups,
+      listItems,
+      listPagination,
+      loadedTasks,
+      facets,
+      isLoadingInitial,
+      isRefreshing,
+      isLoadingMoreList,
+      loadingMoreColumns,
+      hydrateFromServerPayload,
+      resetStore,
+      reloadCurrentView,
+      refreshFacetsSilently,
+      loadMoreColumn,
+      loadMoreList,
+      findLoadedTask,
+      patchTaskInStore,
+      moveTaskOptimistic,
+      removeTaskFromStore,
+      insertCreatedTasks,
+      upsertUpdatedTask,
+    }),
+    [
+      groups,
+      listItems,
+      listPagination,
+      loadedTasks,
+      facets,
+      isLoadingInitial,
+      isRefreshing,
+      isLoadingMoreList,
+      loadingMoreColumns,
+      hydrateFromServerPayload,
+      resetStore,
+      reloadCurrentView,
+      refreshFacetsSilently,
+      loadMoreColumn,
+      loadMoreList,
+      findLoadedTask,
+      patchTaskInStore,
+      moveTaskOptimistic,
+      removeTaskFromStore,
+      insertCreatedTasks,
+      upsertUpdatedTask,
+    ]
+  );
 }

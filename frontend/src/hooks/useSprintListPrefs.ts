@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { User } from '../types';
 import {
   DEFAULT_TASK_LIST_COLUMNS,
@@ -147,17 +147,32 @@ export function useSprintListPrefs(currentUser: User | null) {
     }
   }, [userId]);
 
-  return {
-    sortBy,
-    sortDir,
-    boardSortBy,
-    boardSortDir,
-    visibleColumns,
-    handleSelectSort,
-    handleToggleSortDir,
-    handleSelectBoardSort,
-    handleToggleBoardSortDir,
-    handleToggleColumn,
-    handleResetColumns,
-  };
+  return useMemo(
+    () => ({
+      sortBy,
+      sortDir,
+      boardSortBy,
+      boardSortDir,
+      visibleColumns,
+      handleSelectSort,
+      handleToggleSortDir,
+      handleSelectBoardSort,
+      handleToggleBoardSortDir,
+      handleToggleColumn,
+      handleResetColumns,
+    }),
+    [
+      sortBy,
+      sortDir,
+      boardSortBy,
+      boardSortDir,
+      visibleColumns,
+      handleSelectSort,
+      handleToggleSortDir,
+      handleSelectBoardSort,
+      handleToggleBoardSortDir,
+      handleToggleColumn,
+      handleResetColumns,
+    ]
+  );
 }

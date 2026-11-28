@@ -159,11 +159,8 @@ export const App: React.FC = () => {
   const taskFilters = useTaskFilters(properties, currentUser);
   const listPrefs = useSprintListPrefs(currentUser);
 
-  // Store paginé des tâches (Vue Kanban / Logements / Tableau)
-  const paginatedTasks = usePaginatedTasks({
-    sprintId: currentSprintId,
-    viewMode: taskViewMode,
-    criteria: {
+  const taskCriteria = useMemo(
+    () => ({
       taskFilter: taskFilters.taskFilter,
       search: taskFilters.taskSearchQuery,
       hiddenStatuses: taskFilters.hiddenStatuses,
@@ -177,7 +174,29 @@ export const App: React.FC = () => {
       listSortDir: listPrefs.sortDir,
       boardSortBy: listPrefs.boardSortBy,
       boardSortDir: listPrefs.boardSortDir,
-    },
+    }),
+    [
+      taskFilters.taskFilter,
+      taskFilters.taskSearchQuery,
+      taskFilters.hiddenStatuses,
+      taskFilters.hiddenPriorities,
+      taskFilters.hiddenPropertyIds,
+      taskFilters.taskDueState,
+      taskFilters.taskStarredOnly,
+      taskFilters.taskUnplannedOnly,
+      hideEmptyProperties,
+      listPrefs.sortBy,
+      listPrefs.sortDir,
+      listPrefs.boardSortBy,
+      listPrefs.boardSortDir,
+    ]
+  );
+
+  // Store paginé des tâches (Vue Kanban / Logements / Tableau)
+  const paginatedTasks = usePaginatedTasks({
+    sprintId: currentSprintId,
+    viewMode: taskViewMode,
+    criteria: taskCriteria,
     enabled: !!currentUser && !!currentSprintId && activeTab === 'tasks',
     onError: showErrorToast,
   });
@@ -195,6 +214,14 @@ export const App: React.FC = () => {
     enabled: !!currentUser && !!currentSprintId && activeTab === 'meeting',
     onError: showErrorToast,
   });
+
+  // Refs vers les stores paginés afin de garder des callbacks de cycle de vie strictement stables
+  const paginatedTasksRef = useRef(paginatedTasks);
+  paginatedTasksRef.current = paginatedTasks;
+  const paginatedQuestionsRef = useRef(paginatedQuestions);
+  paginatedQuestionsRef.current = paginatedQuestions;
+  const meetingDataRef = useRef(meetingData);
+  meetingDataRef.current = meetingData;
 
   const buildCurrentTaskCriteria = useCallback(
     (sprintId: number, userId: number | null): TaskQueryCriteria => {
@@ -237,30 +264,24 @@ export const App: React.FC = () => {
   const applySprintDetailsPayload = useCallback(
     (details: SprintDetailsPayload, prefUserId: number | null, matchedHintUser: boolean) => {
       setIsReadOnly(details.is_read_only);
-      meetingData.setMeetingSummary(details.meeting_summary || EMPTY_MEETING_SUMMARY);
-      meetingData.reloadIfActive();
+      meetingDataRef.current.setMeetingSummary(details.meeting_summary || EMPTY_MEETING_SUMMARY);
+      meetingDataRef.current.reloadIfActive();
 
       if (matchedHintUser) {
-        paginatedTasks.hydrateFromServerPayload(
+        paginatedTasksRef.current.hydrateFromServerPayload(
           details.tasks_page,
           buildCurrentTaskCriteria(details.sprint.id, prefUserId)
         );
-        paginatedQuestions.hydrateFromServerPayload(
+        paginatedQuestionsRef.current.hydrateFromServerPayload(
           details.questions_page,
           buildDefaultQuestionCriteria(details.sprint.id)
         );
       } else {
-        paginatedTasks.resetStore();
-        paginatedQuestions.resetStore();
+        paginatedTasksRef.current.resetStore();
+        paginatedQuestionsRef.current.resetStore();
       }
     },
-    [
-      buildCurrentTaskCriteria,
-      buildDefaultQuestionCriteria,
-      meetingData,
-      paginatedTasks,
-      paginatedQuestions,
-    ]
+    [buildCurrentTaskCriteria, buildDefaultQuestionCriteria]
   );
 
   const loadSprintDetails = useCallback(
@@ -292,22 +313,22 @@ export const App: React.FC = () => {
   const taskStoreAdapter = useMemo<TaskStoreAdapter>(
     () => ({
       findTask: (taskId) =>
-        paginatedTasks.findLoadedTask(taskId) ??
-        meetingData.allMeetingTasks.find((t) => t.id === taskId),
+        paginatedTasksRef.current.findLoadedTask(taskId) ??
+        meetingDataRef.current.allMeetingTasks.find((t) => t.id === taskId),
       findTaskBySubtaskId: (subtaskId) =>
-        paginatedTasks.loadedTasks.find((t) =>
+        paginatedTasksRef.current.loadedTasks.find((t) =>
           (t.subtasks || []).some((st) => st.id === subtaskId)
         ) ??
-        meetingData.allMeetingTasks.find((t) =>
+        meetingDataRef.current.allMeetingTasks.find((t) =>
           (t.subtasks || []).some((st) => st.id === subtaskId)
         ),
       patchTask: (taskId, updater) => {
-        paginatedTasks.patchTaskInStore(taskId, updater);
-        meetingData.patchMeetingTask(taskId, updater);
+        paginatedTasksRef.current.patchTaskInStore(taskId, updater);
+        meetingDataRef.current.patchMeetingTask(taskId, updater);
       },
       moveTask: (opts) => {
-        paginatedTasks.moveTaskOptimistic(opts);
-        meetingData.patchMeetingTask(opts.taskId, (t) => ({
+        paginatedTasksRef.current.moveTaskOptimistic(opts);
+        meetingDataRef.current.patchMeetingTask(opts.taskId, (t) => ({
           ...t,
           ...(opts.targetStatus !== undefined ? { status: opts.targetStatus } : {}),
           ...(opts.targetPropertyId !== undefined
@@ -316,25 +337,25 @@ export const App: React.FC = () => {
         }));
       },
       insertCreatedTasks: (createdTasks) => {
-        paginatedTasks.insertCreatedTasks(createdTasks);
-        meetingData.insertMeetingTasks(createdTasks);
+        paginatedTasksRef.current.insertCreatedTasks(createdTasks);
+        meetingDataRef.current.insertMeetingTasks(createdTasks);
       },
       removeTask: (taskId) => {
-        paginatedTasks.removeTaskFromStore(taskId);
-        meetingData.removeMeetingTask(taskId);
+        paginatedTasksRef.current.removeTaskFromStore(taskId);
+        meetingDataRef.current.removeMeetingTask(taskId);
       },
-      refreshFacets: () => paginatedTasks.refreshFacetsSilently(),
-      refreshSummary: () => meetingData.refreshSummary(currentSprintIdRef.current ?? undefined),
+      refreshFacets: () => paginatedTasksRef.current.refreshFacetsSilently(),
+      refreshSummary: () => meetingDataRef.current.refreshSummary(currentSprintIdRef.current ?? undefined),
       onCreatedBatch: (batch) => setLastCreatedBatch(batch),
       fallbackReload: async () => {
         await Promise.all([
-          paginatedTasks.reloadCurrentView(),
-          meetingData.refreshSummary(currentSprintIdRef.current ?? undefined),
+          paginatedTasksRef.current.reloadCurrentView(),
+          meetingDataRef.current.refreshSummary(currentSprintIdRef.current ?? undefined),
         ]);
-        meetingData.reloadIfActive();
+        meetingDataRef.current.reloadIfActive();
       },
     }),
-    [paginatedTasks, meetingData]
+    []
   );
 
   const {
@@ -361,31 +382,31 @@ export const App: React.FC = () => {
   const questionStoreAdapter = useMemo<QuestionStoreAdapter>(
     () => ({
       findQuestion: (qId) =>
-        paginatedQuestions.questions.find((q) => q.id === qId) ??
-        meetingData.meetingQuestions.find((q) => q.id === qId),
+        paginatedQuestionsRef.current.questions.find((q) => q.id === qId) ??
+        meetingDataRef.current.meetingQuestions.find((q) => q.id === qId),
       patchQuestion: (qId, updater) => {
-        paginatedQuestions.patchQuestionInStore(qId, updater);
-        meetingData.patchMeetingQuestion(qId, updater);
+        paginatedQuestionsRef.current.patchQuestionInStore(qId, updater);
+        meetingDataRef.current.patchMeetingQuestion(qId, updater);
       },
       insertCreatedQuestion: (created) => {
-        paginatedQuestions.insertCreatedQuestion(created, currentUserRef.current?.id);
-        meetingData.insertMeetingQuestion(created);
+        paginatedQuestionsRef.current.insertCreatedQuestion(created, currentUserRef.current?.id);
+        meetingDataRef.current.insertMeetingQuestion(created);
       },
       removeQuestion: (qId) => {
-        paginatedQuestions.removeQuestionFromStore(qId);
-        meetingData.removeMeetingQuestion(qId);
+        paginatedQuestionsRef.current.removeQuestionFromStore(qId);
+        meetingDataRef.current.removeMeetingQuestion(qId);
       },
-      refreshFacets: () => paginatedQuestions.refreshFacetsSilently(),
-      refreshSummary: () => meetingData.refreshSummary(currentSprintIdRef.current ?? undefined),
+      refreshFacets: () => paginatedQuestionsRef.current.refreshFacetsSilently(),
+      refreshSummary: () => meetingDataRef.current.refreshSummary(currentSprintIdRef.current ?? undefined),
       fallbackReload: async () => {
         await Promise.all([
-          paginatedQuestions.reloadCurrent(),
-          meetingData.refreshSummary(currentSprintIdRef.current ?? undefined),
+          paginatedQuestionsRef.current.reloadCurrent(),
+          meetingDataRef.current.refreshSummary(currentSprintIdRef.current ?? undefined),
         ]);
-        meetingData.reloadIfActive();
+        meetingDataRef.current.reloadIfActive();
       },
     }),
-    [paginatedQuestions, meetingData]
+    []
   );
 
   const {
@@ -431,10 +452,10 @@ export const App: React.FC = () => {
     setEditingPendingTask(null);
     setIsQuestionModalOpen(false);
     setEditingMeetingQuestion(null);
-    paginatedTasks.resetStore();
-    paginatedQuestions.resetStore();
-    meetingData.resetStore();
-  }, [clearCrossTabTimer, paginatedTasks, paginatedQuestions, meetingData]);
+    paginatedTasksRef.current.resetStore();
+    paginatedQuestionsRef.current.resetStore();
+    meetingDataRef.current.resetStore();
+  }, [clearCrossTabTimer]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -479,13 +500,13 @@ export const App: React.FC = () => {
       } else {
         setCurrentSprintId(null);
         setIsReadOnly(false);
-        paginatedTasks.resetStore();
-        paginatedQuestions.resetStore();
-        meetingData.resetStore();
+        paginatedTasksRef.current.resetStore();
+        paginatedQuestionsRef.current.resetStore();
+        meetingDataRef.current.resetStore();
       }
       return true;
     },
-    [applySprintDetailsPayload, paginatedTasks, paginatedQuestions, meetingData]
+    [applySprintDetailsPayload]
   );
 
   const loadInitialData = useCallback(async () => {
@@ -664,9 +685,9 @@ export const App: React.FC = () => {
         } else {
           setSprints([]);
           setCurrentSprintId(null);
-          paginatedTasks.resetStore();
-          paginatedQuestions.resetStore();
-          meetingData.resetStore();
+          paginatedTasksRef.current.resetStore();
+          paginatedQuestionsRef.current.resetStore();
+          meetingDataRef.current.resetStore();
         }
         showSuccessToast('Sprint supprimé.');
       } catch (err: any) {
@@ -678,9 +699,6 @@ export const App: React.FC = () => {
       loadSprintDetails,
       showSuccessToast,
       showErrorToast,
-      paginatedTasks,
-      paginatedQuestions,
-      meetingData,
     ]
   );
 
