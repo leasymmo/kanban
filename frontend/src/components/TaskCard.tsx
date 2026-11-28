@@ -230,7 +230,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             </span>
           )}
 
-          {task.status === 'blocked' && task.is_starred && (
+          {task.status === 'blocked' && !!task.is_starred && (
             <Badge variant="danger" pill>Bloqué</Badge>
           )}
 
