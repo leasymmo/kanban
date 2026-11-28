@@ -251,16 +251,26 @@ export const SprintListBoard: React.FC<SprintListBoardProps> = ({
     };
   }, [openMenu]);
 
-  // Retour visuel lors de la création de nouvelles tâches
+  // Retour visuel lors de la création de nouvelles tâches : scroll jusqu'à la tâche puis animation
   useEffect(() => {
-    if (!lastCreatedBatch || lastCreatedBatch.ids.length === 0 || isModalOpen) return;
-    const cancel = scrollContainersAndHighlightTasks({
-      taskIds: lastCreatedBatch.ids,
-      tone: 'accent',
-    });
+    if (!lastCreatedBatch || isModalOpen) return;
+
+    const hasVisibleTask = tasks.some((t) => lastCreatedBatch.ids.includes(t.id));
     onConsumeCreatedBatch?.();
-    return cancel;
-  }, [lastCreatedBatch, isModalOpen, onConsumeCreatedBatch]);
+    if (!hasVisibleTask) return;
+
+    const taskIds = lastCreatedBatch.ids;
+    const rafId = window.requestAnimationFrame(() => {
+      scrollContainersAndHighlightTasks({
+        verticalEl: boardRef.current,
+        taskIds,
+        targetMode: 'first-task',
+        stickyTopOffset: window.innerWidth >= 768 ? 56 : 12,
+      });
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [lastCreatedBatch, isModalOpen, tasks, onConsumeCreatedBatch]);
 
   const handleSelectSort = useCallback(
     (nextKey: TaskListSortKey) => {

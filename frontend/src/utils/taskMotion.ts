@@ -95,12 +95,25 @@ export interface TaskDepartureSnapshot {
   clone: HTMLElement | null;
 }
 
+export function findVisibleTaskCard(taskId: number): HTMLElement | null {
+  if (typeof document === 'undefined') return null;
+  const matches = document.querySelectorAll<HTMLElement>(`[data-task-card-id="${taskId}"]`);
+  if (matches.length === 0) return null;
+  for (const el of Array.from(matches)) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      return el;
+    }
+  }
+  return matches[0];
+}
+
 /**
  * Capture synchrone O(1) de la position et d'un clone visuel si la carte est visible à l'écran.
  */
 export function captureTaskSnapshot(taskId: number): TaskDepartureSnapshot | null {
   if (typeof document === 'undefined') return null;
-  const el = document.querySelector<HTMLElement>(`[data-task-card-id="${taskId}"]`);
+  const el = findVisibleTaskCard(taskId);
   if (!el) return null;
 
   const rect = el.getBoundingClientRect();
@@ -279,22 +292,59 @@ export function scrollContainersAndHighlightTasks(options: {
   verticalEl?: HTMLElement | null;
   taskIds: number[];
   tone?: TaskHaloTone;
+  targetMode?: 'bottom' | 'first-task';
+  stickyTopOffset?: number;
 }): void {
   if (typeof window === 'undefined' || options.taskIds.length === 0) return;
-  const { horizontalEl = null, verticalEl = null, taskIds, tone = 'accent' } = options;
+  const {
+    horizontalEl = null,
+    verticalEl = null,
+    taskIds,
+    tone = 'accent',
+    targetMode = 'bottom',
+    stickyTopOffset = 12,
+  } = options;
 
   const behavior = getScrollBehavior();
+  let didScrollVertical = false;
 
   if (verticalEl && verticalEl.scrollHeight > verticalEl.clientHeight + 2) {
-    verticalEl.scrollTo({
-      top: verticalEl.scrollHeight,
-      behavior,
-    });
+    if (targetMode === 'first-task') {
+      const firstCardEl = findVisibleTaskCard(taskIds[0]);
+      if (firstCardEl) {
+        const elRect = firstCardEl.getBoundingClientRect();
+        const vRect = verticalEl.getBoundingClientRect();
+        const isAlreadyVisible =
+          elRect.top >= vRect.top + stickyTopOffset &&
+          elRect.bottom <= vRect.bottom - 8;
+
+        if (!isAlreadyVisible) {
+          const centeredOffset = Math.max(stickyTopOffset, (vRect.height - elRect.height) / 2);
+          const targetTop = Math.max(
+            0,
+            Math.min(
+              verticalEl.scrollHeight - verticalEl.clientHeight,
+              verticalEl.scrollTop + (elRect.top - vRect.top) - centeredOffset
+            )
+          );
+          if (Math.abs(targetTop - verticalEl.scrollTop) > 2) {
+            verticalEl.scrollTo({ top: targetTop, behavior });
+            didScrollVertical = true;
+          }
+        }
+      }
+    } else {
+      verticalEl.scrollTo({
+        top: verticalEl.scrollHeight,
+        behavior,
+      });
+      didScrollVertical = true;
+    }
   }
 
   const playHighlights = () => {
     taskIds.forEach((id) => {
-      const cardEl = document.querySelector<HTMLElement>(`[data-task-card-id="${id}"]`);
+      const cardEl = findVisibleTaskCard(id);
       if (cardEl && cardEl.isConnected) {
         triggerEnterOnElement(cardEl);
         triggerHaloOnElement(cardEl, tone);
@@ -312,7 +362,7 @@ export function scrollContainersAndHighlightTasks(options: {
   let lastLeft = horizontalEl ? horizontalEl.scrollLeft : 0;
   let settledFrames = 0;
   const needsScroll =
-    (verticalEl !== null && verticalEl.scrollHeight > verticalEl.clientHeight + 2) ||
+    didScrollVertical ||
     (horizontalEl !== null && horizontalEl.scrollWidth > horizontalEl.clientWidth + 2);
 
   if (!needsScroll) {
@@ -368,7 +418,7 @@ export function scheduleTaskMotionFeedback(options: {
   const runWhenReady = () => {
     attempts += 1;
     const hasOpenModal = !!document.querySelector('[role="dialog"], [role="alertdialog"]');
-    const el = document.querySelector<HTMLElement>(`[data-task-card-id="${taskId}"]`);
+    const el = findVisibleTaskCard(taskId);
 
     // Attendre que la modale d'édition/création soit fermée (et que le DOM soit monté) avant de scroller
     if ((hasOpenModal || (mode === 'appear' && !el)) && attempts < 15) {
