@@ -39,6 +39,13 @@ const COLUMNS: { id: TaskStatus; title: string }[] = [
   { id: 'done', title: 'Terminé' },
 ];
 
+function normalizeKanbanStatus(status?: string | null): TaskStatus {
+  if (status === 'in_progress' || status === 'blocked' || status === 'done') {
+    return status;
+  }
+  return 'todo';
+}
+
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   tasks,
   allUsers = [],
@@ -77,14 +84,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       done: [],
     };
     for (const t of tasks) {
-      const normalized: TaskStatus = t.status === 'pending' ? 'todo' : t.status;
-      grouped[normalized].push(t);
+      grouped[normalizeKanbanStatus(t.status)].push(t);
     }
     return grouped;
   }, [tasks]);
 
   const getContainerId = useCallback(
-    (t: Task): TaskStatus => (t.status === 'pending' ? 'todo' : t.status),
+    (t: Task): TaskStatus => normalizeKanbanStatus(t.status),
     []
   );
 
